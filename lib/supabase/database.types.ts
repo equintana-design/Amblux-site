@@ -1,8 +1,9 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0007. Regenerate this file any time
+// supabase/migrations/0001 through 0010. Regenerate this file any time
 // the schema changes rather than hand-editing it — it's meant to always
 // mirror the real database exactly.
+
 export type Json =
   | string
   | number
@@ -185,6 +186,7 @@ export type Database = {
           cct: string | null
           created_at: string
           family_id: string | null
+          image_url: string | null
           label: string
           length_m: number | null
           mounting: string | null
@@ -200,6 +202,7 @@ export type Database = {
           cct?: string | null
           created_at?: string
           family_id?: string | null
+          image_url?: string | null
           label: string
           length_m?: number | null
           mounting?: string | null
@@ -215,6 +218,7 @@ export type Database = {
           cct?: string | null
           created_at?: string
           family_id?: string | null
+          image_url?: string | null
           label?: string
           length_m?: number | null
           mounting?: string | null

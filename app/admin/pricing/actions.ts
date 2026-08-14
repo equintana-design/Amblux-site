@@ -121,3 +121,107 @@ export async function recalculatePricingAction() {
   revalidatePath("/configurator");
   redirect(`/admin/pricing?recalc_ok=${skusPriced}`);
 }
+
+// Minimal CSV line splitter — handles quoted fields (with embedded commas
+// and doubled "" escapes) since that's what /admin/pricing/export produces
+// and what a spreadsheet app re-saves. Not a general CSV parser (no
+// multi-line quoted fields), which is fine for this single-row-per-SKU,
+// no-newlines-in-values shape.
+function splitCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      fields.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+// Bulk-updates AMBLUX-supplied FOB costs from an uploaded CSV. Only reads
+// the sku / fob_usd / is_estimated / notes columns — the same file
+// /admin/pricing/export downloads (which also includes computed prices as
+// reference columns) can be edited and re-uploaded here directly, since the
+// extra price columns are simply ignored on import. Doesn't touch pricing
+// parameters/margins — those are edited per-scope in the section above,
+// not via CSV, since a bad bulk margin edit is a much bigger blast radius
+// than a bad bulk cost edit.
+export async function importCostCsvAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`/admin/pricing?import_error=${encodeURIComponent("No file selected")}`);
+  }
+
+  const text = await (file as File).text();
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    redirect(`/admin/pricing?import_error=${encodeURIComponent("File has no data rows")}`);
+  }
+
+  const header = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const skuIdx = header.indexOf("sku");
+  const fobIdx = header.indexOf("fob_usd");
+  const estimatedIdx = header.indexOf("is_estimated");
+  const notesIdx = header.indexOf("notes");
+
+  if (skuIdx === -1 || fobIdx === -1) {
+    redirect(
+      `/admin/pricing?import_error=${encodeURIComponent("CSV must have at least 'sku' and 'fob_usd' columns")}`,
+    );
+  }
+
+  const rows: { sku: string; fob_usd: number; is_estimated: boolean; notes: string | null }[] = [];
+  const skipped: string[] = [];
+  for (const line of lines.slice(1)) {
+    const cols = splitCsvLine(line);
+    const sku = (cols[skuIdx] ?? "").trim();
+    const fobRaw = (cols[fobIdx] ?? "").trim();
+    const fob = Number(fobRaw);
+    if (!sku || fobRaw === "" || Number.isNaN(fob) || fob < 0) {
+      if (sku) skipped.push(sku);
+      continue;
+    }
+    rows.push({
+      sku,
+      fob_usd: fob,
+      is_estimated: estimatedIdx !== -1 ? ["true", "1", "yes", "on"].includes((cols[estimatedIdx] ?? "").trim().toLowerCase()) : false,
+      notes: notesIdx !== -1 ? (cols[notesIdx] ?? "").trim() || null : null,
+    });
+  }
+
+  if (rows.length === 0) {
+    redirect(`/admin/pricing?import_error=${encodeURIComponent("No valid rows found (need sku + non-negative fob_usd)")}`);
+  }
+
+  const { error } = await supabase
+    .from("amblux_product_cost")
+    .upsert(rows.map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: "sku" });
+
+  if (error) {
+    redirect(`/admin/pricing?import_error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/pricing");
+  const suffix = skipped.length > 0 ? `&import_skipped=${skipped.length}` : "";
+  redirect(`/admin/pricing?import_ok=${rows.length}${suffix}`);
+}

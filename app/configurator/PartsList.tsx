@@ -1,7 +1,61 @@
 "use client";
 
+import Image from "next/image";
+import { useEffect, useState } from "react";
 import { consolidateParts, generateJobNumber, hashBom } from "@/lib/configurator/engine";
+import { createClient } from "@/lib/supabase/client";
 import type { BomResult, ProjectInfo } from "@/lib/configurator/types";
+
+// Product photos, keyed by SKU — fetched straight from amblux_products the
+// same way PricingPanel fetches amblux_pricing (client-side, keyed off the
+// current part list's SKUs). Not every SKU has a photo yet (a few Drive
+// folders are still empty/flagged — see migration 0010), so this renders a
+// plain placeholder square for anything missing rather than leaving a gap
+// or erroring the whole table.
+function usePartImages(skus: string[]) {
+  const [images, setImages] = useState<Record<string, string | null>>({});
+  const skuKey = skus.join(",");
+
+  useEffect(() => {
+    if (skus.length === 0) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("amblux_products")
+      .select("sku, image_url")
+      .in("sku", skus)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const next: Record<string, string | null> = {};
+        data.forEach((row) => {
+          next[row.sku] = row.image_url;
+        });
+        setImages(next);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skuKey]);
+
+  return images;
+}
+
+function PartThumb({ src, alt }: { src: string | null | undefined; alt: string }) {
+  if (!src) {
+    return <div className="h-10 w-10 shrink-0 rounded-md border border-border bg-background" aria-hidden />;
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={40}
+      height={40}
+      className="h-10 w-10 shrink-0 rounded-md border border-border object-cover"
+      unoptimized
+    />
+  );
+}
 
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
@@ -21,6 +75,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function PartsList({ bom, project }: { bom: BomResult; project: ProjectInfo }) {
   const parts = consolidateParts(bom);
   const jobNumber = generateJobNumber(project.name, hashBom(bom));
+  const images = usePartImages(parts.map((p) => p.sku));
 
   if (parts.length === 0) return null;
 
@@ -54,6 +109,7 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
         <table className="w-full text-left text-sm">
           <thead className="bg-background text-xs uppercase tracking-wide text-muted">
             <tr>
+              <th className="px-3 py-2" aria-hidden />
               <th className="px-3 py-2">SKU</th>
               <th className="px-3 py-2">Description</th>
               <th className="px-3 py-2 text-right">Qty</th>
@@ -62,6 +118,9 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
           <tbody>
             {parts.map((p) => (
               <tr key={p.sku} className="border-t border-border align-top">
+                <td className="px-3 py-2">
+                  <PartThumb src={images[p.sku]} alt={p.description} />
+                </td>
                 <td className="px-3 py-2 font-mono text-xs text-accent-strong">{p.sku}</td>
                 <td className="px-3 py-2 text-foreground">{p.description}</td>
                 <td className="px-3 py-2 text-right font-medium text-foreground">{p.qty}</td>

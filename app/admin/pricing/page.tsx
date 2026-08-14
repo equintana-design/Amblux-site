@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   addProductCostAction,
   deleteScopedParametersAction,
+  importCostCsvAction,
   recalculatePricingAction,
   updateGlobalParametersAction,
   updateProductCostAction,
@@ -47,9 +48,15 @@ function ParamFieldset({ defaults }: { defaults?: Record<string, number> }) {
 export default async function AdminPricingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ recalc_ok?: string; recalc_error?: string }>;
+  searchParams: Promise<{
+    recalc_ok?: string;
+    recalc_error?: string;
+    import_ok?: string;
+    import_error?: string;
+    import_skipped?: string;
+  }>;
 }) {
-  const { recalc_ok, recalc_error } = await searchParams;
+  const { recalc_ok, recalc_error, import_ok, import_error, import_skipped } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -110,6 +117,57 @@ export default async function AdminPricingPage({
         {recalc_error && (
           <p className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700">
             Recalculation failed: {recalc_error}
+          </p>
+        )}
+      </section>
+
+      {/* --- CSV export/import --- */}
+      <section className="mt-8 rounded-2xl border border-border bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Costs — CSV export &amp; import</h2>
+        <p className="mt-1 text-sm text-muted">
+          Export every SKU&apos;s cost and computed prices to a spreadsheet, or bulk-update FOB costs by uploading a
+          CSV with <span className="font-mono">sku</span> and <span className="font-mono">fob_usd</span> columns
+          (optionally <span className="font-mono">is_estimated</span> and <span className="font-mono">notes</span>
+          too — the exported file already has the right columns, so editing and re-uploading it works directly).
+          This only updates cost, not margins/duty/freight — those stay in the override forms below since a bad
+          bulk margin edit is riskier than a bad bulk cost edit.
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <a
+            href="/admin/pricing/export"
+            className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+          >
+            Export costs &amp; prices (CSV)
+          </a>
+
+          <form action={importCostCsvAction} className="flex items-center gap-3">
+            <input
+              type="file"
+              name="file"
+              accept=".csv,text/csv"
+              required
+              className="text-sm text-muted file:mr-3 file:rounded-full file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-muted hover:file:border-accent"
+            />
+            <button
+              type="submit"
+              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
+            >
+              Import costs from CSV
+            </button>
+          </form>
+        </div>
+
+        {import_ok && (
+          <p className="mt-4 rounded-lg bg-green-100 px-4 py-2 text-sm font-medium text-green-700">
+            Updated cost for {import_ok} SKU{import_ok === "1" ? "" : "s"}.
+            {import_skipped ? ` Skipped ${import_skipped} row(s) with a missing SKU or invalid FOB.` : ""} Click
+            &quot;Recalculate &amp; publish prices&quot; above to publish new prices from these costs.
+          </p>
+        )}
+        {import_error && (
+          <p className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700">
+            Import failed: {import_error}
           </p>
         )}
       </section>
