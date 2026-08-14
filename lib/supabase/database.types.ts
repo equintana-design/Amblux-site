@@ -1,9 +1,8 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0010. Regenerate this file any time
+// supabase/migrations/0001 through 0013. Regenerate this file any time
 // the schema changes rather than hand-editing it — it's meant to always
 // mirror the real database exactly.
-
 export type Json =
   | string
   | number
@@ -180,6 +179,84 @@ export type Database = {
           },
         ]
       }
+      amblux_product_pages: {
+        Row: {
+          applications: Json
+          category: string
+          created_at: string
+          default_sku: string | null
+          eyebrow: string
+          features: Json
+          hero_image_url: string | null
+          hero_summary: string | null
+          linear_family_id: string | null
+          marketing_paragraphs: Json
+          name: string
+          optional_accessory_codes: Json
+          required_accessories: Json
+          slug: string
+          sort_order: number
+          status: string
+          updated_at: string
+          variant_axes: Json
+        }
+        Insert: {
+          applications?: Json
+          category: string
+          created_at?: string
+          default_sku?: string | null
+          eyebrow: string
+          features?: Json
+          hero_image_url?: string | null
+          hero_summary?: string | null
+          linear_family_id?: string | null
+          marketing_paragraphs?: Json
+          name: string
+          optional_accessory_codes?: Json
+          required_accessories?: Json
+          slug: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          variant_axes?: Json
+        }
+        Update: {
+          applications?: Json
+          category?: string
+          created_at?: string
+          default_sku?: string | null
+          eyebrow?: string
+          features?: Json
+          hero_image_url?: string | null
+          hero_summary?: string | null
+          linear_family_id?: string | null
+          marketing_paragraphs?: Json
+          name?: string
+          optional_accessory_codes?: Json
+          required_accessories?: Json
+          slug?: string
+          sort_order?: number
+          status?: string
+          updated_at?: string
+          variant_axes?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amblux_product_pages_default_sku_fkey"
+            columns: ["default_sku"]
+            isOneToOne: false
+            referencedRelation: "amblux_products"
+            referencedColumns: ["sku"]
+          },
+          {
+            foreignKeyName: "amblux_product_pages_linear_family_id_fkey"
+            columns: ["linear_family_id"]
+            isOneToOne: false
+            referencedRelation: "amblux_linear_families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       amblux_products: {
         Row: {
           category: string
@@ -190,11 +267,13 @@ export type Database = {
           label: string
           length_m: number | null
           mounting: string | null
+          page_slug: string | null
           short_description: string | null
           sku: string
           spec: Json
           status: string
           updated_at: string
+          variant_options: Json
           watts: number | null
         }
         Insert: {
@@ -206,11 +285,13 @@ export type Database = {
           label: string
           length_m?: number | null
           mounting?: string | null
+          page_slug?: string | null
           short_description?: string | null
           sku: string
           spec?: Json
           status?: string
           updated_at?: string
+          variant_options?: Json
           watts?: number | null
         }
         Update: {
@@ -222,11 +303,13 @@ export type Database = {
           label?: string
           length_m?: number | null
           mounting?: string | null
+          page_slug?: string | null
           short_description?: string | null
           sku?: string
           spec?: Json
           status?: string
           updated_at?: string
+          variant_options?: Json
           watts?: number | null
         }
         Relationships: [
@@ -236,6 +319,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "amblux_linear_families"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amblux_products_page_slug_fkey"
+            columns: ["page_slug"]
+            isOneToOne: false
+            referencedRelation: "amblux_product_pages"
+            referencedColumns: ["slug"]
           },
         ]
       }

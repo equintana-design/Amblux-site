@@ -1,24 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
+import { SiteHeader } from "./components/SiteHeader";
 
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Image src="/images/amblux-logo.png" alt="AMBLUX" width={140} height={40} priority className="h-9 w-auto" />
-          <nav className="flex items-center gap-8 text-sm font-medium text-muted">
-            <a href="#products" className="hover:text-foreground">Products</a>
-            <a href="#partners" className="hover:text-foreground">For Distributors</a>
-            <Link
-              href="/configurator"
-              className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
-            >
-              Launch Configurator
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
@@ -55,29 +42,36 @@ export default function Home() {
       </section>
 
       <section id="products" className="mx-auto w-full max-w-6xl px-6 py-20">
-        <h2 className="text-2xl font-semibold text-foreground">Built for real cabinet installs</h2>
-        <p className="mt-3 max-w-2xl text-muted">
-          Puck lights, flexible and rigid linear solutions, wireless and wired controls — every zone in
-          the kitchen, sized and specified automatically.
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-foreground">Built for real cabinet installs</h2>
+            <p className="mt-3 max-w-2xl text-muted">
+              Puck lights, flexible and rigid linear solutions, wireless and wired controls — every zone in
+              the kitchen, sized and specified automatically.
+            </p>
+          </div>
+          <Link href="/products" className="text-sm font-semibold text-accent-strong hover:underline">
+            View all products →
+          </Link>
+        </div>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            { src: "/images/puck-recessed.png", title: "Recessed puck lighting", copy: "Selectable white recessed pucks for under-cabinet and toe-kick zones." },
-            { src: "/images/product-silicone.webp", title: "Flexible silicone linear", copy: "Freecut recess silicone LED tape for continuous, seamless runs." },
-            { src: "/images/product-rigid.webp", title: "Rigid linear solutions", copy: "Solder-free rigid linear fixtures for base, wall, and pantry cabinets." },
-            { src: "/images/puck-surface.jpg", title: "Surface-mount pucks", copy: "Chrome and white finishes for exposed-mount applications." },
-            { src: "/images/amblux-closet.webp", title: "Closet & furniture systems", copy: "The same engineered approach, extended to closets and furniture." },
-            { src: "/images/amblux-linear.jpg", title: "Linear at scale", copy: "Consistent colour temperature and output across every run in the job." },
+            { href: "/products/recessed-puck", src: "/images/puck-recessed.png", title: "Recessed puck lighting", copy: "Selectable white recessed pucks for under-cabinet and toe-kick zones." },
+            { href: "/products/silicone-6x6", src: "/images/product-silicone.webp", title: "Flexible silicone linear", copy: "Freecut recess silicone LED tape for continuous, seamless runs." },
+            { href: "/products/rigid-10x15", src: "/images/product-rigid.webp", title: "Rigid linear solutions", copy: "Solder-free rigid linear fixtures for base, wall, and pantry cabinets." },
+            { href: "/products/surface-puck", src: "/images/puck-surface.jpg", title: "Surface-mount pucks", copy: "Chrome and white finishes for exposed-mount applications." },
+            { href: "/products", src: "/images/amblux-closet.webp", title: "Closet & furniture systems", copy: "The same engineered approach, extended to closets and furniture." },
+            { href: "/products", src: "/images/amblux-linear.jpg", title: "Linear at scale", copy: "Consistent colour temperature and output across every run in the job." },
           ].map((p) => (
-            <div key={p.title} className="overflow-hidden rounded-2xl border border-border bg-surface">
+            <Link key={p.title} href={p.href} className="group overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-accent">
               <div className="relative h-48 w-full">
                 <Image src={p.src} alt={p.title} fill className="object-cover" />
               </div>
               <div className="p-5">
-                <h3 className="font-semibold text-foreground">{p.title}</h3>
+                <h3 className="font-semibold text-foreground group-hover:text-accent-strong">{p.title}</h3>
                 <p className="mt-2 text-sm text-muted">{p.copy}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
