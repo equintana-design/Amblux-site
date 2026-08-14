@@ -349,7 +349,6 @@ export function BlocksZoneForm({
             block={b}
             supportsTopLight={supportsTopLight}
             independentDrivers={independentDrivers}
-            controlZone={controlZone}
             onChange={(patch) => updateBlock(i, patch)}
           />
         ))}
@@ -365,7 +364,6 @@ function CabinetBlockRow({
   block,
   supportsTopLight,
   independentDrivers,
-  controlZone,
   onChange,
 }: {
   index: number;
@@ -374,7 +372,6 @@ function CabinetBlockRow({
   block: CabinetBlock;
   supportsTopLight: boolean;
   independentDrivers: boolean;
-  controlZone: string;
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
   const isPuck = block.lightType === "puck";

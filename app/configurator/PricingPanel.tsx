@@ -42,12 +42,18 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   const skuKey = parts.map((p) => p.sku).join(",");
 
   useEffect(() => {
+    // No setState here for the empty case — the component already
+    // renders null when parts.length === 0 (see below), so there's
+    // nothing to visibly sync; calling setRows() synchronously as the
+    // first thing in the effect body just trips React's
+    // set-state-in-effect check for no benefit.
     if (parts.length === 0) {
-      setRows(null);
       return;
     }
+    // Clearing a stale error from a previous fetch happens inside the
+    // async callback below (on success), not synchronously here — same
+    // set-state-in-effect reasoning as the empty-parts case above.
     let cancelled = false;
-    setError(false);
     const supabase = createClient();
     supabase
       .from("amblux_pricing")
@@ -60,6 +66,7 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
           setRows(null);
           return;
         }
+        setError(false);
         setRows(data ?? []);
       });
     return () => {

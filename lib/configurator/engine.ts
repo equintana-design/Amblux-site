@@ -498,7 +498,6 @@ export function computeBom(state: ConfiguratorState): BomResult {
       // "Light on top of cabinet" — independent add-on spec, own shelf light
       // (always shelf-mode; vertical toppers aren't modeled here).
       const topInches = toInches(b.length, zoneState.unit);
-      const topPuckQty = b.lightType === "puck" ? calcPuckPlacement(topInches, spacingIn).puckCount : 1;
       let topWatts = 0;
       if (hasTopLight) {
         const topZone = `${zone} · ${LABELS.topLightZone}`;
