@@ -1,0 +1,123 @@
+"use server";
+
+// Server actions for the pricing engine admin panel. Same defense-in-depth
+// pattern as app/admin/distributors/actions.ts: RLS on amblux_product_cost
+// / amblux_pricing_parameters (admin-only, migration 0007) and the
+// admin-only check inside amblux_recalculate_pricing() are the actual
+// enforcement. requireAdmin() here just fails fast with a clear redirect
+// instead of letting a non-admin's attempt silently no-op against RLS.
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+
+async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/sign-in");
+
+  const { data: profile } = await supabase.from("amblux_profiles").select("role, approved").eq("id", user.id).single();
+  if (!profile || profile.role !== "admin" || !profile.approved) redirect("/account");
+
+  return supabase;
+}
+
+function numberField(formData: FormData, name: string): number {
+  return Number(formData.get(name));
+}
+
+// Shared by both the global-parameters edit form and the scoped-override
+// add/edit form — same ten ladder fields either way, just a different
+// scope/scope_key.
+function parametersFromForm(formData: FormData) {
+  return {
+    freight_usd: numberField(formData, "freight_usd"),
+    insurance_usd: numberField(formData, "insurance_usd"),
+    brokerage_usd: numberField(formData, "brokerage_usd"),
+    duty_pct: numberField(formData, "duty_pct"),
+    inland_cad: numberField(formData, "inland_cad"),
+    qc_pct: numberField(formData, "qc_pct"),
+    fx_usd_cad: numberField(formData, "fx_usd_cad"),
+    amblux_margin_pct: numberField(formData, "amblux_margin_pct"),
+    distributor_margin_pct: numberField(formData, "distributor_margin_pct"),
+    dealer_margin_pct: numberField(formData, "dealer_margin_pct"),
+  };
+}
+
+export async function updateGlobalParametersAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  await supabase
+    .from("amblux_pricing_parameters")
+    .update({ ...parametersFromForm(formData), updated_at: new Date().toISOString() })
+    .eq("scope", "global");
+  revalidatePath("/admin/pricing");
+}
+
+export async function upsertScopedParametersAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const scope = String(formData.get("scope") || "");
+  const scopeKey = String(formData.get("scope_key") || "").trim();
+  if ((scope !== "category" && scope !== "sku") || !scopeKey) {
+    revalidatePath("/admin/pricing");
+    return;
+  }
+
+  await supabase
+    .from("amblux_pricing_parameters")
+    .upsert(
+      { scope, scope_key: scopeKey, ...parametersFromForm(formData), updated_at: new Date().toISOString() },
+      { onConflict: "scope,scope_key" },
+    );
+  revalidatePath("/admin/pricing");
+}
+
+export async function deleteScopedParametersAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const id = String(formData.get("id") || "");
+  await supabase.from("amblux_pricing_parameters").delete().eq("id", id).neq("scope", "global");
+  revalidatePath("/admin/pricing");
+}
+
+export async function updateProductCostAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const sku = String(formData.get("sku") || "");
+  const fobUsd = numberField(formData, "fob_usd");
+  const isEstimated = formData.get("is_estimated") === "on";
+  const notes = String(formData.get("notes") || "").trim() || null;
+
+  await supabase
+    .from("amblux_product_cost")
+    .update({ fob_usd: fobUsd, is_estimated: isEstimated, notes, updated_at: new Date().toISOString() })
+    .eq("sku", sku);
+  revalidatePath("/admin/pricing");
+}
+
+export async function addProductCostAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const sku = String(formData.get("sku") || "").trim();
+  const fobUsd = numberField(formData, "fob_usd");
+  if (!sku || Number.isNaN(fobUsd)) {
+    revalidatePath("/admin/pricing");
+    return;
+  }
+
+  await supabase.from("amblux_product_cost").upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null });
+  revalidatePath("/admin/pricing");
+}
+
+// Recalculation is on-demand only (a deliberate design decision — see
+// migration 0007's header) rather than live/automatic. Redirects with a
+// query param carrying the result so the page can show a plain success
+// banner without any client-side JS.
+export async function recalculatePricingAction() {
+  const supabase = await requireAdmin();
+  const { data, error } = await supabase.rpc("amblux_recalculate_pricing");
+  if (error) {
+    redirect(`/admin/pricing?recalc_error=${encodeURIComponent(error.message)}`);
+  }
+  const skusPriced = data?.[0]?.skus_priced ?? 0;
+  revalidatePath("/admin/pricing");
+  revalidatePath("/configurator");
+  redirect(`/admin/pricing?recalc_ok=${skusPriced}`);
+}

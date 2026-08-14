@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Brand tokens recovered from the ChatGPT-built site's compiled CSS
+   (dist/client/assets/index-BRMJIYyL.css) — warm bronze/gold accent,
+   charcoal ink, and a cream/off-white ground. Carried over as-is so the
+   new build keeps the same look. */
+:root {
+  --background: #f8f7f3;
+  --surface: #ffffff;
+  --foreground: #141412;
+  --muted: #403f3c;
+  --border: #e7e2d9;
+  --accent: #9a783b;
+  --accent-strong: #7b5f2b;
+  --accent-soft: #c7a45f;
+  --taupe: #aaa39a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-taupe: var(--taupe);
+  --font-sans: var(--font-brand);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-brand);
+}
