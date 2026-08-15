@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useTestProject } from "@/app/providers/TestProjectProvider";
 
 // Shared header for public marketing pages (home, /products, /products/[slug]).
 // Recreates the original ChatGPT-built site's `.site-header` structure
@@ -7,9 +10,15 @@ import Link from "next/link";
 // index.html/styles.css. The language switcher is inert (site only has
 // English copy today) — kept visible because it's part of the recognizable
 // brand chrome, same reasoning as keeping the recovered layout shape.
+//
+// Client component (not just for the language buttons) because it also
+// shows the running "test project" item count — a small badge so the
+// BOM someone's building on product pages is reachable from anywhere.
 export function SiteHeader() {
+  const { count } = useTestProject();
+
   return (
-    <header className="border-b border-border bg-surface">
+    <header className="border-b border-border bg-surface print:hidden">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link href="/" aria-label="AMBLUX home">
           <Image src="/images/amblux-logo.png" alt="AMBLUX" width={140} height={40} priority className="h-9 w-auto" />
@@ -41,6 +50,17 @@ export function SiteHeader() {
               ES
             </button>
           </div>
+          <Link
+            href="/test-project"
+            className="relative inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+          >
+            Test project
+            {count > 0 ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold text-white">
+                {count}
+              </span>
+            ) : null}
+          </Link>
           <Link
             href="/#partners"
             className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"

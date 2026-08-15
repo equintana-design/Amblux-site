@@ -45,7 +45,7 @@ export function AccessoriesSection({
 
   return (
     <section className="border-t border-border bg-surface">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-16 px-6 py-20 lg:grid-cols-2">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-16 px-6 py-20 lg:grid-cols-2 print:grid-cols-2 print:gap-10 print:py-10">
         {required.length > 0 ? (
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">Required accessories</p>

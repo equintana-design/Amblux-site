@@ -34,3 +34,15 @@ body {
   color: var(--foreground);
   font-family: var(--font-brand);
 }
+
+/* Chrome (and most browsers) drop background colors by default when
+   printing/saving as PDF — without this, the dark "Recommended
+   applications" band and the cream configurator card would print as plain
+   white. Forces every element's background/border color to render exactly
+   as styled, matching the original site's "Download product PDF" output. */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

@@ -6,7 +6,7 @@ export function RecommendedApplications({ page }: { page: Tables<"amblux_product
 
   return (
     <section className="bg-foreground text-white">
-      <div className="mx-auto w-full max-w-6xl px-6 py-20">
+      <div className="mx-auto w-full max-w-6xl px-6 py-20 print:py-10">
         <div className="max-w-2xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">Recommended applications</p>
           <h2 className="mt-2 text-2xl font-semibold">Recommended applications</h2>

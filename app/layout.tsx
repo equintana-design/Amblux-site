@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { TestProjectProvider } from "./providers/TestProjectProvider";
 
 // The original ChatGPT-built site used "Avenir Next, Helvetica Neue, Arial,
 // sans-serif" (recovered from the compiled CSS). Avenir Next isn't a
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className="h-full antialiased"
       style={{ ["--font-brand" as string]: brandFontStack }}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">{children}</body>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        <TestProjectProvider>{children}</TestProjectProvider>
+      </body>
     </html>
   );
 }

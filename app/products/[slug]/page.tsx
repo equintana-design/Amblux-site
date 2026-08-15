@@ -6,6 +6,7 @@ import { AccessoriesSection } from "./AccessoriesSection";
 import { AccessoryGrid } from "./AccessoryGrid";
 import { BenefitGrid } from "./BenefitGrid";
 import { Breadcrumb } from "./Breadcrumb";
+import { PrintMasthead } from "./PrintMasthead";
 import { ProductHero } from "./ProductHero";
 import { ProductStory } from "./ProductStory";
 import { RecommendedApplications } from "./RecommendedApplications";
@@ -73,6 +74,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <SiteHeader />
         <main>
           <Breadcrumb />
+          <div className="mx-auto w-full max-w-6xl px-6 pt-6">
+            <PrintMasthead />
+          </div>
           <div className="mx-auto w-full max-w-6xl px-6 py-14">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{page.eyebrow}</p>
             <h1 className="mt-2 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">{page.name}</h1>
@@ -98,6 +102,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <SiteHeader />
       <main>
         <Breadcrumb />
+        <div className="mx-auto w-full max-w-6xl px-6 pt-6">
+          <PrintMasthead />
+        </div>
         <VariantProvider variants={variants} axes={axes} defaultSku={defaultSku}>
           <ProductHero page={page} />
           <ProductStory page={page} />

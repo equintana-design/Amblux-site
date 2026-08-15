@@ -6,7 +6,7 @@ export function ProductStory({ page }: { page: Tables<"amblux_product_pages"> })
 
   return (
     <section className="border-t border-border bg-surface">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-6 py-20 lg:grid-cols-[0.7fr_1.5fr] lg:gap-16">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-6 py-20 lg:grid-cols-[0.7fr_1.5fr] lg:gap-16 print:py-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{page.eyebrow}</p>
           <h2 className="mt-2 text-2xl font-semibold text-foreground">{page.name}</h2>

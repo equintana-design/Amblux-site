@@ -9,7 +9,7 @@ export function Specifications() {
 
   return (
     <section className="border-t border-border bg-background">
-      <div className="mx-auto w-full max-w-6xl px-6 py-20">
+      <div className="mx-auto w-full max-w-6xl px-6 py-20 print:py-10">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">Technical specifications</p>
         <h2 className="mt-2 break-all text-xl font-semibold text-foreground">{selectedSku}</h2>
         <dl className="mt-8 grid grid-cols-1 gap-x-10 md:grid-cols-2">

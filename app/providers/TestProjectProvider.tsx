@@ -1,0 +1,92 @@
+"use client";
+
+// A lightweight, no-account-needed alternative to the room-based
+// Configurator: lets someone browsing the product pages add individual
+// SKUs to a running list ("test project") and come away with their own
+// bill of materials, without having to model zones/cabinets. Mirrors the
+// original site's "Your test project" sidebar cart (see
+// ambluxlandingpagespec.md section 6) — client-side only, persisted to
+// localStorage so it survives a refresh/navigation but never touches the
+// server (no account, no pricing implications).
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+export type TestProjectItem = {
+  sku: string;
+  label: string;
+  pageSlug: string | null;
+  imageUrl: string | null;
+  qty: number;
+};
+
+type TestProjectContextValue = {
+  items: TestProjectItem[];
+  addItem: (item: Omit<TestProjectItem, "qty">, qty?: number) => void;
+  removeItem: (sku: string) => void;
+  setQty: (sku: string, qty: number) => void;
+  clear: () => void;
+  count: number;
+};
+
+const STORAGE_KEY = "amblux-test-project";
+
+const TestProjectContext = createContext<TestProjectContextValue | null>(null);
+
+export function TestProjectProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<TestProjectItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Read whatever was saved from a previous visit once, on mount only.
+  // Deliberately an effect rather than a lazy useState initializer:
+  // localStorage isn't available during server rendering, so the first
+  // client render has to match the server's empty-array render exactly to
+  // avoid a hydration mismatch — the saved items apply a moment later here.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage (an external system) on mount is exactly the documented exception to this rule.
+      if (raw) setItems(JSON.parse(raw));
+    } catch {
+      // Corrupt or inaccessible storage — just start empty rather than crash.
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // Storage full or disabled (e.g. private browsing) — the list still
+      // works for the rest of this session, it just won't persist.
+    }
+  }, [items, hydrated]);
+
+  const value = useMemo<TestProjectContextValue>(
+    () => ({
+      items,
+      addItem: (item, qty = 1) => {
+        setItems((prev) => {
+          const existing = prev.find((p) => p.sku === item.sku);
+          if (existing) {
+            return prev.map((p) => (p.sku === item.sku ? { ...p, qty: p.qty + qty } : p));
+          }
+          return [...prev, { ...item, qty }];
+        });
+      },
+      removeItem: (sku) => setItems((prev) => prev.filter((p) => p.sku !== sku)),
+      setQty: (sku, qty) =>
+        setItems((prev) => (qty <= 0 ? prev.filter((p) => p.sku !== sku) : prev.map((p) => (p.sku === sku ? { ...p, qty } : p)))),
+      clear: () => setItems([]),
+      count: items.reduce((sum, item) => sum + item.qty, 0),
+    }),
+    [items],
+  );
+
+  return <TestProjectContext.Provider value={value}>{children}</TestProjectContext.Provider>;
+}
+
+export function useTestProject() {
+  const ctx = useContext(TestProjectContext);
+  if (!ctx) throw new Error("useTestProject must be used within a TestProjectProvider");
+  return ctx;
+}

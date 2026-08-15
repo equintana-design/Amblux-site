@@ -6,7 +6,7 @@ export function BenefitGrid({ page }: { page: Tables<"amblux_product_pages"> }) 
 
   return (
     <section className="border-t border-border bg-surface">
-      <div className="mx-auto w-full max-w-6xl px-6 py-20">
+      <div className="mx-auto w-full max-w-6xl px-6 py-20 print:py-10">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">Features and benefits</p>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, i) => (
