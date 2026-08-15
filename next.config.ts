@@ -14,6 +14,19 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "vymtfqgvxhjbhkrgvgol.supabase.co" },
     ],
   },
+  experimental: {
+    serverActions: {
+      // Next's default Server Action body limit is 1MB — fine for text
+      // fields, but a real product photo (especially straight off a
+      // phone camera) routinely exceeds that. Next rejects an over-limit
+      // request before it ever reaches our own action code, so it can't
+      // be caught/reported by app code (see resolveImageUrl's
+      // uploadError handling in app/admin/products/actions.ts) — it just
+      // surfaces as a generic Vercel "A server error occurred" page.
+      // Raised to cover realistic product photos with headroom.
+      bodySizeLimit: "8mb",
+    },
+  },
 };
 
 export default nextConfig;
