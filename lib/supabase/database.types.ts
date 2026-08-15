@@ -1,6 +1,6 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0013. Regenerate this file any time
+// supabase/migrations/0001 through 0020. Regenerate this file any time
 // the schema changes rather than hand-editing it — it's meant to always
 // mirror the real database exactly.
 export type Json =
@@ -197,6 +197,7 @@ export type Database = {
           slug: string
           sort_order: number
           status: string
+          translations: Json
           updated_at: string
           variant_axes: Json
         }
@@ -217,6 +218,7 @@ export type Database = {
           slug: string
           sort_order?: number
           status?: string
+          translations?: Json
           updated_at?: string
           variant_axes?: Json
         }
@@ -237,6 +239,7 @@ export type Database = {
           slug?: string
           sort_order?: number
           status?: string
+          translations?: Json
           updated_at?: string
           variant_axes?: Json
         }
@@ -272,6 +275,7 @@ export type Database = {
           sku: string
           spec: Json
           status: string
+          translations: Json
           updated_at: string
           variant_options: Json
           watts: number | null
@@ -290,6 +294,7 @@ export type Database = {
           sku: string
           spec?: Json
           status?: string
+          translations?: Json
           updated_at?: string
           variant_options?: Json
           watts?: number | null
@@ -308,6 +313,7 @@ export type Database = {
           sku?: string
           spec?: Json
           status?: string
+          translations?: Json
           updated_at?: string
           variant_options?: Json
           watts?: number | null

@@ -2,6 +2,7 @@
 
 import { consolidateParts, generateJobNumber, hashBom } from "@/lib/configurator/engine";
 import type { BomResult, ProjectInfo } from "@/lib/configurator/types";
+import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
 
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
@@ -21,16 +22,17 @@ function downloadCsv(filename: string, rows: string[][]) {
 export function PartsList({ bom, project }: { bom: BomResult; project: ProjectInfo }) {
   const parts = consolidateParts(bom);
   const jobNumber = generateJobNumber(project.name, hashBom(bom));
+  const t: TFunction = useTranslations();
 
   if (parts.length === 0) return null;
 
   const handleExport = () => {
     downloadCsv(`${jobNumber}-parts-list.csv`, [
-      ["Job #", jobNumber],
-      ["Project", project.name || "—"],
-      ["Client", project.client || "—"],
+      [t("configuratorExtra.jobNumber"), jobNumber],
+      [t("configurator.projectName"), project.name || "—"],
+      [t("configurator.client"), project.client || "—"],
       [],
-      ["SKU", "Description", "Qty"],
+      ["SKU", t("configuratorExtra.description"), t("configurator.qty")],
       ...parts.map((p) => [p.sku, p.description, String(p.qty)]),
     ]);
   };
@@ -39,14 +41,14 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
     <div className="rounded-2xl border border-border bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">Parts list</h3>
-          <p className="text-xs font-mono text-muted">Job # {jobNumber}</p>
+          <h3 className="text-lg font-semibold text-foreground">{t("configuratorExtra.partsList")}</h3>
+          <p className="text-xs font-mono text-muted">{t("configuratorExtra.jobNumber")} {jobNumber}</p>
         </div>
         <button
           onClick={handleExport}
           className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
         >
-          Export CSV
+          {t("configuratorExtra.exportCsv")}
         </button>
       </div>
 
@@ -55,8 +57,8 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
           <thead className="bg-background text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-3 py-2">SKU</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2 text-right">Qty</th>
+              <th className="px-3 py-2">{t("configuratorExtra.description")}</th>
+              <th className="px-3 py-2 text-right">{t("configurator.qty")}</th>
             </tr>
           </thead>
           <tbody>
@@ -71,10 +73,7 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
         </table>
       </div>
 
-      <p className="mt-4 text-xs text-muted">
-        One line per part number, quantities totalled across every zone — this is the order-ready list.
-        Pricing and total job cost will be added to this list once the pricing model is finalized.
-      </p>
+      <p className="mt-4 text-xs text-muted">{t("configuratorExtra.oneLinePerPart")}</p>
     </div>
   );
 }

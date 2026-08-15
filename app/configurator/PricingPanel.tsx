@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
 import type { PartListLine } from "@/lib/configurator/engine";
+import { useTranslations } from "@/app/providers/LocaleProvider";
 
 interface PricingRow {
   product_sku: string;
@@ -30,6 +31,7 @@ function formatCents(cents: number, currency: string): string {
 
 export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   const { user } = useSupabaseUser();
+  const t = useTranslations();
   const [rows, setRows] = useState<PricingRow[] | null>(null);
   const [error, setError] = useState(false);
   // Every tier now publishes both a CAD and a USD row (the pricing engine
@@ -82,7 +84,7 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   if (error) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
-        Live pricing is temporarily unavailable. Part numbers and quantities above are unaffected.
+        {t("configuratorExtra.pricingUnavailable")}
       </div>
     );
   }
@@ -90,7 +92,7 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   if (rows === null) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
-        Checking current pricing…
+        {t("configuratorExtra.checkingPricing")}
       </div>
     );
   }
@@ -122,8 +124,7 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   if (msrp.pricedCount === 0 && !sawDistributorPricing) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
-        Pricing hasn&apos;t been published for these parts yet — the parts list above is already the real
-        calculated order list.
+        {t("configuratorExtra.noPricingYet")}
       </div>
     );
   }
@@ -131,7 +132,7 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">Pricing</h3>
+        <h3 className="text-lg font-semibold text-foreground">{t("configuratorExtra.pricing")}</h3>
         <div className="flex overflow-hidden rounded-full border border-border text-xs font-semibold">
           {(["CAD", "USD"] as const).map((c) => (
             <button
@@ -152,7 +153,8 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
         {msrp.pricedCount > 0 && (
           <div className="flex items-center justify-between rounded-lg bg-background px-4 py-3">
             <span className="text-sm text-muted">
-              MSRP{msrp.pricedCount < parts.length ? ` (${msrp.pricedCount}/${parts.length} parts priced)` : ""}
+              {t("configuratorExtra.msrp")}
+              {msrp.pricedCount < parts.length ? ` (${msrp.pricedCount}/${parts.length} ${t("configuratorExtra.partsPriced")})` : ""}
             </span>
             <span className="text-sm font-semibold text-foreground">{formatCents(msrp.total, msrp.currency)}</span>
           </div>
@@ -161,8 +163,8 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
         {sawDistributorPricing ? (
           <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
             <span className="text-sm font-medium text-accent-strong">
-              Your distributor price
-              {distributor.pricedCount < parts.length ? ` (${distributor.pricedCount}/${parts.length} parts priced)` : ""}
+              {t("configuratorExtra.yourDistributorPrice")}
+              {distributor.pricedCount < parts.length ? ` (${distributor.pricedCount}/${parts.length} ${t("configuratorExtra.partsPriced")})` : ""}
             </span>
             <span className="text-sm font-semibold text-accent-strong">
               {formatCents(distributor.total, distributor.currency)}
@@ -171,8 +173,8 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
         ) : (
           <p className="text-xs text-muted">
             {user
-              ? "Distributor pricing isn't visible on this account yet — an admin needs to approve it first."
-              : "Sign in as an approved distributor to see your buy price."}
+              ? t("configuratorExtra.distributorPricingUnavailable")
+              : t("configuratorExtra.signInToSeePrice")}
           </p>
         )}
       </div>

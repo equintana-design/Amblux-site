@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/app/components/SiteHeader";
 import { AccessoriesSection } from "./AccessoriesSection";
+import { AccessoryCatalogIntro } from "./AccessoryCatalogIntro";
 import { AccessoryGrid } from "./AccessoryGrid";
 import { BenefitGrid } from "./BenefitGrid";
 import { Breadcrumb } from "./Breadcrumb";
@@ -77,16 +78,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="mx-auto w-full max-w-6xl px-6 pt-6">
             <PrintMasthead />
           </div>
-          <div className="mx-auto w-full max-w-6xl px-6 py-14">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{page.eyebrow}</p>
-            <h1 className="mt-2 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">{page.name}</h1>
-            {page.hero_summary ? <p className="mt-4 max-w-2xl text-base leading-7 text-muted">{page.hero_summary}</p> : null}
-            {((page.marketing_paragraphs ?? []) as string[]).map((paragraph, i) => (
-              <p key={i} className="mt-4 max-w-3xl text-base leading-7 text-muted">
-                {paragraph}
-              </p>
-            ))}
-          </div>
+          <AccessoryCatalogIntro page={page} />
           <AccessoryGrid items={variants} pageSlugs={pageSlugs} />
         </main>
       </div>

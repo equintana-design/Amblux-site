@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "@/app/providers/LocaleProvider";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
 
 // Mirrors the original site's sticky "Your test project" sidebar card on
@@ -9,11 +10,14 @@ import { useTestProject } from "@/app/providers/TestProjectProvider";
 // per-item remove and a clear-all, right on the listing page itself.
 export function TestProjectSidebar() {
   const { items, removeItem, clear } = useTestProject();
+  const t = useTranslations();
 
   return (
     <div className="sticky top-6 rounded-2xl border border-border bg-background p-5">
-      <p className="text-sm font-semibold text-foreground">Your test project</p>
-      <p className="mt-1 text-sm text-muted">{items.length} component{items.length === 1 ? "" : "s"} selected</p>
+      <p className="text-sm font-semibold text-foreground">{t("home.project")}</p>
+      <p className="mt-1 text-sm text-muted">
+        {items.length} {t("home.selected")}
+      </p>
 
       {items.length > 0 ? (
         <div className="mt-4 space-y-3 border-t border-border pt-4">
@@ -26,7 +30,7 @@ export function TestProjectSidebar() {
               <button
                 type="button"
                 onClick={() => removeItem(item.sku)}
-                aria-label={`Remove ${item.label}`}
+                aria-label={`${t("home.remove")} ${item.label}`}
                 className="shrink-0 text-muted hover:text-accent-strong"
               >
                 ×
@@ -38,11 +42,11 @@ export function TestProjectSidebar() {
 
       <div className="mt-5 flex flex-col gap-2">
         <Link href="/test-project" className="text-sm font-semibold text-accent-strong hover:underline">
-          View full bill of materials →
+          {t("testProject.viewFull")}
         </Link>
         {items.length > 0 ? (
           <button type="button" onClick={clear} className="text-left text-xs font-medium text-muted hover:text-accent-strong">
-            Clear project
+            {t("home.clear")}
           </button>
         ) : null}
       </div>

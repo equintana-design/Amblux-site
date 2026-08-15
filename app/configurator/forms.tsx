@@ -11,7 +11,7 @@ import {
   getLinearFamily,
   linearFamiliesFor,
 } from "@/lib/configurator/catalog";
-import { LABELS, finishLabel } from "@/lib/configurator/labels";
+import { finishLabel } from "@/lib/configurator/labels";
 import type {
   BlocksState,
   CabinetBlock,
@@ -20,27 +20,30 @@ import type {
   SimpleZoneState,
   Unit,
 } from "@/lib/configurator/types";
+import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
 import { Field, NumberInput, ReadOnly, Section, Select, Toggle } from "./ui";
 
-const UNIT_OPTIONS: { value: Unit; label: string }[] = [
-  { value: "in", label: "Inches" },
-  { value: "ft", label: "Feet" },
-  { value: "cm", label: "Centimetres" },
-  { value: "m", label: "Metres" },
-];
+function unitOptions(t: TFunction): { value: Unit; label: string }[] {
+  return [
+    { value: "in", label: t("configuratorExtra.unitInches") },
+    { value: "ft", label: t("configuratorExtra.unitFeet") },
+    { value: "cm", label: t("configuratorExtra.unitCentimetres") },
+    { value: "m", label: t("configuratorExtra.unitMetres") },
+  ];
+}
 
 function controlOptionsFor(zone: string, system: string): { value: string; label: string }[] {
   const ids = CONTROL_OPTIONS[zone]?.[system] || [];
   return ids.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }));
 }
 
-function controlSystemOptions(zone: string): { value: string; label: string }[] {
+function controlSystemOptions(zone: string, t: TFunction): { value: string; label: string }[] {
   const opts: { value: string; label: string }[] = [
-    { value: "wired", label: "Wired sensor" },
-    { value: "wireless", label: "Wireless sensor" },
+    { value: "wired", label: t("configurator.wiredSensor") },
+    { value: "wireless", label: t("configurator.wirelessSensor") },
   ];
   if ((CONTROL_OPTIONS[zone]?.wallControl || []).length > 0) {
-    opts.push({ value: "wallControl", label: "Kinetic RF switch / Bluetooth App" });
+    opts.push({ value: "wallControl", label: t("configurator.wallControl") });
   }
   return opts;
 }
@@ -91,6 +94,7 @@ export function SimpleZoneForm({
   state: SimpleZoneState;
   onChange: (patch: Partial<SimpleZoneState>) => void;
 }) {
+  const t = useTranslations();
   const isMultiZone = zoneKey === "undercabinet";
   const isPuck = state.lightType === "puck";
   const controlZone = zoneKey; // toeKick / crown map directly; undercabinet uses its own remote list
@@ -99,27 +103,27 @@ export function SimpleZoneForm({
     : controlOptionsFor(controlZone, state.controlSystem);
 
   return (
-    <Section title={title} description="Follows the approved AMBLUX configurator's zone/wattage logic exactly.">
+    <Section title={title} description={t("configuratorExtra.sectionSimpleDesc")}>
       {allowPuck && (
-        <Field label="Light type">
+        <Field label={t("configurator.lightType")}>
           <Select
             value={state.lightType}
             onChange={(v) => onChange({ lightType: v as SimpleZoneState["lightType"] })}
             options={[
-              { value: "puck", label: LABELS.puck },
-              { value: "linear", label: LABELS.linear },
+              { value: "puck", label: t("configurator.puck") },
+              { value: "linear", label: t("configurator.linear") },
             ]}
           />
         </Field>
       )}
 
-      <Field label="Units">
-        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={UNIT_OPTIONS} />
+      <Field label={t("configurator.units")}>
+        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
 
       {isMultiZone ? (
         <>
-          <Field label="Number of under-cabinet zones">
+          <Field label={t("configurator.underCabinetZones")}>
             <NumberInput
               value={state.zoneCount}
               min={1}
@@ -127,19 +131,19 @@ export function SimpleZoneForm({
             />
           </Field>
           {state.zoneCount > 1 && (
-            <Field label="How should these zones be controlled?">
+            <Field label={t("configurator.zoneControl")}>
               <Select
                 value={state.zoneControl}
                 onChange={(v) => onChange({ zoneControl: v as SimpleZoneState["zoneControl"] })}
                 options={[
-                  { value: "together", label: "Together — one control" },
-                  { value: "separate", label: "Separately — independent controls" },
+                  { value: "together", label: t("configurator.together") },
+                  { value: "separate", label: t("configurator.separate") },
                 ]}
               />
             </Field>
           )}
           {Array.from({ length: state.zoneCount }).map((_, i) => (
-            <Field key={i} label={`Zone ${i + 1} length (${state.unit})`}>
+            <Field key={i} label={`${t("configurator.zoneLength")} ${i + 1} (${state.unit})`}>
               <NumberInput
                 value={state.zoneLengths[i] ?? 0}
                 onChange={(v) => {
@@ -152,12 +156,12 @@ export function SimpleZoneForm({
           ))}
         </>
       ) : (
-        <Field label={`Total run length (${state.unit})`}>
+        <Field label={`${t("configurator.run")} (${state.unit})`}>
           <NumberInput value={state.length} onChange={(v) => onChange({ length: v })} />
         </Field>
       )}
 
-      <Field label="Installation method">
+      <Field label={t("configurator.mounting")}>
         <Select
           value={state.mounting}
           onChange={(v) => {
@@ -169,38 +173,38 @@ export function SimpleZoneForm({
             );
           }}
           options={[
-            { value: "recess", label: LABELS.recess },
-            { value: "surface", label: LABELS.surface },
+            { value: "recess", label: t("configurator.recess") },
+            { value: "surface", label: t("configurator.surface") },
           ]}
         />
       </Field>
 
       {isPuck ? (
         <>
-          <Field label="Puck finish">
+          <Field label={t("configurator.finish")}>
             <Select
               value={state.puckFinish}
               onChange={(v) => onChange({ puckFinish: v as SimpleZoneState["puckFinish"] })}
               options={puckFinishOptions(state.mounting)}
             />
           </Field>
-          <Field label="Puck spacing">
+          <Field label={t("configurator.spacing")}>
             <div className="flex gap-2">
               <NumberInput value={state.spacing} min={1} onChange={(v) => onChange({ spacing: v })} />
               <Select
                 value={state.spacingUnit}
                 onChange={(v) => onChange({ spacingUnit: v as Unit })}
-                options={UNIT_OPTIONS}
+                options={unitOptions(t)}
               />
             </div>
           </Field>
-          <Field label="Puck wattage">
+          <Field label={t("configurator.puckWatts")}>
             <ReadOnly value={`${state.puckWatts} W`} />
           </Field>
         </>
       ) : (
         <>
-          <Field label="Linear profile">
+          <Field label={t("configurator.linearSolution")}>
             <Select
               value={state.linearFamily}
               onChange={(v) => {
@@ -210,7 +214,7 @@ export function SimpleZoneForm({
               options={linearFamilyOptions(state.mounting)}
             />
           </Field>
-          <Field label="Colour temperature">
+          <Field label={t("product.cct")}>
             <Select
               value={state.cct}
               onChange={(v) => onChange({ cct: v as SimpleZoneState["cct"] })}
@@ -218,9 +222,9 @@ export function SimpleZoneForm({
             />
           </Field>
           {getLinearFamily(state.linearFamily).installAccessoryOptional && (
-            <Field label={getLinearFamily(state.linearFamily).installAccessoryLabel || "Install hardware"}>
+            <Field label={getLinearFamily(state.linearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
               <Toggle
-                label="Add to BOM"
+                label={t("configuratorExtra.addToBom")}
                 checked={state.includeInstallBracket}
                 onChange={(v) => onChange({ includeInstallBracket: v })}
               />
@@ -229,7 +233,7 @@ export function SimpleZoneForm({
         </>
       )}
 
-      <Field label="Control system">
+      <Field label={t("configurator.controlSystem")}>
         <Select
           value={state.controlSystem}
           onChange={(v) => {
@@ -239,20 +243,20 @@ export function SimpleZoneForm({
               : CONTROL_OPTIONS[controlZone]?.[system] || [];
             onChange({ controlSystem: system, control: opts[0] || state.control });
           }}
-          options={isMultiZone ? [{ value: "wallControl", label: "Kinetic RF switch / Bluetooth App" }] : controlSystemOptions(controlZone)}
+          options={isMultiZone ? [{ value: "wallControl", label: t("configurator.wallControl") }] : controlSystemOptions(controlZone, t)}
         />
       </Field>
-      <Field label="Switches / control">
+      <Field label={t("configurator.switches")}>
         <Select value={state.control} onChange={(v) => onChange({ control: v })} options={availableControls} />
       </Field>
 
-      <Field label="Power supply type">
+      <Field label={t("configurator.power")}>
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as SimpleZoneState["powerType"] })}
           options={[
-            { value: "ultra", label: LABELS.ultra },
-            { value: "hardwire", label: LABELS.hardPsu },
+            { value: "ultra", label: t("configurator.ultra") },
+            { value: "hardwire", label: t("configurator.hardPsu") },
           ]}
         />
       </Field>
@@ -275,6 +279,7 @@ export function BlocksZoneForm({
   state: BlocksState;
   onChange: (patch: Partial<BlocksState>) => void;
 }) {
+  const t = useTranslations();
   const isWall = zoneKey === "wall";
   const isFloating = isWall && state.section === "floating";
   const controlZone = isFloating ? "floating" : zoneKey;
@@ -287,19 +292,19 @@ export function BlocksZoneForm({
   };
 
   return (
-    <Section title={title} description="One row per cabinet run — matches the approved AMBLUX per-cabinet configuration.">
-      <Field label="Units">
-        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={UNIT_OPTIONS} />
+    <Section title={title} description={t("configuratorExtra.sectionBlocksDesc")}>
+      <Field label={t("configurator.units")}>
+        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
 
       {isWall && (
-        <Field label="Section type">
+        <Field label={t("configurator.section")}>
           <Select
             value={state.section || "wall"}
             onChange={(v) => onChange({ section: v as BlocksState["section"] })}
             options={[
-              { value: "wall", label: "Wall cabinet" },
-              { value: "floating", label: "Floating shelf" },
+              { value: "wall", label: t("configurator.wallCabinet") },
+              { value: "floating", label: t("configurator.floating") },
             ]}
           />
         </Field>
@@ -307,7 +312,7 @@ export function BlocksZoneForm({
 
       {!independentDrivers && (
         <>
-          <Field label="Control system">
+          <Field label={t("configurator.controlSystem")}>
             <Select
               value={state.controlSystem}
               onChange={(v) => {
@@ -315,10 +320,10 @@ export function BlocksZoneForm({
                 const opts = CONTROL_OPTIONS[controlZone]?.[system] || [];
                 onChange({ controlSystem: system, control: opts[0] || state.control });
               }}
-              options={controlSystemOptions(controlZone)}
+              options={controlSystemOptions(controlZone, t)}
             />
           </Field>
-          <Field label="Zone control">
+          <Field label={t("configurator.zoneControl")}>
             <Select
               value={state.control}
               onChange={(v) => onChange({ control: v })}
@@ -328,13 +333,13 @@ export function BlocksZoneForm({
         </>
       )}
 
-      <Field label="Power supply type">
+      <Field label={t("configurator.power")}>
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as BlocksState["powerType"] })}
           options={[
-            { value: "ultra", label: LABELS.ultra },
-            { value: "hardwire", label: LABELS.hardPsu },
+            { value: "ultra", label: t("configurator.ultra") },
+            { value: "hardwire", label: t("configurator.hardPsu") },
           ]}
         />
       </Field>
@@ -374,18 +379,19 @@ function CabinetBlockRow({
   independentDrivers: boolean;
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
+  const t = useTranslations();
   const isPuck = block.lightType === "puck";
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
         <span className="font-medium text-foreground">
-          {LABELS.cabinet} {index + 1}
+          {t("configurator.cabinet")} {index + 1}
         </span>
-        <Toggle label="Include" checked={block.included} onChange={(v) => onChange({ included: v })} />
+        <Toggle label={t("configurator.includeBlock")} checked={block.included} onChange={(v) => onChange({ included: v })} />
       </div>
       {block.included && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Layout">
+          <Field label={t("configuratorExtra.layout")}>
             <Select
               value={block.mode}
               onChange={(v) => {
@@ -402,38 +408,38 @@ function CabinetBlockRow({
                 }
               }}
               options={[
-                { value: "shelf", label: "Shelf light" },
-                { value: "vertical", label: "Vertical" },
+                { value: "shelf", label: t("configurator.shelfLight") },
+                { value: "vertical", label: t("configurator.vertical") },
               ]}
             />
           </Field>
           {block.mode === "vertical" ? (
-            <Field label={`Cabinet height (${unit})`}>
+            <Field label={`${t("configurator.height")} (${unit})`}>
               <NumberInput value={block.height} onChange={(v) => onChange({ height: v })} />
             </Field>
           ) : (
             <>
-              <Field label={`Shelf run length (${unit})`}>
+              <Field label={`${t("configurator.shelfRun")} (${unit})`}>
                 <NumberInput value={block.length} onChange={(v) => onChange({ length: v })} />
               </Field>
-              <Field label="Number of shelves">
+              <Field label={t("configurator.shelves")}>
                 <NumberInput value={block.shelves} min={1} onChange={(v) => onChange({ shelves: v })} />
               </Field>
             </>
           )}
 
-          <Field label="Light type">
+          <Field label={t("configurator.lightType")}>
             <Select
               value={block.lightType}
               onChange={(v) => onChange({ lightType: v as CabinetBlock["lightType"] })}
               options={[
-                { value: "puck", label: LABELS.puck },
-                { value: "linear", label: LABELS.linear },
+                { value: "puck", label: t("configurator.puck") },
+                { value: "linear", label: t("configurator.linear") },
               ]}
             />
           </Field>
 
-          <Field label="Installation method">
+          <Field label={t("configurator.mounting")}>
             <Select
               value={block.mounting}
               onChange={(v) => {
@@ -445,28 +451,28 @@ function CabinetBlockRow({
                 );
               }}
               options={[
-                { value: "recess", label: LABELS.recess },
-                { value: "surface", label: LABELS.surface },
+                { value: "recess", label: t("configurator.recess") },
+                { value: "surface", label: t("configurator.surface") },
               ]}
             />
           </Field>
 
           {isPuck ? (
             <>
-              <Field label="Puck finish">
+              <Field label={t("configurator.finish")}>
                 <Select
                   value={block.puckFinish}
                   onChange={(v) => onChange({ puckFinish: v as CabinetBlock["puckFinish"] })}
                   options={puckFinishOptions(block.mounting)}
                 />
               </Field>
-              <Field label="Puck spacing (in)">
+              <Field label={`${t("configurator.spacing")} (in)`}>
                 <NumberInput value={block.spacing} min={1} onChange={(v) => onChange({ spacing: v })} />
               </Field>
             </>
           ) : (
             <>
-              <Field label="Linear profile">
+              <Field label={t("configurator.linearSolution")}>
                 <Select
                   value={block.linearFamily}
                   onChange={(v) => {
@@ -476,7 +482,7 @@ function CabinetBlockRow({
                   options={linearFamilyOptions(block.mounting, block.mode)}
                 />
               </Field>
-              <Field label="Colour temperature">
+              <Field label={t("product.cct")}>
                 <Select
                   value={block.cct}
                   onChange={(v) => onChange({ cct: v as CabinetBlock["cct"] })}
@@ -484,9 +490,9 @@ function CabinetBlockRow({
                 />
               </Field>
               {getLinearFamily(block.linearFamily).installAccessoryOptional && (
-                <Field label={getLinearFamily(block.linearFamily).installAccessoryLabel || "Install hardware"}>
+                <Field label={getLinearFamily(block.linearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
                   <Toggle
-                    label="Add to BOM"
+                    label={t("configuratorExtra.addToBom")}
                     checked={block.includeInstallBracket}
                     onChange={(v) => onChange({ includeInstallBracket: v })}
                   />
@@ -497,24 +503,24 @@ function CabinetBlockRow({
 
           {supportsTopLight && (
             <>
-              <Field label="Light on top of cabinet">
-                <Toggle label="Add top light (counts as an extra shelf)" checked={block.topLight} onChange={(v) => onChange({ topLight: v })} />
+              <Field label={t("configuratorExtra.lightOnTop")}>
+                <Toggle label={t("configuratorExtra.addTopLight")} checked={block.topLight} onChange={(v) => onChange({ topLight: v })} />
               </Field>
               {block.topLight && (
-                <Field label="Top-light control">
+                <Field label={t("configurator.topControl")}>
                   <Select
                     value={block.topLightControl}
                     onChange={(v) => onChange({ topLightControl: v as CabinetBlock["topLightControl"] })}
                     options={[
-                      { value: "same", label: "Same control system as cabinet" },
-                      { value: "separate", label: LABELS.separateTopControl },
+                      { value: "same", label: t("configurator.sameCabinetControl") },
+                      { value: "separate", label: t("configurator.separateTopControl") },
                     ]}
                   />
                 </Field>
               )}
               {block.topLight && block.topLightControl === "separate" && (
                 <>
-                  <Field label="Top control system">
+                  <Field label={t("configurator.controlSystem")}>
                     <Select
                       value={block.topControlSystem}
                       onChange={(v) => {
@@ -522,10 +528,10 @@ function CabinetBlockRow({
                         const opts = CONTROL_OPTIONS.pantry?.[system] || [];
                         onChange({ topControlSystem: system, topControl: opts[0] || block.topControl });
                       }}
-                      options={controlSystemOptions("pantry")}
+                      options={controlSystemOptions("pantry", t)}
                     />
                   </Field>
-                  <Field label="Top control">
+                  <Field label={t("configurator.topControl")}>
                     <Select
                       value={block.topControl}
                       onChange={(v) => onChange({ topControl: v })}
@@ -539,7 +545,10 @@ function CabinetBlockRow({
 
           {independentDrivers && (
             <p className="sm:col-span-2 text-xs text-muted">
-              This cabinet gets its own independent driver and control (uses the {zoneKey === "base" ? "Base Cabinets" : "Wall Cabinets"} zone control setting above once selected on the zone).
+              {t("configuratorExtra.independentDriverNote").replace(
+                "{zone}",
+                zoneKey === "base" ? t("configurator.zoneNames.base") : t("configurator.zoneNames.wall")
+              )}
             </p>
           )}
         </div>
@@ -553,23 +562,24 @@ function CabinetBlockRow({
 // ---------------------------------------------------------------------
 
 export function DrawersForm({ state, onChange }: { state: DrawersState; onChange: (patch: Partial<DrawersState>) => void }) {
+  const t = useTranslations();
   const updateBlock = (index: number, patch: Partial<DrawerBlock>) => {
     const blocks = state.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b));
     onChange({ blocks });
   };
 
   return (
-    <Section title={LABELS.zoneNames.drawers} description="Linear-only, sized per drawer.">
-      <Field label="Units">
-        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={UNIT_OPTIONS} />
+    <Section title={t("configurator.zoneNames.drawers")} description={t("configuratorExtra.sectionDrawersDesc")}>
+      <Field label={t("configurator.units")}>
+        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
-      <Field label="Power supply type">
+      <Field label={t("configurator.power")}>
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as DrawersState["powerType"] })}
           options={[
-            { value: "ultra", label: LABELS.ultra },
-            { value: "hardwire", label: LABELS.hardPsu },
+            { value: "ultra", label: t("configurator.ultra") },
+            { value: "hardwire", label: t("configurator.hardPsu") },
           ]}
         />
       </Field>
@@ -579,19 +589,19 @@ export function DrawersForm({ state, onChange }: { state: DrawersState; onChange
           <div key={i} className="rounded-xl border border-border p-4">
             <div className="flex items-center justify-between">
               <span className="font-medium text-foreground">
-                {LABELS.drawer} {i + 1}
+                {t("configurator.drawer")} {i + 1}
               </span>
-              <Toggle label="Include" checked={b.included} onChange={(v) => updateBlock(i, { included: v })} />
+              <Toggle label={t("configurator.includeBlock")} checked={b.included} onChange={(v) => updateBlock(i, { included: v })} />
             </div>
             {b.included && (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Field label="Number of drawers with light">
+                <Field label={t("configurator.drawerCount")}>
                   <NumberInput value={b.count} min={1} onChange={(v) => updateBlock(i, { count: v })} />
                 </Field>
-                <Field label={`Drawer light length (${state.unit})`}>
+                <Field label={`${t("configurator.drawerLength")} (${state.unit})`}>
                   <NumberInput value={b.length} onChange={(v) => updateBlock(i, { length: v })} />
                 </Field>
-                <Field label="Installation method">
+                <Field label={t("configurator.mounting")}>
                   <Select
                     value={b.mounting}
                     onChange={(v) => {
@@ -599,12 +609,12 @@ export function DrawersForm({ state, onChange }: { state: DrawersState; onChange
                       updateBlock(i, defaultLinearPatch(mounting));
                     }}
                     options={[
-                      { value: "recess", label: LABELS.recess },
-                      { value: "surface", label: LABELS.surface },
+                      { value: "recess", label: t("configurator.recess") },
+                      { value: "surface", label: t("configurator.surface") },
                     ]}
                   />
                 </Field>
-                <Field label="Linear profile">
+                <Field label={t("configurator.linearSolution")}>
                   <Select
                     value={b.linearFamily}
                     onChange={(v) => {
@@ -614,7 +624,7 @@ export function DrawersForm({ state, onChange }: { state: DrawersState; onChange
                     options={linearFamilyOptions(b.mounting)}
                   />
                 </Field>
-                <Field label="Colour temperature">
+                <Field label={t("product.cct")}>
                   <Select
                     value={b.cct}
                     onChange={(v) => updateBlock(i, { cct: v as DrawerBlock["cct"] })}

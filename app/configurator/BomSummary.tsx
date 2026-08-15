@@ -2,14 +2,16 @@
 
 import { groupBom } from "@/lib/configurator/engine";
 import type { BomResult } from "@/lib/configurator/types";
+import { useTranslations } from "@/app/providers/LocaleProvider";
 
 export function BomSummary({ bom }: { bom: BomResult }) {
   const groups = groupBom(bom);
+  const t = useTranslations();
 
   if (bom.rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-        Select at least one kitchen zone to build the solution.
+        {t("configurator.empty")}
       </div>
     );
   }
@@ -17,9 +19,9 @@ export function BomSummary({ bom }: { bom: BomResult }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">AMBLUX calculated solution</h3>
+        <h3 className="text-lg font-semibold text-foreground">{t("configurator.calculate")}</h3>
         <span className="rounded-full bg-background px-4 py-1.5 text-sm font-semibold text-accent-strong">
-          Total {Math.round(bom.total * 10) / 10} W
+          {t("configurator.totalWatts")} {Math.round(bom.total * 10) / 10} W
         </span>
       </div>
 
@@ -31,9 +33,9 @@ export function BomSummary({ bom }: { bom: BomResult }) {
               <table className="w-full text-left text-sm">
                 <thead className="bg-background text-xs uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="px-3 py-2">Qty</th>
-                    <th className="px-3 py-2">Part number &amp; description</th>
-                    <th className="px-3 py-2">Notes</th>
+                    <th className="px-3 py-2">{t("configurator.qty")}</th>
+                    <th className="px-3 py-2">{t("configurator.part")}</th>
+                    <th className="px-3 py-2">{t("configuratorExtra.notes")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -55,8 +57,7 @@ export function BomSummary({ bom }: { bom: BomResult }) {
       </div>
 
       <p className="mt-6 rounded-lg bg-background px-4 py-3 text-xs text-muted">
-        Distributor pricing, MSRP, and total job cost will appear here once the pricing model is finalized —
-        part numbers and quantities above are already the real, calculated AMBLUX solution.
+        {t("configuratorExtra.pricingWillAppear")}
       </p>
     </div>
   );

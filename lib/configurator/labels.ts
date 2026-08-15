@@ -1,7 +1,13 @@
 // English UI/BOM copy recovered from the compiled AMBLUX configurator build
 // (the `t` / `en` branch of the multi-language `copy` object in the source).
-// French and Spanish were also present in the original and are a deliberate
-// scope cut for this port — English only, for now.
+//
+// This file now only backs computed catalog/engine output (BOM row zone
+// group headers, generated part descriptions, finish names baked into
+// SKUs — see engine.ts) — deliberately English-only, since that's
+// calculated data, not UI chrome. All translatable UI chrome that used to
+// read LABELS.* (Field labels, Section titles, button text) has moved to
+// lib/i18n/dictionaries.ts's `configurator`/`configuratorExtra` namespaces
+// and is wired through useTranslations() — see app/configurator/forms.tsx.
 
 export const LABELS = {
   zoneNames: {

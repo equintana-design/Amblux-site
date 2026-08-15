@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import type { Tables } from "@/lib/supabase/database.types";
+import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
+import { localize } from "@/lib/i18n/localize";
 
 type RequiredAccessory = {
   title: string;
@@ -39,7 +43,9 @@ export function AccessoriesSection({
   page: Tables<"amblux_product_pages">;
   skuToSlug: Record<string, string>;
 }) {
-  const required = (page.required_accessories ?? []) as RequiredAccessory[];
+  const { locale } = useLocale();
+  const t = useTranslations();
+  const required = localize((page.required_accessories ?? []) as RequiredAccessory[], page.translations, locale, "required_accessories");
   const optional = (page.optional_accessory_codes ?? []) as string[];
   if (required.length === 0 && optional.length === 0) return null;
 
@@ -48,8 +54,8 @@ export function AccessoriesSection({
       <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-16 px-6 py-20 lg:grid-cols-2 print:grid-cols-2 print:gap-10 print:py-10">
         {required.length > 0 ? (
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">Required accessories</p>
-            <p className="mt-2 text-sm text-muted">A complete installation requires the item(s) below.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{t("product.required")}</p>
+            <p className="mt-2 text-sm text-muted">{t("product.requiredIntro")}</p>
             <div className="mt-6 space-y-4">
               {required.map((accessory, i) => (
                 <article key={i} className="rounded-2xl border border-border p-5">
@@ -87,7 +93,7 @@ export function AccessoriesSection({
 
         {optional.length > 0 ? (
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">Optional accessories</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{t("product.optional")}</p>
             <div className="mt-6 flex flex-wrap gap-2">
               {optional.map((code) => {
                 const slug = skuToSlug[code];

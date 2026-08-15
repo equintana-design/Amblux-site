@@ -2,37 +2,40 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
+import { LOCALES } from "@/lib/i18n/dictionaries";
 
 // Shared header for public marketing pages (home, /products, /products/[slug]).
 // Recreates the original ChatGPT-built site's `.site-header` structure
 // (logo, EN/FR/ES language switcher, "Start a Project" CTA) recovered in
-// index.html/styles.css. The language switcher is inert (site only has
-// English copy today) — kept visible because it's part of the recognizable
-// brand chrome, same reasoning as keeping the recovered layout shape.
+// index.html/styles.css. The switcher is now live — see LocaleProvider —
+// rather than the inert placeholder it used to be.
 //
 // Client component (not just for the language buttons) because it also
 // shows the running "test project" item count — a small badge so the
 // BOM someone's building on product pages is reachable from anywhere.
 export function SiteHeader() {
   const { count } = useTestProject();
+  const { locale, setLocale } = useLocale();
+  const t = useTranslations();
 
   return (
     <header className="border-b border-border bg-surface print:hidden">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <Link href="/" aria-label="AMBLUX home">
+        <Link href="/" aria-label={t("home.home")}>
           <Image src="/images/amblux-logo.png" alt="AMBLUX" width={140} height={40} priority className="h-9 w-auto" />
         </Link>
         <div className="flex items-center gap-6">
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted sm:flex">
             <Link href="/products" className="hover:text-foreground">
-              Products
+              {t("nav.products")}
             </Link>
             <Link href="/#partners" className="hover:text-foreground">
-              For Distributors
+              {t("nav.distributors")}
             </Link>
             <Link href="/configurator" className="hover:text-foreground">
-              Configurator
+              {t("nav.configurator")}
             </Link>
           </nav>
           <div
@@ -40,21 +43,23 @@ export function SiteHeader() {
             role="group"
             aria-label="Language / Langue / Idioma"
           >
-            <button type="button" aria-pressed="true" className="bg-foreground px-2.5 py-1.5 text-white">
-              EN
-            </button>
-            <button type="button" aria-pressed="false" className="px-2.5 py-1.5 text-muted">
-              FR
-            </button>
-            <button type="button" aria-pressed="false" className="px-2.5 py-1.5 text-muted">
-              ES
-            </button>
+            {LOCALES.map((l) => (
+              <button
+                key={l}
+                type="button"
+                aria-pressed={locale === l}
+                onClick={() => setLocale(l)}
+                className={locale === l ? "bg-foreground px-2.5 py-1.5 text-white" : "px-2.5 py-1.5 text-muted hover:text-foreground"}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
           </div>
           <Link
             href="/test-project"
             className="relative inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
           >
-            Test project
+            {t("nav.testProject")}
             {count > 0 ? (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold text-white">
                 {count}
@@ -65,7 +70,7 @@ export function SiteHeader() {
             href="/#partners"
             className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
           >
-            Start a Project
+            {t("home.start")}
           </Link>
         </div>
       </div>

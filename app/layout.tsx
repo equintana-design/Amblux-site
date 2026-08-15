@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LocaleProvider } from "./providers/LocaleProvider";
 import { TestProjectProvider } from "./providers/TestProjectProvider";
 
 // The original ChatGPT-built site used "Avenir Next, Helvetica Neue, Arial,
@@ -25,7 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       style={{ ["--font-brand" as string]: brandFontStack }}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <TestProjectProvider>{children}</TestProjectProvider>
+        <LocaleProvider>
+          <TestProjectProvider>{children}</TestProjectProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

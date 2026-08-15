@@ -1,17 +1,23 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import type { Tables } from "@/lib/supabase/database.types";
+import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
+import { localize } from "@/lib/i18n/localize";
 
 type Product = Tables<"amblux_products">;
 
-const GROUP_LABELS: Record<string, string> = {
-  power_cord: "Power cords",
-  install_accessory: "Installation brackets & clips",
-  faceplate: "Puck faceplates",
-  extension_cord: "Extension cables",
+const GROUP_LABEL_KEYS: Record<string, string> = {
+  power_cord: "accessories.powerCord",
+  connector: "accessories.connector",
+  install_accessory: "accessories.installAccessory",
+  faceplate: "accessories.faceplate",
+  extension_cord: "accessories.extensionCord",
+  switch: "accessories.switch",
 };
 
-const GROUP_ORDER = ["power_cord", "install_accessory", "faceplate", "extension_cord"];
+const GROUP_ORDER = ["power_cord", "connector", "install_accessory", "faceplate", "extension_cord", "switch"];
 
 // Most accessory rows carry the linear family they belong to in family_id,
 // which — conveniently — is the same string as that family's product page
@@ -25,9 +31,11 @@ function parentSlug(product: Product): string | null {
 }
 
 export function AccessoryGrid({ items, pageSlugs }: { items: Product[]; pageSlugs: Set<string> }) {
+  const { locale } = useLocale();
+  const t = useTranslations();
   const grouped = new Map<string, Product[]>();
   for (const item of items) {
-    const key = GROUP_LABELS[item.category] ? item.category : "other";
+    const key = GROUP_LABEL_KEYS[item.category] ? item.category : "other";
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(item);
   }
@@ -38,18 +46,22 @@ export function AccessoryGrid({ items, pageSlugs }: { items: Product[]; pageSlug
     <div className="mx-auto w-full max-w-6xl px-6 pb-20">
       {orderedKeys.map((key) => (
         <section key={key} className="mt-14">
-          <h2 className="text-xl font-semibold text-foreground">{GROUP_LABELS[key] ?? "Other accessories"}</h2>
+          <h2 className="text-xl font-semibold text-foreground">
+            {GROUP_LABEL_KEYS[key] ? t(GROUP_LABEL_KEYS[key]) : t("accessories.other")}
+          </h2>
           <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {grouped.get(key)!.map((item) => {
               const parent = parentSlug(item);
               const parentHref = parent && pageSlugs.has(parent) ? `/products/${parent}` : null;
+              const label = localize(item.label, item.translations, locale, "label");
+              const shortDescription = localize(item.short_description, item.translations, locale, "short_description");
               return (
                 <article key={item.sku} id={item.sku} className="overflow-hidden rounded-2xl border border-border bg-surface">
                   <div className="relative h-40 w-full bg-background">
                     {item.image_url ? (
                       <Image
                         src={item.image_url}
-                        alt={item.label}
+                        alt={label}
                         fill
                         className="object-contain p-4"
                         sizes="(min-width: 1024px) 33vw, 100vw"
@@ -57,12 +69,12 @@ export function AccessoryGrid({ items, pageSlugs }: { items: Product[]; pageSlug
                     ) : null}
                   </div>
                   <div className="p-5">
-                    <h3 className="font-semibold text-foreground">{item.label}</h3>
-                    {item.short_description ? <p className="mt-2 text-sm text-muted">{item.short_description}</p> : null}
+                    <h3 className="font-semibold text-foreground">{label}</h3>
+                    {shortDescription ? <p className="mt-2 text-sm text-muted">{shortDescription}</p> : null}
                     <code className="mt-3 block break-all text-xs text-muted">{item.sku}</code>
                     {parentHref ? (
                       <Link href={parentHref} className="mt-3 inline-block text-sm font-medium text-accent-strong hover:underline">
-                        Used with this fixture →
+                        {t("accessories.usedWith")}
                       </Link>
                     ) : null}
                   </div>

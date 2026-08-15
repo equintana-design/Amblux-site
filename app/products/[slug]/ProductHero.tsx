@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useState } from "react";
 import type { Tables } from "@/lib/supabase/database.types";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
+import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
+import { localize } from "@/lib/i18n/localize";
 import { findVariantForAxisValues, useVariant } from "./VariantState";
 
 type ProductPage = Tables<"amblux_product_pages">;
@@ -26,8 +28,13 @@ export function ProductHero({ page }: { page: ProductPage }) {
   const { variants, axes, selected, selectedSku, setSelectedSku } = useVariant();
   const { addItem } = useTestProject();
   const [justAdded, setJustAdded] = useState(false);
+  const t = useTranslations();
+  const { locale } = useLocale();
   const currentOptions = (selected.variant_options ?? {}) as Record<string, string>;
   const heroImage = selected.image_url ?? page.hero_image_url;
+  const name = localize(page.name, page.translations, locale, "name");
+  const eyebrow = localize(page.eyebrow, page.translations, locale, "eyebrow");
+  const heroSummary = localize(page.hero_summary, page.translations, locale, "hero_summary");
 
   // Wireless Sensor Switches and Wireless Dimming — Kinetic RF & Bluetooth
   // App each ship a receiver that's always required alongside whichever
@@ -72,11 +79,15 @@ export function ProductHero({ page }: { page: ProductPage }) {
   }
 
   function handleShare() {
-    const subject = encodeURIComponent(`AMBLUX product: ${page.name}`);
-    const partNumbers = receiverVariant ? `${selectedSku}\nReceiver (always required): ${receiverVariant.sku}` : selectedSku;
-    const body = encodeURIComponent(
-      `${page.name}\nPart number: ${partNumbers}\n\nSee the full spec sheet: ${typeof window !== "undefined" ? window.location.href : ""}`,
-    );
+    const subject = encodeURIComponent(t("product.emailSubject"));
+    const lines = [
+      `${t("product.emailIntro")} ${name}.`,
+      "",
+      `${t("product.emailVariant")}: ${selectedSku}`,
+    ];
+    if (receiverVariant) lines.push(`${t("wireless.receiverAlwaysRequired")}: ${receiverVariant.sku}`);
+    lines.push("", t("product.emailAttach"));
+    const body = encodeURIComponent(lines.join("\n"));
     if (typeof window !== "undefined") window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
@@ -86,7 +97,7 @@ export function ProductHero({ page }: { page: ProductPage }) {
         {heroImage ? (
           <Image
             src={heroImage}
-            alt={page.name}
+            alt={name}
             fill
             className="object-contain p-10"
             sizes="(min-width: 1024px) 45vw, 100vw"
@@ -95,15 +106,15 @@ export function ProductHero({ page }: { page: ProductPage }) {
       </div>
 
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{page.eyebrow}</p>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">{page.name}</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-strong">{eyebrow}</p>
+        <h1 className="mt-2 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">{name}</h1>
         <code className="mt-3 block break-all text-xs text-muted">{selectedSku}</code>
-        {page.hero_summary ? <p className="mt-4 text-base leading-7 text-muted">{page.hero_summary}</p> : null}
+        {heroSummary ? <p className="mt-4 text-base leading-7 text-muted">{heroSummary}</p> : null}
 
         {axes.length > 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-background p-5 print:rounded-none print:border-0 print:bg-transparent print:p-0">
             <div className="print:hidden">
-              <p className="text-sm font-semibold text-foreground">Configure this model</p>
+              <p className="text-sm font-semibold text-foreground">{t("product.configure")}</p>
               <div className="mt-4 space-y-4">
                 {axes.map((axis) => (
                   <div key={axis.key} className="grid grid-cols-[minmax(0,110px)_1fr] items-center gap-3">
@@ -133,19 +144,17 @@ export function ProductHero({ page }: { page: ProductPage }) {
               </div>
             </div>
             <p className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-4 text-sm print:mt-0 print:border-0 print:pt-0">
-              <span className="text-muted">{receiverVariant ? "Selected controller part number" : "Selected part number"}</span>
+              <span className="text-muted">{receiverVariant ? t("wireless.selectedController") : t("product.selected")}</span>
               <code className="break-all font-medium text-foreground">{selectedSku}</code>
             </p>
             {receiverVariant ? (
               <p className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-2 text-sm print:border-0 print:pt-0">
-                <span className="text-muted">Receiver (always required)</span>
+                <span className="text-muted">{t("wireless.receiverAlwaysRequired")}</span>
                 <code className="break-all font-medium text-foreground">{receiverVariant.sku}</code>
               </p>
             ) : null}
             <p className="mt-2 text-xs text-muted">
-              {receiverVariant
-                ? "Every controller on this page requires this receiver — it's included automatically, not an alternative option."
-                : "Only combinations available in the AMBLUX sales sheet can be selected."}
+              {receiverVariant ? t("wireless.receiverNote") : t("product.availability")}
             </p>
           </div>
         ) : null}
@@ -157,27 +166,25 @@ export function ProductHero({ page }: { page: ProductPage }) {
         >
           {justAdded ? (
             <>
-              {receiverVariant ? "Controller + receiver added" : "Added to test project"} <span aria-hidden="true">✓</span>
+              {receiverVariant ? t("wireless.controllerReceiverAdded") : t("product.added")} <span aria-hidden="true">✓</span>
             </>
           ) : (
             <>
-              {receiverVariant ? "Add controller + receiver" : "Add to test project"} <span aria-hidden="true">+</span>
+              {receiverVariant ? t("wireless.addControllerReceiver") : t("product.add")} <span aria-hidden="true">+</span>
             </>
           )}
         </button>
 
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-medium text-accent-strong print:hidden">
           <button type="button" onClick={handlePrint} className="inline-flex items-center gap-1.5 hover:underline">
-            <span aria-hidden="true">↓</span> Download product PDF
+            <span aria-hidden="true">↓</span> {t("product.savePdf")}
           </button>
           <button type="button" onClick={handleShare} className="inline-flex items-center gap-1.5 hover:underline">
-            <span aria-hidden="true">↗</span> Share by email
+            <span aria-hidden="true">↗</span> {t("product.emailSheet")}
           </button>
         </div>
-        <p className="mt-2 text-xs text-muted print:hidden">Save the branded product sheet as a PDF, then attach it to the prepared email.</p>
-        <p className="mt-6 text-xs text-muted print:hidden">
-          Product information and image sourced from the AMBLUX master product database and model folder.
-        </p>
+        <p className="mt-2 text-xs text-muted print:hidden">{t("product.pdfHint")}</p>
+        <p className="mt-6 text-xs text-muted print:hidden">{t("product.source")}</p>
       </div>
     </section>
   );
