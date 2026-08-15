@@ -10,11 +10,11 @@ export default async function SignUpPage({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Distributors</p>
-      <h1 className="mt-2 text-2xl font-semibold text-foreground">Create a distributor account</h1>
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Accounts</p>
+      <h1 className="mt-2 text-2xl font-semibold text-foreground">Create an account</h1>
       <p className="mt-2 text-sm text-muted">
-        New accounts start unapproved — an AMBLUX admin reviews and approves distributor accounts before
-        distributor pricing becomes visible. Already have an account?{" "}
+        New accounts start as a Client and unapproved — an AMBLUX admin reviews and approves accounts, and can
+        later promote one to Distributor, before its pricing becomes visible. Already have an account?{" "}
         <Link href="/sign-in" className="font-medium text-accent-strong hover:underline">
           Sign in
         </Link>

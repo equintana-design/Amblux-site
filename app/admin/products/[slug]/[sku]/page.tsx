@@ -11,11 +11,11 @@ export default async function AdminProductVariantEdit({
   searchParams,
 }: {
   params: Promise<{ slug: string; sku: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; imageError?: string }>;
 }) {
   const { slug, sku: skuParam } = await params;
   const sku = decodeURIComponent(skuParam);
-  const { error, saved } = await searchParams;
+  const { error, saved, imageError } = await searchParams;
 
   const supabase = await createClient();
   const {
@@ -44,6 +44,12 @@ export default async function AdminProductVariantEdit({
       </p>
 
       {saved ? <p className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">Saved.</p> : null}
+      {imageError ? (
+        <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Everything else saved, but the image upload failed: {imageError}. The previous image (if any) was kept —
+          try a smaller file or a different format.
+        </p>
+      ) : null}
       {error ? <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
       <form action={updateProductVariantAction} className="mt-8 flex flex-col gap-6" encType="multipart/form-data">

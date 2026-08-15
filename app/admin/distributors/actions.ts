@@ -32,3 +32,21 @@ export async function setApprovalAction(formData: FormData) {
   await supabase.from("amblux_profiles").update({ approved }).eq("id", id);
   revalidatePath("/admin/distributors");
 }
+
+// Every account starts as "client" (see private.handle_new_amblux_user,
+// migration 0024) — this is how an admin moves one up to "distributor" or
+// "admin". RLS + the column-pinning trigger enforce this is admin-only no
+// matter what a non-admin's own update request sends; VALID_ROLES here is
+// just a fast, clear rejection of a bad value before it ever reaches the
+// database's own check constraint.
+const VALID_ROLES = ["client", "distributor", "admin"];
+
+export async function setRoleAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const id = String(formData.get("id") || "");
+  const role = String(formData.get("role") || "");
+  if (!VALID_ROLES.includes(role)) return;
+
+  await supabase.from("amblux_profiles").update({ role }).eq("id", id);
+  revalidatePath("/admin/distributors");
+}

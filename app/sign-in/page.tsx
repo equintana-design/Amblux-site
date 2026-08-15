@@ -10,10 +10,10 @@ export default async function SignInPage({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Distributors</p>
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Accounts</p>
       <h1 className="mt-2 text-2xl font-semibold text-foreground">Sign in</h1>
       <p className="mt-2 text-sm text-muted">
-        Approved distributor accounts see distributor buy pricing on the configurator. New here?{" "}
+        Approved accounts see their buy pricing on the configurator. New here?{" "}
         <Link href="/sign-up" className="font-medium text-accent-strong hover:underline">
           Create an account
         </Link>

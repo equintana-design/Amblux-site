@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { signOutAction, updateCompanyNameAction } from "./actions";
 
 const ROLE_LABEL: Record<string, string> = {
+  client: "Client",
   distributor: "Distributor",
-  dealer: "Dealer",
   admin: "Admin",
 };
 
@@ -28,7 +28,7 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto w-full max-w-md flex-1 px-6 py-16">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Distributors</p>
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Accounts</p>
       <h1 className="mt-2 text-2xl font-semibold text-foreground">Your account</h1>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-6">
@@ -39,10 +39,10 @@ export default async function AccountPage() {
           </div>
           <div className="flex items-center justify-between">
             <dt className="text-muted">Account type</dt>
-            <dd className="font-medium text-foreground">{ROLE_LABEL[profile?.role ?? "distributor"]}</dd>
+            <dd className="font-medium text-foreground">{ROLE_LABEL[profile?.role ?? "client"]}</dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-muted">Configurator &amp; distributor pricing</dt>
+            <dt className="text-muted">Configurator &amp; pricing</dt>
             <dd>
               {profile?.approved ? (
                 <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
@@ -95,7 +95,7 @@ export default async function AccountPage() {
         {profile?.role === "admin" && profile.approved && (
           <div className="mt-6 flex flex-col gap-2 border-t border-border pt-6">
             <Link href="/admin/distributors" className="text-sm font-medium text-accent-strong hover:underline">
-              Manage distributor accounts →
+              Manage accounts →
             </Link>
             <Link href="/admin/pricing" className="text-sm font-medium text-accent-strong hover:underline">
               Manage pricing engine →
