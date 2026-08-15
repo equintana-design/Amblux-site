@@ -13,9 +13,10 @@ type RequiredAccessory = {
 };
 
 // Required-accessory "items" are authored as "SKU — description" strings
-// (e.g. "AMB-FCRGL-RC1015TR-PC-1.5M — power cord"). If that leading SKU has
-// its own page (the /products/accessories catalog, or occasionally a full
-// family page), link it; otherwise leave the text exactly as authored.
+// (e.g. "AMB-FCRGL-RC1015TR-PC-1.5M — power cord"). Every accessory SKU now
+// has its own dedicated product page (migration 0022), so if that leading
+// SKU has a page it links straight to it; otherwise leave the text exactly
+// as authored.
 function AccessoryItem({ item, skuToSlug }: { item: string; skuToSlug: Record<string, string> }) {
   const separator = " — ";
   const splitAt = item.indexOf(separator);
@@ -28,7 +29,7 @@ function AccessoryItem({ item, skuToSlug }: { item: string; skuToSlug: Record<st
 
   return (
     <>
-      <Link href={`/products/${slug}#${encodeURIComponent(code)}`} className="font-medium text-accent-strong hover:underline">
+      <Link href={`/products/${slug}`} className="font-medium text-accent-strong hover:underline">
         {code}
       </Link>
       {rest}
@@ -100,7 +101,7 @@ export function AccessoriesSection({
                 return slug ? (
                   <Link
                     key={code}
-                    href={`/products/${slug}#${encodeURIComponent(code)}`}
+                    href={`/products/${slug}`}
                     className="rounded-lg border border-accent-soft bg-background px-3 py-1.5 text-xs font-medium text-accent-strong hover:bg-accent-soft/20"
                   >
                     {code}

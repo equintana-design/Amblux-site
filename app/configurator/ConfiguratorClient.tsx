@@ -2,21 +2,40 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { computeBom, consolidateParts } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
+import { createClient } from "@/lib/supabase/client";
+import { loadQuoteState } from "@/lib/configurator/quotes";
 import { AuthStatus } from "./AuthStatus";
 import { BomSummary } from "./BomSummary";
 import { PartsList } from "./PartsList";
 import { PricingPanel } from "./PricingPanel";
+import { SavedProjectsPanel } from "./SavedProjectsPanel";
 import { BlocksZoneForm, DrawersForm, SimpleZoneForm } from "./forms";
 import { Field, Select, Toggle } from "./ui";
 
 export function ConfiguratorClient() {
   const [state, setState] = useState<ConfiguratorState>(() => defaultConfiguratorState());
+  const [quoteId, setQuoteId] = useState<string | null>(null);
   const t = useTranslations();
+
+  // Deep link from "My saved projects" (e.g. /configurator?quote=<id>) —
+  // read straight off window.location instead of next/navigation's
+  // useSearchParams so this doesn't force a Suspense boundary around the
+  // whole page for what's a one-time initial read.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("quote");
+    if (!id) return;
+    loadQuoteState(createClient(), id).then((loaded) => {
+      if (loaded) {
+        setState(loaded);
+        setQuoteId(id);
+      }
+    });
+  }, []);
 
   const bom = useMemo(() => computeBom(state), [state]);
 
@@ -60,7 +79,10 @@ export function ConfiguratorClient() {
           <div className="flex items-center gap-3">
             <AuthStatus />
             <button
-              onClick={() => setState(defaultConfiguratorState())}
+              onClick={() => {
+                setState(defaultConfiguratorState());
+                setQuoteId(null);
+              }}
               className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
             >
               {t("configurator.clear")}
@@ -185,6 +207,16 @@ export function ConfiguratorClient() {
           </div>
 
           <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
+            <SavedProjectsPanel
+              state={state}
+              bom={bom}
+              quoteId={quoteId}
+              onSaved={(id) => setQuoteId(id)}
+              onLoad={(id, loaded) => {
+                setState(loaded);
+                setQuoteId(id);
+              }}
+            />
             <BomSummary bom={bom} />
             <PartsList bom={bom} project={state.project} />
             <PricingPanel parts={consolidateParts(bom)} />

@@ -339,6 +339,14 @@ const en = {
     lightOnTop: "Light on top of cabinet",
     addTopLight: "Add top light (counts as an extra shelf)",
     independentDriverNote: "This cabinet gets its own independent driver and control (uses the {zone} zone control setting above once selected on the zone).",
+    savedProjects: "Saved projects",
+    saveProject: "Save project",
+    saving: "Saving…",
+    savedAs: "Saved as {job}",
+    saveError: "Couldn't save — please try again.",
+    noSavedProjects: "No saved projects yet.",
+    loadProject: "Load",
+    loadingProjects: "Loading your saved projects…",
   },
 };
 
@@ -652,6 +660,14 @@ const fr: Messages = {
     lightOnTop: "Light on top of cabinet",
     addTopLight: "Add top light (counts as an extra shelf)",
     independentDriverNote: "This cabinet gets its own independent driver and control (uses the {zone} zone control setting above once selected on the zone).",
+    savedProjects: "Saved projects",
+    saveProject: "Save project",
+    saving: "Saving…",
+    savedAs: "Saved as {job}",
+    saveError: "Couldn't save — please try again.",
+    noSavedProjects: "No saved projects yet.",
+    loadProject: "Load",
+    loadingProjects: "Loading your saved projects…",
   },
 };
 
@@ -959,6 +975,14 @@ const es: Messages = {
     lightOnTop: "Light on top of cabinet",
     addTopLight: "Add top light (counts as an extra shelf)",
     independentDriverNote: "This cabinet gets its own independent driver and control (uses the {zone} zone control setting above once selected on the zone).",
+    savedProjects: "Saved projects",
+    saveProject: "Save project",
+    saving: "Saving…",
+    savedAs: "Saved as {job}",
+    saveError: "Couldn't save — please try again.",
+    noSavedProjects: "No saved projects yet.",
+    loadProject: "Load",
+    loadingProjects: "Loading your saved projects…",
   },
 };
 

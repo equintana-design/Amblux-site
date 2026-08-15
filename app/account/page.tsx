@@ -100,6 +100,9 @@ export default async function AccountPage() {
             <Link href="/admin/pricing" className="text-sm font-medium text-accent-strong hover:underline">
               Manage pricing engine →
             </Link>
+            <Link href="/admin/products" className="text-sm font-medium text-accent-strong hover:underline">
+              Edit product pages →
+            </Link>
           </div>
         )}
 

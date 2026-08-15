@@ -35,6 +35,7 @@ export function ProductHero({ page }: { page: ProductPage }) {
   const name = localize(page.name, page.translations, locale, "name");
   const eyebrow = localize(page.eyebrow, page.translations, locale, "eyebrow");
   const heroSummary = localize(page.hero_summary, page.translations, locale, "hero_summary");
+  const applications = localize((page.applications ?? []) as string[], page.translations, locale, "applications");
 
   // Wireless Sensor Switches and Wireless Dimming — Kinetic RF & Bluetooth
   // App each ship a receiver that's always required alongside whichever
@@ -156,6 +157,25 @@ export function ProductHero({ page }: { page: ProductPage }) {
             <p className="mt-2 text-xs text-muted">
               {receiverVariant ? t("wireless.receiverNote") : t("product.availability")}
             </p>
+          </div>
+        ) : null}
+
+        {applications.length > 0 ? (
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-foreground">{t("product.applications")}</p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {applications.map((item) => (
+                <li
+                  key={item}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted"
+                >
+                  <span aria-hidden="true" className="text-accent-strong">
+                    ✓
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
