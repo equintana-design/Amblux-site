@@ -81,8 +81,8 @@ export const LINEAR_SOLUTIONS: LinearSolution[] = [
   { sku: "AMB-FCST-RC0485TR-24V-40-24-90-3M-18W", label: "Flexible Silicone 4 × 8.5 mm translucent trim · 3 m · 4000 K", type: "flexible", mounting: "recess", cct: "4000", wattsPerMetre: 6 },
   { sku: "AMB-FCRGL-RC1015TR-24V-30-24-90-2.4M-28.8W", label: "Rigid 10 × 15 mm · 2.4 m · 3000 K", type: "rigid", mounting: "recess", cct: "3000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M" },
   { sku: "AMB-FCRGL-RC1015TR -24V-40-24-90-2.4M-28.8W", label: "Rigid 10 × 15 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M" },
-  { sku: "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 3000 K", type: "rigid", mounting: "recess", cct: "3000", wattsPerMetre: 7.5, powerCordSku: RIGID_CORD_SKU },
-  { sku: "AMB-FCRGL-RC0608TR-24V-40-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 7.5, powerCordSku: RIGID_CORD_SKU },
+  { sku: "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 3000 K", type: "rigid", mounting: "recess", cct: "3000", wattsPerMetre: 7.2, powerCordSku: RIGID_CORD_SKU },
+  { sku: "AMB-FCRGL-RC0608TR-24V-40-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 7.2, powerCordSku: RIGID_CORD_SKU },
   { sku: "AMB-FCST-SR1010-45DEG -24V-30-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
   { sku: "AMB-FCST-SR1010-45DEG -24V-40-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 4000 K", type: "flexible", mounting: "surface", cct: "4000", wattsPerMetre: 9 },
   { sku: "AMB-FCST-SR1010-45DEG -24V-30-24-90-5M-45W", label: "Flexible Silicone 10 × 10 mm · 45° · 5 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
@@ -131,6 +131,13 @@ export interface LinearFamily {
   // so it's reasonable for an installer to skip it. Everything else with an
   // installAccessorySku stays a plain required line, unchanged.
   installAccessoryOptional?: boolean;
+  // true = this profile's only real-world application (per the product
+  // pages' seeded "applications" data) is vertical side-panel lighting —
+  // it should only be offered when a cabinet block's Layout is set to
+  // "Vertical", never for shelf-mode blocks. Set on rigid-6x8 and
+  // silicone-4x8.5-trim only; every other family stays available
+  // regardless of layout.
+  verticalOnly?: boolean;
   // real SKU for each (CCT, stock length in metres) this family is actually
   // sold in — absence of a key means AMBLUX doesn't carry that combination.
   skusByCctAndLength: Partial<Record<"3000" | "4000", Record<number, string>>>;
@@ -154,6 +161,7 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     type: "flexible",
     mounting: "recess",
     wattsPerMetre: 6,
+    verticalOnly: true,
     skusByCctAndLength: {
       "3000": { 3: "AMB-FCST-RC0485TR-24V-30-24-90-3M-18W" },
       "4000": { 3: "AMB-FCST-RC0485TR-24V-40-24-90-3M-18W" },
@@ -179,8 +187,14 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     label: "Rigid 6 × 8 mm",
     type: "rigid",
     mounting: "recess",
-    wattsPerMetre: 7.5,
+    // Confirmed against the AMBLUX Product Sales Sheet Templates workbook
+    // (Google Drive, "Linear Solutions" tab, Wattage per Foot/Meter column
+    // for AMB-FCRGL-RC0608TR-...): 7.2 W/m, not the 7.5 previously carried
+    // over from the recovered CLB build — the product pages' own spec data
+    // already shows 7.2 W/m correctly, only this engine constant was stale.
+    wattsPerMetre: 7.2,
     powerCordSku: RIGID_CORD_SKU,
+    verticalOnly: true,
     skusByCctAndLength: {
       "3000": { 2.4: "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W" },
       "4000": { 2.4: "AMB-FCRGL-RC0608TR-24V-40-24-90-2.4M-18W" },
@@ -228,8 +242,13 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
   },
 ];
 
-export function linearFamiliesFor(mounting: "recess" | "surface"): LinearFamily[] {
-  return LINEAR_FAMILIES.filter((f) => f.mounting === mounting);
+// mode omitted/"shelf" => excludes verticalOnly profiles (correct for every
+// caller that has no Layout concept at all — simple zones, drawers — as
+// well as a shelf-mode cabinet block). mode "vertical" => full list for
+// that mounting, since a vertical block may still use a general-purpose
+// profile; verticalOnly profiles are simply also available there.
+export function linearFamiliesFor(mounting: "recess" | "surface", mode?: "shelf" | "vertical"): LinearFamily[] {
+  return LINEAR_FAMILIES.filter((f) => f.mounting === mounting && (mode === "vertical" || !f.verticalOnly));
 }
 
 export function getLinearFamily(id: string): LinearFamily {

@@ -188,7 +188,11 @@ export function blockDefault(): CabinetBlock {
     topControl: "door",
     length: 30,
     lightType: "linear",
-    linearFamily: "rigid-6x8",
+    // Rigid 6 × 8 mm is vertical-side-panel-only (see catalog.ts
+    // LinearFamily.verticalOnly) and this default block starts in "shelf"
+    // mode, so it can't be the default profile here — Rigid 10 × 15 mm is
+    // the next general-purpose recess profile.
+    linearFamily: "rigid-10x15",
     spacing: 16,
     puckWatts: 3.5,
     puckFinish: "white",
@@ -264,7 +268,10 @@ export function defaultConfiguratorState(): ConfiguratorState {
         included: false,
         count: 1,
         length: 24,
-        linearFamily: "rigid-6x8",
+        // Drawers have no vertical layout concept, so — same reasoning as
+        // blockDefault() above — the default can't be the vertical-only
+        // Rigid 6 × 8 mm profile.
+        linearFamily: "rigid-10x15",
         mounting: "recess" as Mounting,
         cct: "3000" as const,
       })),

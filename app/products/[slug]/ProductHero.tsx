@@ -29,9 +29,19 @@ export function ProductHero({ page }: { page: ProductPage }) {
   const currentOptions = (selected.variant_options ?? {}) as Record<string, string>;
   const heroImage = selected.image_url ?? page.hero_image_url;
 
+  // Wireless Sensor Switches and Wireless Dimming — Kinetic RF & Bluetooth
+  // App each ship a receiver that's always required alongside whichever
+  // controller is picked (see migration 0017) — never an alternative
+  // "Control type" choice. Variants tagged variant_options.role ===
+  // "receiver" are pulled out of the selectable button group entirely and
+  // shown as a fixed, always-included part instead — a "double selection":
+  // one fixed receiver + one picked controller.
+  const receiverVariant = variants.find((v) => (v.variant_options as Record<string, string> | null)?.role === "receiver");
+  const controllerVariants = receiverVariant ? variants.filter((v) => v.sku !== receiverVariant.sku) : variants;
+
   function pickAxisValue(axisKey: string, value: string) {
     const nextValues = { ...currentOptions, [axisKey]: value };
-    const exact = findVariantForAxisValues(variants, axes, nextValues);
+    const exact = findVariantForAxisValues(controllerVariants, axes, nextValues);
     if (exact) {
       setSelectedSku(exact.sku);
       return;
@@ -39,12 +49,20 @@ export function ProductHero({ page }: { page: ProductPage }) {
     // No exact combo (e.g. a length only offered at one colour temperature) —
     // fall back to the first variant that at least matches the axis just
     // clicked, so the click always does something rather than going dead.
-    const fallback = variants.find((v) => (v.variant_options as Record<string, string> | null)?.[axisKey] === value);
+    const fallback = controllerVariants.find((v) => (v.variant_options as Record<string, string> | null)?.[axisKey] === value);
     if (fallback) setSelectedSku(fallback.sku);
   }
 
   function handleAddToProject() {
     addItem({ sku: selected.sku, label: selected.label, pageSlug: page.slug, imageUrl: heroImage ?? null });
+    if (receiverVariant) {
+      addItem({
+        sku: receiverVariant.sku,
+        label: receiverVariant.label,
+        pageSlug: page.slug,
+        imageUrl: receiverVariant.image_url ?? page.hero_image_url ?? null,
+      });
+    }
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1800);
   }
@@ -55,8 +73,9 @@ export function ProductHero({ page }: { page: ProductPage }) {
 
   function handleShare() {
     const subject = encodeURIComponent(`AMBLUX product: ${page.name}`);
+    const partNumbers = receiverVariant ? `${selectedSku}\nReceiver (always required): ${receiverVariant.sku}` : selectedSku;
     const body = encodeURIComponent(
-      `${page.name}\nPart number: ${selectedSku}\n\nSee the full spec sheet: ${typeof window !== "undefined" ? window.location.href : ""}`,
+      `${page.name}\nPart number: ${partNumbers}\n\nSee the full spec sheet: ${typeof window !== "undefined" ? window.location.href : ""}`,
     );
     if (typeof window !== "undefined") window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
@@ -90,7 +109,7 @@ export function ProductHero({ page }: { page: ProductPage }) {
                   <div key={axis.key} className="grid grid-cols-[minmax(0,110px)_1fr] items-center gap-3">
                     <span className="text-sm text-muted">{axis.label}</span>
                     <div className="flex flex-wrap gap-2">
-                      {axisValues(variants, axis.key).map((value) => {
+                      {axisValues(controllerVariants, axis.key).map((value) => {
                         const active = currentOptions[axis.key] === value;
                         return (
                           <button
@@ -114,10 +133,20 @@ export function ProductHero({ page }: { page: ProductPage }) {
               </div>
             </div>
             <p className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-4 text-sm print:mt-0 print:border-0 print:pt-0">
-              <span className="text-muted">Selected part number</span>
+              <span className="text-muted">{receiverVariant ? "Selected controller part number" : "Selected part number"}</span>
               <code className="break-all font-medium text-foreground">{selectedSku}</code>
             </p>
-            <p className="mt-2 text-xs text-muted">Only combinations available in the AMBLUX sales sheet can be selected.</p>
+            {receiverVariant ? (
+              <p className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-2 text-sm print:border-0 print:pt-0">
+                <span className="text-muted">Receiver (always required)</span>
+                <code className="break-all font-medium text-foreground">{receiverVariant.sku}</code>
+              </p>
+            ) : null}
+            <p className="mt-2 text-xs text-muted">
+              {receiverVariant
+                ? "Every controller on this page requires this receiver — it's included automatically, not an alternative option."
+                : "Only combinations available in the AMBLUX sales sheet can be selected."}
+            </p>
           </div>
         ) : null}
 
@@ -128,11 +157,11 @@ export function ProductHero({ page }: { page: ProductPage }) {
         >
           {justAdded ? (
             <>
-              Added to test project <span aria-hidden="true">✓</span>
+              {receiverVariant ? "Controller + receiver added" : "Added to test project"} <span aria-hidden="true">✓</span>
             </>
           ) : (
             <>
-              Add to test project <span aria-hidden="true">+</span>
+              {receiverVariant ? "Add controller + receiver" : "Add to test project"} <span aria-hidden="true">+</span>
             </>
           )}
         </button>

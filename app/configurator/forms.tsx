@@ -54,8 +54,8 @@ function puckFinishOptions(mounting: "recess" | "surface"): { value: string; lab
 // the "right product for the right characteristics" step: the installer
 // picks a physical profile, not a fixed-length SKU. Purchase quantity is
 // computed from the entered run length at calculation time (see engine.ts).
-function linearFamilyOptions(mounting: "recess" | "surface"): { value: string; label: string }[] {
-  return linearFamiliesFor(mounting).map((f) => ({
+function linearFamilyOptions(mounting: "recess" | "surface", mode?: "shelf" | "vertical"): { value: string; label: string }[] {
+  return linearFamiliesFor(mounting, mode).map((f) => ({
     value: f.id,
     label: `${f.label} (${f.type === "flexible" ? "Flexible" : "Rigid"})`,
   }));
@@ -68,8 +68,8 @@ function cctOptionsForFamily(familyId: string): { value: string; label: string }
 // Picks the first family available for a mounting, and the first CCT that
 // family actually ships in — used whenever mounting changes and the
 // previously-selected family/CCT combo may no longer be valid.
-function defaultLinearPatch(mounting: "recess" | "surface") {
-  const family = linearFamiliesFor(mounting)[0];
+function defaultLinearPatch(mounting: "recess" | "surface", mode?: "shelf" | "vertical") {
+  const family = linearFamiliesFor(mounting, mode)[0];
   const cct = familyCcts(family)[0] || "3000";
   return { mounting, linearFamily: family.id, cct: cct as "3000" | "4000" };
 }
@@ -388,7 +388,19 @@ function CabinetBlockRow({
           <Field label="Layout">
             <Select
               value={block.mode}
-              onChange={(v) => onChange({ mode: v as CabinetBlock["mode"] })}
+              onChange={(v) => {
+                const mode = v as CabinetBlock["mode"];
+                // Some linear profiles (e.g. Rigid 6 × 8 mm) are sold only
+                // for vertical side-panel lighting — if the block is leaving
+                // vertical mode and its selected profile is vertical-only,
+                // fall back to the first profile that's valid for shelf use.
+                const stillValid = linearFamiliesFor(block.mounting, mode).some((f) => f.id === block.linearFamily);
+                if (stillValid) {
+                  onChange({ mode });
+                } else {
+                  onChange({ mode, ...defaultLinearPatch(block.mounting, mode) });
+                }
+              }}
               options={[
                 { value: "shelf", label: "Shelf light" },
                 { value: "vertical", label: "Vertical" },
@@ -429,7 +441,7 @@ function CabinetBlockRow({
                 onChange(
                   isPuck
                     ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"] }
-                    : defaultLinearPatch(mounting)
+                    : defaultLinearPatch(mounting, block.mode)
                 );
               }}
               options={[
@@ -461,7 +473,7 @@ function CabinetBlockRow({
                     const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                     onChange({ linearFamily: v, cct: cct as CabinetBlock["cct"], includeInstallBracket: true });
                   }}
-                  options={linearFamilyOptions(block.mounting)}
+                  options={linearFamilyOptions(block.mounting, block.mode)}
                 />
               </Field>
               <Field label="Colour temperature">
