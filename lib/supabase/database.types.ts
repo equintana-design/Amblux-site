@@ -1,6 +1,6 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0020. Regenerate this file any time
+// supabase/migrations/0001 through 0025. Regenerate this file any time
 // the schema changes rather than hand-editing it — it's meant to always
 // mirror the real database exactly.
 export type Json =
@@ -185,8 +185,10 @@ export type Database = {
           category: string
           created_at: string
           default_sku: string | null
+          document_urls: Json
           eyebrow: string
           features: Json
+          gallery_image_urls: Json
           hero_image_url: string | null
           hero_summary: string | null
           linear_family_id: string | null
@@ -206,8 +208,10 @@ export type Database = {
           category: string
           created_at?: string
           default_sku?: string | null
+          document_urls?: Json
           eyebrow: string
           features?: Json
+          gallery_image_urls?: Json
           hero_image_url?: string | null
           hero_summary?: string | null
           linear_family_id?: string | null
@@ -227,8 +231,10 @@ export type Database = {
           category?: string
           created_at?: string
           default_sku?: string | null
+          document_urls?: Json
           eyebrow?: string
           features?: Json
+          gallery_image_urls?: Json
           hero_image_url?: string | null
           hero_summary?: string | null
           linear_family_id?: string | null
