@@ -9,41 +9,9 @@ import {
   updateProductCostAction,
   upsertScopedParametersAction,
 } from "./actions";
-
-const FIELD_LABELS: Record<string, string> = {
-  freight_usd: "Freight (USD/unit)",
-  insurance_usd: "Insurance (USD/unit)",
-  brokerage_usd: "Brokerage (USD/unit)",
-  duty_pct: "Duty (%)",
-  inland_cad: "Inland freight (CAD/unit)",
-  qc_pct: "QC buffer (%)",
-  fx_usd_cad: "FX rate (USD→CAD)",
-  amblux_margin_pct: "AMBLUX margin (%)",
-  distributor_margin_pct: "Distributor margin (%)",
-  dealer_margin_pct: "Dealer margin (%)",
-};
-const PARAM_FIELDS = Object.keys(FIELD_LABELS) as Array<keyof typeof FIELD_LABELS>;
-const PCT_FIELDS = new Set(["duty_pct", "qc_pct", "amblux_margin_pct", "distributor_margin_pct", "dealer_margin_pct"]);
-
-function ParamFieldset({ defaults }: { defaults?: Record<string, number> }) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-      {PARAM_FIELDS.map((field) => (
-        <label key={field} className="flex flex-col gap-1 text-xs text-muted">
-          {FIELD_LABELS[field]}
-          <input
-            type="number"
-            step="0.0001"
-            name={field}
-            defaultValue={defaults?.[field] ?? (PCT_FIELDS.has(field) ? 0 : undefined)}
-            required
-            className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-        </label>
-      ))}
-    </div>
-  );
-}
+import { NewOverrideForm } from "./NewOverrideForm";
+import { ParamFieldset } from "./ParamFieldset";
+import { SkuMarginFieldset } from "./SkuMarginFieldset";
 
 function formatCad(cents: number | undefined): string {
   if (cents == null) return "—";
@@ -97,6 +65,11 @@ export default async function AdminPricingPage({
     else if (row.tier === "dealer") entry.dealer = row.price_cents;
     priceBySku.set(row.product_sku, entry);
   }
+
+  // FOB cost (USD) per SKU, used by SkuMarginFieldset to compute a live
+  // target-price preview for SKU-scoped overrides.
+  const fobBySku: Record<string, number> = {};
+  for (const c of costs ?? []) fobBySku[c.sku] = c.fob_usd;
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-16">
@@ -239,7 +212,14 @@ export default async function AdminPricingPage({
                 <form action={upsertScopedParametersAction} className="mt-3 flex flex-col gap-3">
                   <input type="hidden" name="scope" value={o.scope} />
                   <input type="hidden" name="scope_key" value={o.scope_key ?? ""} />
-                  <ParamFieldset defaults={o as unknown as Record<string, number>} />
+                  {o.scope === "sku" ? (
+                    <SkuMarginFieldset
+                      defaults={o as unknown as Record<string, number>}
+                      fobUsd={fobBySku[o.scope_key ?? ""]}
+                    />
+                  ) : (
+                    <ParamFieldset defaults={o as unknown as Record<string, number>} />
+                  )}
                   <button
                     type="submit"
                     className="w-fit rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
@@ -252,42 +232,14 @@ export default async function AdminPricingPage({
           </div>
         )}
 
-        <details className="mt-6" open={Boolean(override_sku)}>
-          <summary className="cursor-pointer text-sm font-medium text-accent-strong">+ Add a new override</summary>
-          <form action={upsertScopedParametersAction} className="mt-4 flex flex-col gap-4 rounded-xl border border-border p-4">
-            <div className="flex flex-wrap gap-4">
-              <label className="flex flex-col gap-1 text-xs text-muted">
-                Scope
-                <select
-                  name="scope"
-                  defaultValue={override_sku ? "sku" : "category"}
-                  className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="category">Category</option>
-                  <option value="sku">SKU</option>
-                </select>
-              </label>
-              <label className="flex flex-1 flex-col gap-1 text-xs text-muted">
-                Category name or SKU
-                <input
-                  type="text"
-                  name="scope_key"
-                  required
-                  defaultValue={override_sku ?? ""}
-                  placeholder="e.g. linear_piece or AMB-DRV-24V-96W"
-                  className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-              </label>
-            </div>
-            <ParamFieldset defaults={global as unknown as Record<string, number>} />
-            <button
-              type="submit"
-              className="w-fit rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
-            >
-              Add override
-            </button>
-          </form>
-        </details>
+        <NewOverrideForm
+          action={upsertScopedParametersAction}
+          fobBySku={fobBySku}
+          globalDefaults={global as unknown as Record<string, number>}
+          initialScope={override_sku ? "sku" : "category"}
+          initialScopeKey={override_sku ?? ""}
+          openInitially={Boolean(override_sku)}
+        />
       </section>
 
       {/* --- Product cost --- */}
