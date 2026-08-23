@@ -18,6 +18,7 @@ type ProductPageRow = {
   hero_summary: string | null;
   hero_image_url: string | null;
   default_sku: string | null;
+  skus?: string[];
   translations?: unknown;
 };
 
@@ -61,7 +62,8 @@ export function ProductFinder({ pages }: { pages: ProductPageRow[] }) {
       return (
         page.name.toLowerCase().includes(q) ||
         page.eyebrow.toLowerCase().includes(q) ||
-        (page.default_sku ?? "").toLowerCase().includes(q)
+        (page.default_sku ?? "").toLowerCase().includes(q) ||
+        (page.skus ?? []).some((sku) => sku.toLowerCase().includes(q))
       );
     });
   }, [localizedPages, query, category]);
