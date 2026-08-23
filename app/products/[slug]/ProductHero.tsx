@@ -31,7 +31,26 @@ export function ProductHero({ page }: { page: ProductPage }) {
   const t = useTranslations();
   const { locale } = useLocale();
   const currentOptions = (selected.variant_options ?? {}) as Record<string, string>;
-  const heroImage = selected.image_url ?? page.hero_image_url;
+  const variantImage = selected.image_url ?? page.hero_image_url;
+  // Up to 2 additional page-level photos (migration: product_gallery_and_
+  // documents) shown as a thumbnail strip alongside whichever image the
+  // selected SKU variant shows. Clicking a thumbnail previews it in the
+  // main frame; switching variants resets back to that variant's own
+  // photo rather than leaving a stale gallery pick showing.
+  const galleryImages = (page.gallery_image_urls ?? []) as string[];
+  const [activeImage, setActiveImage] = useState<string | null>(null);
+  // Reset the gallery pick back to the variant's own photo when the
+  // selected SKU changes, without a useEffect — adjusting state during
+  // render (comparing against the last-seen selectedSku) avoids the
+  // extra render pass an effect-based reset would cause.
+  const [prevSelectedSku, setPrevSelectedSku] = useState(selectedSku);
+  if (prevSelectedSku !== selectedSku) {
+    setPrevSelectedSku(selectedSku);
+    setActiveImage(null);
+  }
+  const heroImage = activeImage ?? variantImage;
+  const thumbnails = [variantImage, ...galleryImages].filter((url): url is string => Boolean(url));
+
   const name = localize(page.name, page.translations, locale, "name");
   const eyebrow = localize(page.eyebrow, page.translations, locale, "eyebrow");
   const heroSummary = localize(page.hero_summary, page.translations, locale, "hero_summary");
@@ -94,15 +113,34 @@ export function ProductHero({ page }: { page: ProductPage }) {
 
   return (
     <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-12 px-6 py-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-20 lg:py-20 print:grid-cols-2 print:gap-10 print:py-8">
-      <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border bg-background">
-        {heroImage ? (
-          <Image
-            src={heroImage}
-            alt={name}
-            fill
-            className="object-contain p-10"
-            sizes="(min-width: 1024px) 45vw, 100vw"
-          />
+      <div>
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border bg-background">
+          {heroImage ? (
+            <Image
+              src={heroImage}
+              alt={name}
+              fill
+              className="object-contain p-10"
+              sizes="(min-width: 1024px) 45vw, 100vw"
+            />
+          ) : null}
+        </div>
+        {thumbnails.length > 1 ? (
+          <div className="mt-3 flex gap-3 print:hidden">
+            {thumbnails.map((url, i) => (
+              <button
+                key={`${url}-${i}`}
+                type="button"
+                onClick={() => setActiveImage(url === variantImage ? null : url)}
+                aria-label={`${t("product.viewImage")} ${i + 1}`}
+                className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-background transition-colors ${
+                  heroImage === url ? "border-accent-strong" : "border-border hover:border-accent"
+                }`}
+              >
+                <Image src={url} alt="" fill className="object-contain p-1.5" sizes="64px" />
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
 

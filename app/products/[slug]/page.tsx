@@ -6,6 +6,7 @@ import { AccessoriesSection } from "./AccessoriesSection";
 import { BenefitGrid } from "./BenefitGrid";
 import { Breadcrumb } from "./Breadcrumb";
 import { PrintMasthead } from "./PrintMasthead";
+import { ProductDocuments } from "./ProductDocuments";
 import { ProductHero } from "./ProductHero";
 import { ProductStory } from "./ProductStory";
 import { Specifications } from "./Specifications";
@@ -81,6 +82,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <ProductStory page={page} />
           <BenefitGrid page={page} />
           <Specifications />
+          <ProductDocuments page={page} />
           <AccessoriesSection page={page} skuToSlug={skuToSlug} />
         </VariantProvider>
       </main>
