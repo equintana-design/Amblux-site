@@ -45,6 +45,11 @@ function ParamFieldset({ defaults }: { defaults?: Record<string, number> }) {
   );
 }
 
+function formatCad(cents: number | undefined): string {
+  if (cents == null) return "—";
+  return (cents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD" });
+}
+
 export default async function AdminPricingPage({
   searchParams,
 }: {
@@ -54,9 +59,10 @@ export default async function AdminPricingPage({
     import_ok?: string;
     import_error?: string;
     import_skipped?: string;
+    override_sku?: string;
   }>;
 }) {
-  const { recalc_ok, recalc_error, import_ok, import_error, import_skipped } = await searchParams;
+  const { recalc_ok, recalc_error, import_ok, import_error, import_skipped, override_sku } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -66,17 +72,31 @@ export default async function AdminPricingPage({
   const { data: myProfile } = await supabase.from("amblux_profiles").select("role, approved").eq("id", user.id).single();
   if (!myProfile || myProfile.role !== "admin" || !myProfile.approved) redirect("/account");
 
-  const [{ data: params }, { data: costs }, { data: products }] = await Promise.all([
+  const [{ data: params }, { data: costs }, { data: products }, { data: prices }] = await Promise.all([
     supabase.from("amblux_pricing_parameters").select("*").order("scope"),
     supabase.from("amblux_product_cost").select("*").order("sku"),
     supabase.from("amblux_products").select("sku, category, label").order("sku"),
+    // CAD only for this at-a-glance table — USD is a straight FX
+    // conversion of the same ladder, so CAD alone is enough to sanity-
+    // check cost → margin → price without doubling the table's width.
+    supabase.from("amblux_pricing").select("product_sku, tier, price_cents").eq("currency", "CAD"),
   ]);
 
   const global = (params ?? []).find((p) => p.scope === "global");
   const overrides = (params ?? []).filter((p) => p.scope !== "global");
+  const skuOverrideKeys = new Set(overrides.filter((o) => o.scope === "sku").map((o) => o.scope_key));
   const productBySku = new Map((products ?? []).map((p) => [p.sku, p]));
   const costedSkus = new Set((costs ?? []).map((c) => c.sku));
   const uncostedProducts = (products ?? []).filter((p) => p.sku !== "AMB-APP" && !costedSkus.has(p.sku));
+
+  const priceBySku = new Map<string, { msrp?: number; distributor?: number; dealer?: number }>();
+  for (const row of prices ?? []) {
+    const entry = priceBySku.get(row.product_sku) ?? {};
+    if (row.tier === "msrp") entry.msrp = row.price_cents;
+    else if (row.tier === "distributor") entry.distributor = row.price_cents;
+    else if (row.tier === "dealer") entry.dealer = row.price_cents;
+    priceBySku.set(row.product_sku, entry);
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-16">
@@ -194,7 +214,7 @@ export default async function AdminPricingPage({
       </section>
 
       {/* --- Category / SKU overrides --- */}
-      <section className="mt-8 rounded-2xl border border-border bg-surface p-6">
+      <section id="overrides" className="mt-8 rounded-2xl border border-border bg-surface p-6 scroll-mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Category &amp; SKU overrides</h2>
         <p className="mt-1 text-sm text-muted">
           A SKU-scoped override wins over a category-scoped one, which wins over global. Each override replaces the
@@ -232,7 +252,7 @@ export default async function AdminPricingPage({
           </div>
         )}
 
-        <details className="mt-6">
+        <details className="mt-6" open={Boolean(override_sku)}>
           <summary className="cursor-pointer text-sm font-medium text-accent-strong">+ Add a new override</summary>
           <form action={upsertScopedParametersAction} className="mt-4 flex flex-col gap-4 rounded-xl border border-border p-4">
             <div className="flex flex-wrap gap-4">
@@ -240,6 +260,7 @@ export default async function AdminPricingPage({
                 Scope
                 <select
                   name="scope"
+                  defaultValue={override_sku ? "sku" : "category"}
                   className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 >
                   <option value="category">Category</option>
@@ -252,6 +273,7 @@ export default async function AdminPricingPage({
                   type="text"
                   name="scope_key"
                   required
+                  defaultValue={override_sku ?? ""}
                   placeholder="e.g. linear_piece or AMB-DRV-24V-96W"
                   className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
@@ -279,11 +301,15 @@ export default async function AdminPricingPage({
         </p>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[1080px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-2 pr-3">SKU</th>
                 <th className="py-2 pr-3">Category</th>
+                <th className="py-2 pr-3">Distributor (CAD)</th>
+                <th className="py-2 pr-3">Dealer (CAD)</th>
+                <th className="py-2 pr-3">MSRP (CAD)</th>
+                <th className="py-2 pr-3">Margin</th>
                 <th className="py-2 pr-3">FOB (USD)</th>
                 <th className="py-2 pr-3">Estimated?</th>
                 <th className="py-2 pr-3">Notes</th>
@@ -293,10 +319,23 @@ export default async function AdminPricingPage({
             <tbody>
               {(costs ?? []).map((c) => {
                 const product = productBySku.get(c.sku);
+                const price = priceBySku.get(c.sku);
+                const hasOverride = skuOverrideKeys.has(c.sku);
                 return (
                   <tr key={c.sku} className="border-b border-border/60 align-top">
                     <td className="py-2 pr-3 font-mono text-xs">{c.sku}</td>
                     <td className="py-2 pr-3 text-xs text-muted">{product?.category ?? "—"}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-xs text-foreground">{formatCad(price?.distributor)}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-xs text-foreground">{formatCad(price?.dealer)}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-xs font-medium text-foreground">{formatCad(price?.msrp)}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-xs">
+                      <a
+                        href={`/admin/pricing?override_sku=${encodeURIComponent(c.sku)}#overrides`}
+                        className="font-medium text-accent-strong hover:underline"
+                      >
+                        {hasOverride ? "Edit margin" : "Set custom margin"} →
+                      </a>
+                    </td>
                     <td className="py-2 pr-3" colSpan={4}>
                       <form action={updateProductCostAction} className="flex flex-wrap items-center gap-3">
                         <input type="hidden" name="sku" value={c.sku} />
