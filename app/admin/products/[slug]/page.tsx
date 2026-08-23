@@ -11,6 +11,10 @@ type RequiredAccessory = {
   links?: { label: string; slug: string }[];
 };
 
+type ProductDocument = { label: string; url: string };
+
+const DOCUMENT_ROW_COUNT = 5;
+
 export default async function AdminProductPageEdit({
   params,
   searchParams,
@@ -40,6 +44,9 @@ export default async function AdminProductPageEdit({
     .order("sku");
 
   const requiredAccessories = (page.required_accessories ?? []) as RequiredAccessory[];
+  const galleryImages = (page.gallery_image_urls ?? []) as string[];
+  const documents = (page.document_urls ?? []) as ProductDocument[];
+  const documentRows = Array.from({ length: DOCUMENT_ROW_COUNT }).map((_, i) => documents[i] ?? { label: "", url: "" });
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
@@ -58,8 +65,8 @@ export default async function AdminProductPageEdit({
       ) : null}
       {imageError ? (
         <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Everything else saved, but the image upload failed: {imageError}. The previous image (if any) was kept —
-          try a smaller file or a different format.
+          Everything else saved, but one or more file uploads failed: {imageError}. Whatever was there before (if
+          anything) was kept — try a smaller file or a different format.
         </p>
       ) : null}
       {error ? <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
@@ -125,6 +132,33 @@ export default async function AdminProductPageEdit({
           <p className="text-xs text-muted">Uploading a file replaces whatever is in the URL field above.</p>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[2, 3].map((n) => {
+            const url = n === 2 ? galleryImages[0] : galleryImages[1];
+            return (
+              <div key={n} className="flex flex-col gap-2 text-sm">
+                <span className="font-medium text-muted">Additional image {n} (optional)</span>
+                {url ? (
+                  <div className="relative h-24 w-24 overflow-hidden rounded-xl border border-border bg-background">
+                    <Image src={url} alt="" fill className="object-contain p-2" sizes="96px" />
+                  </div>
+                ) : null}
+                <input
+                  name={`imageUrl${n}`}
+                  defaultValue={url ?? ""}
+                  placeholder="Image URL"
+                  className="rounded-lg border border-border bg-surface px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <input type="file" name={`imageFile${n}`} accept="image/*" className="text-xs text-muted" />
+              </div>
+            );
+          })}
+        </div>
+        <p className="-mt-3 text-xs text-muted">
+          Up to 3 images total on the page (the hero image above, plus these two). Shown as a thumbnail strip a
+          visitor can click through, alongside whichever hero image is showing for the selected SKU.
+        </p>
+
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-muted">Marketing paragraphs (one per line)</span>
           <textarea
@@ -177,6 +211,33 @@ export default async function AdminProductPageEdit({
             className="rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </label>
+
+        <div className="flex flex-col gap-3">
+          <span className="text-sm font-medium text-muted">Documents (PDFs, up to 5 — spec sheets, install guides, certifications)</span>
+          <div className="flex flex-col gap-3">
+            {documentRows.map((doc, i) => (
+              <div key={i} className="grid grid-cols-1 gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1fr_2fr_auto]">
+                <input
+                  name={`docLabel${i}`}
+                  defaultValue={doc.label}
+                  placeholder="Label (e.g. Spec sheet)"
+                  className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <input
+                  name={`docUrl${i}`}
+                  defaultValue={doc.url}
+                  placeholder="PDF URL (or upload a file →)"
+                  className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <input type="file" name={`docFile${i}`} accept="application/pdf" className="self-center text-xs text-muted" />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted">
+            A row needs a URL (typed or uploaded) to be saved — an empty row is dropped. Uploading a file replaces
+            whatever is in that row&apos;s URL field.
+          </p>
+        </div>
 
         <button
           type="submit"
