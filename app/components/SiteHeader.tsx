@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { AccountStatus } from "@/app/components/AccountStatus";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
 import { LOCALES } from "@/lib/i18n/dictionaries";
@@ -55,6 +56,7 @@ export function SiteHeader() {
               </button>
             ))}
           </div>
+          <AccountStatus />
           <Link
             href="/test-project"
             className="relative inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
