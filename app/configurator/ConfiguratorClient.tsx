@@ -3,13 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AccountStatus } from "@/app/components/AccountStatus";
 import { computeBom, consolidateParts } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadQuoteState } from "@/lib/configurator/quotes";
-import { AuthStatus } from "./AuthStatus";
 import { BomSummary } from "./BomSummary";
 import { PartsList } from "./PartsList";
 import { PricingPanel } from "./PricingPanel";
@@ -77,7 +77,7 @@ export function ConfiguratorClient() {
             <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <div className="flex items-center gap-3">
-            <AuthStatus />
+            <AccountStatus />
             <button
               onClick={() => {
                 setState(defaultConfiguratorState());
