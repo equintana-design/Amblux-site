@@ -8,12 +8,13 @@ export function Specifications() {
   const { selected, selectedSku } = useVariant();
   const { locale } = useLocale();
   const t = useTranslations();
-  const spec = localize(
-    (selected.spec ?? []) as { label: string; value: string }[],
-    selected.translations,
-    locale,
-    "spec",
-  );
+  // Array.isArray guard (not just `?? []`) because a bad admin edit or a
+  // stale migration can leave `spec` as a JSON object instead of an array
+  // (see migration fix_accessory_spec_not_array) — `{}.length` is
+  // `undefined`, not `0`, so a plain `?? []` fallback alone doesn't catch
+  // it and `.map()` below would crash the whole page.
+  const rawSpec = Array.isArray(selected.spec) ? selected.spec : [];
+  const spec = localize(rawSpec as { label: string; value: string }[], selected.translations, locale, "spec");
   if (spec.length === 0) return null;
 
   return (
