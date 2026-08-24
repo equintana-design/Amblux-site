@@ -50,6 +50,7 @@ const en = {
     distributors: "For Distributors",
     configurator: "Configurator",
     testProject: "Test project",
+    contactUs: "Contact us",
   },
   home: {
     home: "AMBLUX home",
@@ -372,6 +373,7 @@ const fr: Messages = {
     distributors: "Pour les distributeurs",
     configurator: "Configurateur",
     testProject: "Projet test",
+    contactUs: "Nous contacter",
   },
   home: {
     home: "Accueil AMBLUX",
@@ -689,6 +691,7 @@ const es: Messages = {
     distributors: "Para distribuidores",
     configurator: "Configurador",
     testProject: "Proyecto de prueba",
+    contactUs: "Contáctanos",
   },
   home: {
     home: "Inicio AMBLUX",
