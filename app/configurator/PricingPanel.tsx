@@ -104,11 +104,20 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
     bySku.set(r.product_sku, list);
   });
 
-  const totalFor = (tier: string) => {
+  const totalFor = (tiers: string[]) => {
     let total = 0;
     let pricedCount = 0;
     parts.forEach((p) => {
-      const row = bySku.get(p.sku)?.find((r) => r.tier === tier && r.currency === currency);
+      const skuRows = bySku.get(p.sku);
+      // Prefer the first tier in `tiers` that actually came back for this
+      // SKU. RLS decides which tiers a signed-in account can read at all
+      // (see migration fix_pricing_tier_role_mapping) — a Distributor/Admin
+      // account gets a 'distributor' row and takes that; a Client account
+      // never receives a 'distributor' row and falls back to its own
+      // 'dealer' row instead. Per-part, not per-fetch, since a mixed BOM
+      // could in principle resolve differently (it won't today, but this
+      // keeps the totals correct if it ever does).
+      const row = tiers.map((tier) => skuRows?.find((r) => r.tier === tier && r.currency === currency)).find(Boolean);
       if (row) {
         total += row.price_cents * p.qty;
         pricedCount += 1;
@@ -117,8 +126,11 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
     return { total, pricedCount, currency };
   };
 
-  const msrp = totalFor("msrp");
-  const distributor = totalFor("distributor");
+  const msrp = totalFor(["msrp"]);
+  // "Your price" is whichever paid tier the signed-in user's role is
+  // actually entitled to — distributor pricing if granted, otherwise
+  // dealer pricing — shown generically rather than tier-specific.
+  const distributor = totalFor(["distributor", "dealer"]);
   const sawDistributorPricing = distributor.pricedCount > 0;
 
   if (msrp.pricedCount === 0 && !sawDistributorPricing) {
