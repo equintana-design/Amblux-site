@@ -6,6 +6,7 @@ import type { Tables } from "@/lib/supabase/database.types";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
 import { localize } from "@/lib/i18n/localize";
+import { ProductPricing } from "./ProductPricing";
 import { findVariantForAxisValues, useVariant } from "./VariantState";
 
 type ProductPage = Tables<"amblux_product_pages">;
@@ -149,6 +150,10 @@ export function ProductHero({ page }: { page: ProductPage }) {
         <h1 className="mt-2 text-3xl font-semibold leading-tight text-foreground sm:text-4xl">{name}</h1>
         <code className="mt-3 block break-all text-xs text-muted">{selectedSku}</code>
         {heroSummary ? <p className="mt-4 text-base leading-7 text-muted">{heroSummary}</p> : null}
+
+        <div className="print:hidden">
+          <ProductPricing />
+        </div>
 
         {axes.length > 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-background p-5 print:rounded-none print:border-0 print:bg-transparent print:p-0">
