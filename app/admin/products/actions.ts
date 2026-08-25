@@ -200,3 +200,154 @@ export async function updateProductVariantAction(formData: FormData) {
   if (image.uploadError) params.set("imageError", image.uploadError);
   redirect(`/admin/products/${pageSlug}/${encodeURIComponent(sku)}?${params.toString()}`);
 }
+
+// Adds a brand-new SKU — either as another variant on an existing product
+// page, or as the first SKU of a brand-new product page (an entirely new
+// accessory or product line). Needs migration
+// admin_can_insert_products_and_pages, since before that there was no
+// INSERT policy on either table at all (only UPDATE) and this had no way
+// to work through RLS.
+export async function createProductAction(formData: FormData) {
+  const supabase = await requireAdmin();
+
+  const mode = String(formData.get("mode") || "existing");
+  const sku = String(formData.get("sku") || "").trim().toUpperCase();
+  const label = String(formData.get("label") || "").trim();
+  // The category a SKU is filed under for pricing purposes (Category &
+  // SKU overrides in /admin/pricing use this) — a different vocabulary
+  // from the product PAGE's category below, which is what groups pages
+  // on the public site and in the admin product list.
+  const productCategory = String(formData.get("productCategory") || "").trim();
+  const status = (formData.get("status") as "active" | "backordered" | "coming_soon" | "hidden") || "active";
+  const shortDescription = String(formData.get("shortDescription") || "").trim() || null;
+  const fobUsdRaw = String(formData.get("fobUsd") || "").trim();
+
+  if (!sku) redirect(`/admin/products/new?error=${encodeURIComponent("SKU is required.")}`);
+  if (!label) redirect(`/admin/products/new?error=${encodeURIComponent("Label is required.")}`);
+  if (!productCategory) {
+    redirect(`/admin/products/new?error=${encodeURIComponent("Category (for pricing) is required.")}`);
+  }
+
+  const { data: existingSku } = await supabase.from("amblux_products").select("sku").eq("sku", sku).maybeSingle();
+  if (existingSku) {
+    redirect(`/admin/products/new?error=${encodeURIComponent(`SKU ${sku} already exists.`)}`);
+  }
+
+  let pageSlug: string;
+  let axisKeys: string[] = [];
+
+  if (mode === "new") {
+    // Kebab-case whatever was typed into the slug field, same normalization
+    // a person would do by hand — lets them type a readable name and get a
+    // clean URL without a separate "slugify" step.
+    pageSlug = String(formData.get("newPageSlug") || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const pageCategory = String(formData.get("newPageCategory") || "").trim();
+    const name = String(formData.get("newPageName") || "").trim();
+    const eyebrow = String(formData.get("newPageEyebrow") || "").trim() || name;
+    const heroSummary = String(formData.get("newPageHeroSummary") || "").trim() || null;
+
+    if (!pageSlug || !pageCategory || !name) {
+      redirect(
+        `/admin/products/new?error=${encodeURIComponent("Product name, category, and page URL are all required when creating a new product.")}`,
+      );
+    }
+
+    const { data: existingPage } = await supabase
+      .from("amblux_product_pages")
+      .select("slug")
+      .eq("slug", pageSlug)
+      .maybeSingle();
+    if (existingPage) {
+      redirect(`/admin/products/new?error=${encodeURIComponent(`A product page at /products/${pageSlug} already exists.`)}`);
+    }
+
+    // Up to 3 variant axes (e.g. Length, Colour temperature) — only
+    // needed for a product that will offer multiple SKU options. Left
+    // empty, this behaves like every existing accessory page: one page,
+    // one SKU, no picker.
+    const axes: { key: string; label: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const key = String(formData.get(`axisKey${i}`) || "").trim();
+      const axisLabel = String(formData.get(`axisLabel${i}`) || "").trim();
+      if (key && axisLabel) axes.push({ key, label: axisLabel });
+    }
+    axisKeys = axes.map((a) => a.key);
+
+    const { error: pageError } = await supabase.from("amblux_product_pages").insert({
+      slug: pageSlug,
+      category: pageCategory,
+      eyebrow,
+      name,
+      hero_summary: heroSummary,
+      variant_axes: axes as never,
+      default_sku: sku,
+      status: "active",
+    });
+    if (pageError) {
+      redirect(`/admin/products/new?error=${encodeURIComponent(pageError.message)}`);
+    }
+  } else {
+    pageSlug = String(formData.get("existingPageSlug") || "").trim();
+    if (!pageSlug) {
+      redirect(`/admin/products/new?error=${encodeURIComponent("Choose which product page this SKU belongs on.")}`);
+    }
+    try {
+      axisKeys = JSON.parse(String(formData.get("existingPageAxisKeys") || "[]")) as string[];
+    } catch {
+      axisKeys = [];
+    }
+  }
+
+  // Each axis this page/SKU needs (e.g. length, cct) gets its value from a
+  // same-named field the form renders once the page/axes are known — see
+  // AddSkuForm.tsx.
+  const variantOptions: Record<string, string> = {};
+  for (const key of axisKeys) {
+    const value = String(formData.get(`axisValue_${key}`) || "").trim();
+    if (value) variantOptions[key] = value;
+  }
+
+  const image = await resolveFileUrl(supabase, formData, "product-images", `products/${sku}`, "imageFile", "imageUrl");
+
+  const { error: productError } = await supabase.from("amblux_products").insert({
+    sku,
+    category: productCategory,
+    label,
+    short_description: shortDescription,
+    status,
+    image_url: image.url,
+    page_slug: pageSlug,
+    variant_options: variantOptions as never,
+    // Explicitly an array, not the column's own '{}' (object) default —
+    // see migration fix_accessory_spec_not_array for exactly what goes
+    // wrong on the product page if this is ever a bare object instead.
+    spec: [] as never,
+  });
+
+  if (productError) {
+    redirect(`/admin/products/new?error=${encodeURIComponent(productError.message)}`);
+  }
+
+  // FOB cost is optional here — a SKU with no cost row just shows up in
+  // the "no cost on file" list on /admin/pricing until one is added, same
+  // as any other uncosted SKU.
+  if (fobUsdRaw) {
+    const fobUsd = Number(fobUsdRaw);
+    if (!Number.isNaN(fobUsd) && fobUsd >= 0) {
+      await supabase.from("amblux_product_cost").upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null });
+    }
+  }
+
+  revalidatePath("/admin/products");
+  revalidatePath(`/admin/products/${pageSlug}`);
+  revalidatePath(`/products/${pageSlug}`);
+  revalidatePath("/admin/pricing");
+
+  const params = new URLSearchParams({ created: "1" });
+  if (image.uploadError) params.set("imageError", image.uploadError);
+  redirect(`/admin/products/${pageSlug}/${encodeURIComponent(sku)}?${params.toString()}`);
+}

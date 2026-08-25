@@ -50,6 +50,13 @@ export default async function AdminProductsPage() {
         </Link>
       </p>
 
+      <Link
+        href="/admin/products/new"
+        className="mt-4 inline-flex w-fit items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
+      >
+        + Add new SKU
+      </Link>
+
       {[...grouped.entries()].map(([category, rows]) => (
         <section key={category} className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
