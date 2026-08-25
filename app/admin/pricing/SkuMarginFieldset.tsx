@@ -12,6 +12,11 @@ type Props = {
   // surrounding form's Save/Add override button is clicked, and prices
   // only go live on the site after Recalculate & publish.
   fobUsd?: number;
+  // When this fieldset is rendered outside its owning <form> (see
+  // NewOverrideForm), pass that form's id so the cost/margin inputs below
+  // still submit with it via the HTML `form` attribute instead of DOM
+  // nesting. Leave undefined when rendered as a normal <form> descendant.
+  formId?: string;
 };
 
 const COST_FIELD_LABELS: Record<string, string> = {
@@ -56,7 +61,7 @@ function marginForPrice(basis: number, price: number): number {
   return Math.min(0.95, Math.max(0, 1 - basis / price));
 }
 
-export function SkuMarginFieldset({ defaults, fobUsd }: Props) {
+export function SkuMarginFieldset({ defaults, fobUsd, formId }: Props) {
   const [values, setValues] = useState<Record<string, number>>(() => ({
     freight_usd: defaults?.freight_usd ?? 0,
     insurance_usd: defaults?.insurance_usd ?? 0,
@@ -116,6 +121,7 @@ export function SkuMarginFieldset({ defaults, fobUsd }: Props) {
           <label key={field} className="flex flex-col gap-1 text-xs text-muted">
             {COST_FIELD_LABELS[field]}
             <input
+              form={formId}
               type="number"
               step="0.0001"
               name={field}
@@ -145,6 +151,7 @@ export function SkuMarginFieldset({ defaults, fobUsd }: Props) {
               <label className="flex flex-col gap-1 text-xs text-muted">
                 {marginLabel}
                 <input
+                  form={formId}
                   type="number"
                   step="0.0001"
                   name={key}

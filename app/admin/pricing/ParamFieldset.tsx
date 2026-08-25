@@ -18,13 +18,22 @@ const PCT_FIELDS = new Set(["duty_pct", "qc_pct", "amblux_margin_pct", "distribu
 // preview a resulting price against. For SKU-scoped overrides, see
 // SkuMarginFieldset instead, which adds a live target-price calculator
 // next to each margin field.
-export function ParamFieldset({ defaults }: { defaults?: Record<string, number> }) {
+//
+// formId: when this fieldset is rendered outside its owning <form> (see
+// NewOverrideForm, which keeps its "Add override" <form> empty and
+// element-less to avoid nesting it with FobEditForm's own separate
+// <form>), pass the form's id here so every input still submits with it
+// via the HTML `form` attribute. Leave undefined when this is rendered
+// as a normal descendant of its <form> — an input's `form` attribute is
+// optional and it just submits with its nearest ancestor form as usual.
+export function ParamFieldset({ defaults, formId }: { defaults?: Record<string, number>; formId?: string }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
       {PARAM_FIELDS.map((field) => (
         <label key={field} className="flex flex-col gap-1 text-xs text-muted">
           {FIELD_LABELS[field]}
           <input
+            form={formId}
             type="number"
             step="0.0001"
             name={field}
