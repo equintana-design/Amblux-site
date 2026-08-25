@@ -4,9 +4,11 @@
 // reads from Supabase at runtime instead of catalog.ts. Everything else
 // (SKU resolution, BOM math) stays exactly as it was: framework-agnostic,
 // client-side, unchanged. Pricing is different on purpose, because it's
-// the one place role-based access actually matters (see amblux_pricing's
-// RLS policies in migrations/0001) — msrp is public, distributor pricing
-// only comes back over the wire for a signed-in, approved distributor.
+// the one place role-based access actually matters (see migration
+// fix_pricing_tier_role_mapping) — MSRP is public; the 'distributor' tier
+// only comes back for a signed-in, approved Distributor/Admin account; the
+// 'dealer' tier comes back for Client/Distributor/Admin accounts. Each
+// tier that comes back over the wire gets its own total row below.
 //
 // Static fallback: if the fetch fails outright (network/config issue),
 // this renders a plain "temporarily unavailable" note rather than
@@ -104,20 +106,11 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
     bySku.set(r.product_sku, list);
   });
 
-  const totalFor = (tiers: string[]) => {
+  const totalFor = (tier: string) => {
     let total = 0;
     let pricedCount = 0;
     parts.forEach((p) => {
-      const skuRows = bySku.get(p.sku);
-      // Prefer the first tier in `tiers` that actually came back for this
-      // SKU. RLS decides which tiers a signed-in account can read at all
-      // (see migration fix_pricing_tier_role_mapping) — a Distributor/Admin
-      // account gets a 'distributor' row and takes that; a Client account
-      // never receives a 'distributor' row and falls back to its own
-      // 'dealer' row instead. Per-part, not per-fetch, since a mixed BOM
-      // could in principle resolve differently (it won't today, but this
-      // keeps the totals correct if it ever does).
-      const row = tiers.map((tier) => skuRows?.find((r) => r.tier === tier && r.currency === currency)).find(Boolean);
+      const row = bySku.get(p.sku)?.find((r) => r.tier === tier && r.currency === currency);
       if (row) {
         total += row.price_cents * p.qty;
         pricedCount += 1;
@@ -126,14 +119,18 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
     return { total, pricedCount, currency };
   };
 
-  const msrp = totalFor(["msrp"]);
-  // "Your price" is whichever paid tier the signed-in user's role is
-  // actually entitled to — distributor pricing if granted, otherwise
-  // dealer pricing — shown generically rather than tier-specific.
-  const distributor = totalFor(["distributor", "dealer"]);
-  const sawDistributorPricing = distributor.pricedCount > 0;
+  // RLS (migration fix_pricing_tier_role_mapping) decides which tier rows
+  // actually come back for the signed-in account: MSRP is always public;
+  // 'distributor' only for Distributor/Admin; 'dealer' for
+  // Client/Distributor/Admin. So an Admin or Distributor account sees all
+  // three totals below, a Client account sees Dealer + MSRP, and a
+  // signed-out visitor sees only MSRP.
+  const msrp = totalFor("msrp");
+  const distributor = totalFor("distributor");
+  const dealer = totalFor("dealer");
+  const sawAnyPaidPricing = distributor.pricedCount > 0 || dealer.pricedCount > 0;
 
-  if (msrp.pricedCount === 0 && !sawDistributorPricing) {
+  if (msrp.pricedCount === 0 && !sawAnyPaidPricing) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
         {t("configuratorExtra.noPricingYet")}
@@ -162,6 +159,30 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
       </div>
 
       <div className="mt-4 flex flex-col gap-3">
+        {distributor.pricedCount > 0 && (
+          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
+            <span className="text-sm font-medium text-accent-strong">
+              {t("configuratorExtra.distributorPrice")}
+              {distributor.pricedCount < parts.length ? ` (${distributor.pricedCount}/${parts.length} ${t("configuratorExtra.partsPriced")})` : ""}
+            </span>
+            <span className="text-sm font-semibold text-accent-strong">
+              {formatCents(distributor.total, distributor.currency)}
+            </span>
+          </div>
+        )}
+
+        {dealer.pricedCount > 0 && (
+          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
+            <span className="text-sm font-medium text-accent-strong">
+              {t("configuratorExtra.dealerPrice")}
+              {dealer.pricedCount < parts.length ? ` (${dealer.pricedCount}/${parts.length} ${t("configuratorExtra.partsPriced")})` : ""}
+            </span>
+            <span className="text-sm font-semibold text-accent-strong">
+              {formatCents(dealer.total, dealer.currency)}
+            </span>
+          </div>
+        )}
+
         {msrp.pricedCount > 0 && (
           <div className="flex items-center justify-between rounded-lg bg-background px-4 py-3">
             <span className="text-sm text-muted">
@@ -172,23 +193,13 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
           </div>
         )}
 
-        {sawDistributorPricing ? (
-          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
-            <span className="text-sm font-medium text-accent-strong">
-              {t("configuratorExtra.yourDistributorPrice")}
-              {distributor.pricedCount < parts.length ? ` (${distributor.pricedCount}/${parts.length} ${t("configuratorExtra.partsPriced")})` : ""}
-            </span>
-            <span className="text-sm font-semibold text-accent-strong">
-              {formatCents(distributor.total, distributor.currency)}
-            </span>
-          </div>
-        ) : (
+        {!sawAnyPaidPricing ? (
           <p className="text-xs text-muted">
             {user
               ? t("configuratorExtra.distributorPricingUnavailable")
               : t("configuratorExtra.signInToSeePrice")}
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );
