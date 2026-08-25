@@ -18,11 +18,14 @@ function formatCents(cents: number, currency: string): string {
 
 // Mirrors the configurator's PricingPanel (see its own header comment for
 // the full RLS story) but for a single product page's currently-selected
-// SKU variant. MSRP is always public; whichever paid tier the signed-in
-// account's role is actually entitled to — 'distributor' or 'dealer', see
-// migration fix_pricing_tier_role_mapping — comes back over the wire on
-// its own and is shown generically as "Your price". A signed-out visitor
-// or an account still pending admin approval only ever sees MSRP.
+// SKU variant. RLS (migration fix_pricing_tier_role_mapping) decides which
+// tier rows actually come back over the wire — MSRP is always public;
+// 'distributor' only for Distributor/Admin accounts; 'dealer' for
+// Client/Distributor/Admin accounts. So an Admin or Distributor account
+// sees all three (Distributor, Dealer, MSRP), a Client account sees two
+// (Dealer, MSRP), and a signed-out visitor or an account still pending
+// admin approval only ever sees MSRP. This component just renders
+// whichever rows are present — it doesn't decide entitlement itself.
 export function ProductPricing() {
   const { selectedSku } = useVariant();
   const { user } = useSupabaseUser();
@@ -71,14 +74,11 @@ export function ProductPricing() {
 
   const forTier = (tier: string) => rows.find((r) => r.tier === tier && r.currency === currency);
   const msrp = forTier("msrp");
-  // Prefer 'distributor' if it came back (the better price, only granted
-  // to Distributor/Admin roles); otherwise fall back to 'dealer' (a
-  // Client account's own price). RLS is what actually decides which of
-  // these rows exist for the current signed-in user — this just displays
-  // whichever one shows up.
-  const yourPrice = forTier("distributor") ?? forTier("dealer");
+  const distributor = forTier("distributor");
+  const dealer = forTier("dealer");
+  const anyPaidTier = Boolean(distributor || dealer);
 
-  if (!msrp && !yourPrice) {
+  if (!msrp && !anyPaidTier) {
     return (
       <div className="mt-6 rounded-2xl border border-border bg-background p-5 text-sm text-muted">
         {t("configuratorExtra.noPricingYet")}
@@ -109,6 +109,24 @@ export function ProductPricing() {
       </div>
 
       <div className="mt-4 flex flex-col gap-3">
+        {distributor ? (
+          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
+            <span className="text-sm font-medium text-accent-strong">{t("configuratorExtra.distributorPrice")}</span>
+            <span className="text-sm font-semibold text-accent-strong">
+              {formatCents(distributor.price_cents, distributor.currency)}
+            </span>
+          </div>
+        ) : null}
+
+        {dealer ? (
+          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
+            <span className="text-sm font-medium text-accent-strong">{t("configuratorExtra.dealerPrice")}</span>
+            <span className="text-sm font-semibold text-accent-strong">
+              {formatCents(dealer.price_cents, dealer.currency)}
+            </span>
+          </div>
+        ) : null}
+
         {msrp ? (
           <div className="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
             <span className="text-sm text-muted">{t("configuratorExtra.msrp")}</span>
@@ -116,18 +134,11 @@ export function ProductPricing() {
           </div>
         ) : null}
 
-        {yourPrice ? (
-          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-4 py-3">
-            <span className="text-sm font-medium text-accent-strong">{t("configuratorExtra.yourDistributorPrice")}</span>
-            <span className="text-sm font-semibold text-accent-strong">
-              {formatCents(yourPrice.price_cents, yourPrice.currency)}
-            </span>
-          </div>
-        ) : (
+        {!anyPaidTier ? (
           <p className="text-xs text-muted">
             {user ? t("configuratorExtra.distributorPricingUnavailable") : t("configuratorExtra.signInToSeePrice")}
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );
