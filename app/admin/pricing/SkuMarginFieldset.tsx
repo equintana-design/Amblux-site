@@ -104,6 +104,13 @@ export function SkuMarginFieldset({ defaults, fobUsd }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      {fobUsd ? (
+        <div className="flex w-fit flex-col gap-1 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted">
+          FOB (USD)
+          <span className="text-sm font-semibold text-foreground">${fobUsd.toFixed(2)}</span>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {COST_FIELDS.map((field) => (
           <label key={field} className="flex flex-col gap-1 text-xs text-muted">
