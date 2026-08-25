@@ -9,6 +9,7 @@ import {
   updateProductCostAction,
   upsertScopedParametersAction,
 } from "./actions";
+import { FobEditForm } from "./FobEditForm";
 import { NewOverrideForm } from "./NewOverrideForm";
 import { ParamFieldset } from "./ParamFieldset";
 import { SkuMarginFieldset } from "./SkuMarginFieldset";
@@ -70,6 +71,12 @@ export default async function AdminPricingPage({
   // target-price preview for SKU-scoped overrides.
   const fobBySku: Record<string, number> = {};
   for (const c of costs ?? []) fobBySku[c.sku] = c.fob_usd;
+
+  // Full cost row per SKU (FOB + estimated flag + notes), used by
+  // FobEditForm so a SKU override can also edit its FOB inline instead of
+  // requiring a trip down to the Product cost (FOB) table.
+  const costBySku: Record<string, { fob_usd: number; is_estimated: boolean; notes: string | null }> = {};
+  for (const c of costs ?? []) costBySku[c.sku] = { fob_usd: c.fob_usd, is_estimated: c.is_estimated, notes: c.notes };
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-16">
@@ -209,6 +216,16 @@ export default async function AdminPricingPage({
                     </button>
                   </form>
                 </div>
+                {o.scope === "sku" ? (
+                  <div className="mt-3">
+                    <FobEditForm
+                      sku={o.scope_key ?? ""}
+                      cost={costBySku[o.scope_key ?? ""]}
+                      updateAction={updateProductCostAction}
+                      addAction={addProductCostAction}
+                    />
+                  </div>
+                ) : null}
                 <form action={upsertScopedParametersAction} className="mt-3 flex flex-col gap-3">
                   <input type="hidden" name="scope" value={o.scope} />
                   <input type="hidden" name="scope_key" value={o.scope_key ?? ""} />
@@ -235,6 +252,10 @@ export default async function AdminPricingPage({
         <NewOverrideForm
           action={upsertScopedParametersAction}
           fobBySku={fobBySku}
+          costBySku={costBySku}
+          updateCostAction={updateProductCostAction}
+          addCostAction={addProductCostAction}
+          products={(products ?? []).map((p) => ({ sku: p.sku, category: p.category, label: p.label }))}
           globalDefaults={global as unknown as Record<string, number>}
           initialScope={override_sku ? "sku" : "category"}
           initialScopeKey={override_sku ?? ""}
