@@ -46,6 +46,9 @@ export default async function SignInPage({
               className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </label>
+          <Link href="/forgot-password" className="-mt-2 self-end text-xs font-medium text-accent-strong hover:underline">
+            Forgot password?
+          </Link>
           <button
             type="submit"
             className="mt-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
