@@ -10,7 +10,12 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ password_updated?: string }>;
+}) {
+  const { password_updated } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,6 +38,12 @@ export default async function AccountPage() {
       <div className="mx-auto w-full max-w-md flex-1 px-6 py-16">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">AMBLUX Accounts</p>
         <h1 className="mt-2 text-2xl font-semibold text-foreground">Your account</h1>
+
+        {password_updated && (
+          <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            Password updated.
+          </p>
+        )}
 
         <div className="mt-6 rounded-2xl border border-border bg-surface p-6">
           <dl className="flex flex-col gap-4 text-sm">
@@ -94,6 +105,12 @@ export default async function AccountPage() {
               </button>
             </div>
           </form>
+
+          <div className="mt-6 border-t border-border pt-6">
+            <Link href="/account/update-password" className="text-sm font-medium text-accent-strong hover:underline">
+              Change password →
+            </Link>
+          </div>
 
           {profile?.role === "admin" && profile.approved && (
             <div className="mt-6 flex flex-col gap-2 border-t border-border pt-6">
