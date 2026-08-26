@@ -51,6 +51,7 @@ const en = {
     configurator: "Configurator",
     testProject: "Test project",
     contactUs: "Contact us",
+    signIn: "Sign in",
   },
   home: {
     home: "AMBLUX home",
@@ -376,6 +377,7 @@ const fr: Messages = {
     configurator: "Configurateur",
     testProject: "Projet test",
     contactUs: "Nous contacter",
+    signIn: "Se connecter",
   },
   home: {
     home: "Accueil AMBLUX",
@@ -696,6 +698,7 @@ const es: Messages = {
     configurator: "Configurador",
     testProject: "Proyecto de prueba",
     contactUs: "Contáctanos",
+    signIn: "Iniciar sesión",
   },
   home: {
     home: "Inicio AMBLUX",
