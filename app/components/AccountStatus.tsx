@@ -7,12 +7,13 @@ import { useTranslations } from "@/app/providers/LocaleProvider";
 // Shared "who's signed in" indicator — shown in SiteHeader (every public
 // page) and the configurator's own header, so account status is visible
 // everywhere rather than only inside the configurator. Signed-in visitors
-// see their email linking to /account. Signed-out visitors are routed to
-// /contact rather than straight to /sign-in: self-serve sign-up only
-// creates a pending account that still needs an admin to approve it (see
-// /admin/distributors), so a prospective distributor is better served
-// talking to sales first. Existing accounts can still sign in via the
-// link on that Contact page.
+// see their email linking to /account. Signed-out visitors see two
+// distinct pills: "Contact us" for new prospects (self-serve sign-up only
+// creates a pending account that still needs an admin to approve it — see
+// /admin/distributors — so a prospective distributor is better served
+// talking to sales first) and a clearly-marked "Sign in" for existing
+// accounts (distributors, dealers, admins) to reach /sign-in directly from
+// anywhere on the site, not just the configurator.
 export function AccountStatus() {
   const { user, loading } = useSupabaseUser();
   const t = useTranslations();
@@ -31,11 +32,19 @@ export function AccountStatus() {
   }
 
   return (
-    <Link
-      href="/contact"
-      className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
-    >
-      {t("nav.contactUs")}
-    </Link>
+    <div className="flex items-center gap-2">
+      <Link
+        href="/contact"
+        className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+      >
+        {t("nav.contactUs")}
+      </Link>
+      <Link
+        href="/sign-in"
+        className="rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent-strong hover:bg-accent hover:text-white"
+      >
+        {t("nav.signIn")}
+      </Link>
+    </div>
   );
 }
