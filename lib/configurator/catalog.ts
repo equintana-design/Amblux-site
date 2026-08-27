@@ -39,7 +39,7 @@ export const DEFAULT_RIGID_LINEAR_SKU = "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18
 // Real AMBLUX install-hardware SKUs — recovered from the real product list
 // (af15ab79-linearsolutions.json's "Required Accessories" column), not
 // guessed. Two real products exist:
-//   - AMB-FCST-SR1010-45DEG -CLIPS  ("Clips bag of 10") for the one silicone
+//   - AMB-FCST-SR1010-45DEG-CLIPS  ("Clips bag of 10") for the one silicone
 //     family that needs them (surface-mount 10x10 45deg).
 //   - three "-BRKT" SKUs ("stainless steel installation bracket 10pcs (with
 //     screws)") for the rigid families that need them — note this includes
@@ -80,15 +80,15 @@ export const LINEAR_SOLUTIONS: LinearSolution[] = [
   { sku: "AMB-FCST-RC0485TR-24V-30-24-90-3M-18W", label: "Flexible Silicone 4 × 8.5 mm translucent trim · 3 m · 3000 K", type: "flexible", mounting: "recess", cct: "3000", wattsPerMetre: 6 },
   { sku: "AMB-FCST-RC0485TR-24V-40-24-90-3M-18W", label: "Flexible Silicone 4 × 8.5 mm translucent trim · 3 m · 4000 K", type: "flexible", mounting: "recess", cct: "4000", wattsPerMetre: 6 },
   { sku: "AMB-FCRGL-RC1015TR-24V-30-24-90-2.4M-28.8W", label: "Rigid 10 × 15 mm · 2.4 m · 3000 K", type: "rigid", mounting: "recess", cct: "3000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M" },
-  { sku: "AMB-FCRGL-RC1015TR -24V-40-24-90-2.4M-28.8W", label: "Rigid 10 × 15 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M" },
+  { sku: "AMB-FCRGL-RC1015TR-24V-40-24-90-2.4M-28.8W", label: "Rigid 10 × 15 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M" },
   { sku: "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 3000 K", type: "rigid", mounting: "recess", cct: "3000", wattsPerMetre: 7.2, powerCordSku: RIGID_CORD_SKU },
   { sku: "AMB-FCRGL-RC0608TR-24V-40-24-90-2.4M-18W", label: "Rigid 6 × 8 mm · 2.4 m · 4000 K", type: "rigid", mounting: "recess", cct: "4000", wattsPerMetre: 7.2, powerCordSku: RIGID_CORD_SKU },
-  { sku: "AMB-FCST-SR1010-45DEG -24V-30-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
-  { sku: "AMB-FCST-SR1010-45DEG -24V-40-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 4000 K", type: "flexible", mounting: "surface", cct: "4000", wattsPerMetre: 9 },
-  { sku: "AMB-FCST-SR1010-45DEG -24V-30-24-90-5M-45W", label: "Flexible Silicone 10 × 10 mm · 45° · 5 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
-  { sku: "AMB-FCRGL-SM-45DEG -24V-30-24-90-2.4M-28.8W", label: "Rigid 45° · 2.4 m · 3000 K", type: "rigid", mounting: "surface", cct: "3000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-SM-45DEG-PC-1.5M" },
+  { sku: "AMB-FCST-SR1010-45DEG-24V-30-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
+  { sku: "AMB-FCST-SR1010-45DEG-24V-40-24-90-3M-27W", label: "Flexible Silicone 10 × 10 mm · 45° · 3 m · 4000 K", type: "flexible", mounting: "surface", cct: "4000", wattsPerMetre: 9 },
+  { sku: "AMB-FCST-SR1010-45DEG-24V-30-24-90-5M-45W", label: "Flexible Silicone 10 × 10 mm · 45° · 5 m · 3000 K", type: "flexible", mounting: "surface", cct: "3000", wattsPerMetre: 9 },
+  { sku: "AMB-FCRGL-SM-45DEG-24V-30-24-90-2.4M-28.8W", label: "Rigid 45° · 2.4 m · 3000 K", type: "rigid", mounting: "surface", cct: "3000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-SM-45DEG-PC-1.5M" },
   { sku: "AMB-FCRGL-SM1610-24V-30-24-90-2.4M-28.8W", label: "Rigid 16 × 10 mm · 2.4 m · 3000 K", type: "rigid", mounting: "surface", cct: "3000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-SM1610-PC-1.5M" },
-  { sku: "AMB-FCRGL-SM1610 -24V-40-24-90-2.4M-28.8W", label: "Rigid 16 × 10 mm · 2.4 m · 4000 K", type: "rigid", mounting: "surface", cct: "4000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-SM1610-PC-1.5M" },
+  { sku: "AMB-FCRGL-SM1610-24V-40-24-90-2.4M-28.8W", label: "Rigid 16 × 10 mm · 2.4 m · 4000 K", type: "rigid", mounting: "surface", cct: "4000", wattsPerMetre: 12, powerCordSku: "AMB-FCRGL-SM1610-PC-1.5M" },
 ];
 
 // ---------------------------------------------------------------------
@@ -105,10 +105,12 @@ export const LINEAR_SOLUTIONS: LinearSolution[] = [
 // actually sold in. The engine picks the family from mounting + type, then
 // resolves the exact SKU per piece from (family, CCT, stock length).
 //
-// Two SKUs above carry a literal stray space before "-24V" in the source
-// data (RC1015TR's 4000K variant and SM1610's 4000K variant) — preserved
-// verbatim rather than "corrected", since a fixed typo could just as easily
-// turn out to be the real catalog string. Flagged here for a human check.
+// Two SKUs above originally carried a stray space before "-24V" (RC1015TR's
+// 4000K variant and SM1610's 4000K variant), left in verbatim pending a
+// human check — confirmed by the business owner to be a typo, not a real
+// catalog string, and corrected here (and in the amblux_products/
+// amblux_pricing/amblux_product_cost tables, see migration
+// 0029_fix_stray_space_skus.sql) to match their already-clean siblings.
 export interface LinearFamily {
   id: string;
   label: string;
@@ -174,12 +176,12 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     mounting: "recess",
     wattsPerMetre: 12,
     powerCordSku: "AMB-FCRGL-RC1015TR-PC-1.5M",
-    installAccessorySku: "AMB-FCRGL-RC1015TR -BRKT",
+    installAccessorySku: "AMB-FCRGL-RC1015TR-BRKT",
     installAccessoryLabel: "Installation bracket",
     installAccessoryOptional: true,
     skusByCctAndLength: {
       "3000": { 2.4: "AMB-FCRGL-RC1015TR-24V-30-24-90-2.4M-28.8W" },
-      "4000": { 2.4: "AMB-FCRGL-RC1015TR -24V-40-24-90-2.4M-28.8W" },
+      "4000": { 2.4: "AMB-FCRGL-RC1015TR-24V-40-24-90-2.4M-28.8W" },
     },
   },
   {
@@ -206,11 +208,11 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     type: "flexible",
     mounting: "surface",
     wattsPerMetre: 9,
-    installAccessorySku: "AMB-FCST-SR1010-45DEG -CLIPS",
+    installAccessorySku: "AMB-FCST-SR1010-45DEG-CLIPS",
     installAccessoryLabel: "Clips",
     skusByCctAndLength: {
-      "3000": { 3: "AMB-FCST-SR1010-45DEG -24V-30-24-90-3M-27W", 5: "AMB-FCST-SR1010-45DEG -24V-30-24-90-5M-45W" },
-      "4000": { 3: "AMB-FCST-SR1010-45DEG -24V-40-24-90-3M-27W" },
+      "3000": { 3: "AMB-FCST-SR1010-45DEG-24V-30-24-90-3M-27W", 5: "AMB-FCST-SR1010-45DEG-24V-30-24-90-5M-45W" },
+      "4000": { 3: "AMB-FCST-SR1010-45DEG-24V-40-24-90-3M-27W" },
     },
   },
   {
@@ -220,10 +222,10 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     mounting: "surface",
     wattsPerMetre: 12,
     powerCordSku: "AMB-FCRGL-SM-45DEG-PC-1.5M",
-    installAccessorySku: "AMB-FCRGL-SM-45DEG -BRKT",
+    installAccessorySku: "AMB-FCRGL-SM-45DEG-BRKT",
     installAccessoryLabel: "Installation bracket",
     skusByCctAndLength: {
-      "3000": { 2.4: "AMB-FCRGL-SM-45DEG -24V-30-24-90-2.4M-28.8W" },
+      "3000": { 2.4: "AMB-FCRGL-SM-45DEG-24V-30-24-90-2.4M-28.8W" },
     },
   },
   {
@@ -233,11 +235,11 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
     mounting: "surface",
     wattsPerMetre: 12,
     powerCordSku: "AMB-FCRGL-SM1610-PC-1.5M",
-    installAccessorySku: "AMB-FCRGL-SM1610 -BRKT",
+    installAccessorySku: "AMB-FCRGL-SM1610-BRKT",
     installAccessoryLabel: "Installation bracket",
     skusByCctAndLength: {
       "3000": { 2.4: "AMB-FCRGL-SM1610-24V-30-24-90-2.4M-28.8W" },
-      "4000": { 2.4: "AMB-FCRGL-SM1610 -24V-40-24-90-2.4M-28.8W" },
+      "4000": { 2.4: "AMB-FCRGL-SM1610-24V-40-24-90-2.4M-28.8W" },
     },
   },
 ];
