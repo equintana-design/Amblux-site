@@ -11,9 +11,10 @@ import {
   getLinearFamily,
   linearFamiliesFor,
 } from "@/lib/configurator/catalog";
-import { finishLabel } from "@/lib/configurator/labels";
+import { finishLabel, LABELS } from "@/lib/configurator/labels";
 import type {
   BlocksState,
+  BomResult,
   CabinetBlock,
   DrawerBlock,
   DrawersState,
@@ -21,7 +22,7 @@ import type {
   Unit,
 } from "@/lib/configurator/types";
 import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
-import { Field, NumberInput, ReadOnly, Section, Select, Toggle } from "./ui";
+import { CalculatedSolution, Field, NumberInput, ReadOnly, Section, Select, Toggle } from "./ui";
 
 function unitOptions(t: TFunction): { value: Unit; label: string }[] {
   return [
@@ -87,12 +88,18 @@ export function SimpleZoneForm({
   allowPuck,
   state,
   onChange,
+  included,
+  onToggleIncluded,
+  bom,
 }: {
   zoneKey: "undercabinet" | "toeKick" | "crown";
   title: string;
   allowPuck: boolean;
   state: SimpleZoneState;
   onChange: (patch: Partial<SimpleZoneState>) => void;
+  included: boolean;
+  onToggleIncluded: (v: boolean) => void;
+  bom: BomResult;
 }) {
   const t = useTranslations();
   const isMultiZone = zoneKey === "undercabinet";
@@ -102,8 +109,15 @@ export function SimpleZoneForm({
     ? UNDERCABINET_REMOTE_CONTROLS.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }))
     : controlOptionsFor(controlZone, state.controlSystem);
 
+  const zoneLabel = LABELS.zoneNames[zoneKey];
+  const calculatedRows = bom.rows.filter((r) => r.zone === zoneLabel || r.zone.startsWith(`${zoneLabel} · `));
+
   return (
-    <Section title={title} description={t("configuratorExtra.sectionSimpleDesc")}>
+    <Section
+      title={title}
+      description={t("configuratorExtra.sectionSimpleDesc")}
+      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+    >
       {allowPuck && (
         <Field label={t("configurator.lightType")}>
           <Select
@@ -260,6 +274,8 @@ export function SimpleZoneForm({
           ]}
         />
       </Field>
+
+      <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={calculatedRows} />
     </Section>
   );
 }
@@ -273,11 +289,17 @@ export function BlocksZoneForm({
   title,
   state,
   onChange,
+  included,
+  onToggleIncluded,
+  bom,
 }: {
   zoneKey: "base" | "wall" | "pantry";
   title: string;
   state: BlocksState;
   onChange: (patch: Partial<BlocksState>) => void;
+  included: boolean;
+  onToggleIncluded: (v: boolean) => void;
+  bom: BomResult;
 }) {
   const t = useTranslations();
   const isWall = zoneKey === "wall";
@@ -291,8 +313,15 @@ export function BlocksZoneForm({
     onChange({ blocks });
   };
 
+  const zoneLabel = LABELS.zoneNames[zoneKey];
+  const sharedRows = bom.rows.filter((r) => r.zone === zoneLabel);
+
   return (
-    <Section title={title} description={t("configuratorExtra.sectionBlocksDesc")}>
+    <Section
+      title={title}
+      description={t("configuratorExtra.sectionBlocksDesc")}
+      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+    >
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
@@ -358,6 +387,19 @@ export function BlocksZoneForm({
           />
         ))}
       </div>
+
+      {state.blocks.map(
+        (b, i) =>
+          b.included && (
+            <CalculatedSolution
+              key={`sol-${i}`}
+              heading={t("configurator.calculate")}
+              title={`${zoneLabel} · ${LABELS.cabinet} ${i + 1}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1}`)}
+            />
+          )
+      )}
+      <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={sharedRows} />
     </Section>
   );
 }
@@ -561,15 +603,33 @@ function CabinetBlockRow({
 // Drawers
 // ---------------------------------------------------------------------
 
-export function DrawersForm({ state, onChange }: { state: DrawersState; onChange: (patch: Partial<DrawersState>) => void }) {
+export function DrawersForm({
+  state,
+  onChange,
+  included,
+  onToggleIncluded,
+  bom,
+}: {
+  state: DrawersState;
+  onChange: (patch: Partial<DrawersState>) => void;
+  included: boolean;
+  onToggleIncluded: (v: boolean) => void;
+  bom: BomResult;
+}) {
   const t = useTranslations();
+  const zoneLabel = LABELS.zoneNames.drawers;
+  const sharedRows = bom.rows.filter((r) => r.zone === zoneLabel);
   const updateBlock = (index: number, patch: Partial<DrawerBlock>) => {
     const blocks = state.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b));
     onChange({ blocks });
   };
 
   return (
-    <Section title={t("configurator.zoneNames.drawers")} description={t("configuratorExtra.sectionDrawersDesc")}>
+    <Section
+      title={t("configurator.zoneNames.drawers")}
+      description={t("configuratorExtra.sectionDrawersDesc")}
+      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+    >
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
@@ -636,6 +696,19 @@ export function DrawersForm({ state, onChange }: { state: DrawersState; onChange
           </div>
         ))}
       </div>
+
+      {state.blocks.map(
+        (b, i) =>
+          b.included && (
+            <CalculatedSolution
+              key={`sol-${i}`}
+              heading={t("configurator.calculate")}
+              title={`${zoneLabel} · ${LABELS.drawer} ${i + 1}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.drawer} ${i + 1}`)}
+            />
+          )
+      )}
+      <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={sharedRows} />
     </Section>
   );
 }

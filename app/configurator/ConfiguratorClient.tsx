@@ -7,20 +7,28 @@ import { AccountStatus } from "@/app/components/AccountStatus";
 import { computeBom, consolidateParts } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
-import { useTranslations } from "@/app/providers/LocaleProvider";
+import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadQuoteState } from "@/lib/configurator/quotes";
-import { BomSummary } from "./BomSummary";
+import { LOCALES } from "@/lib/i18n/dictionaries";
+import { BomSummaryStep } from "./BomSummaryStep";
 import { PartsList } from "./PartsList";
 import { PricingPanel } from "./PricingPanel";
-import { SavedProjectsPanel } from "./SavedProjectsPanel";
+import { ProjectInfoStep } from "./ProjectInfoStep";
 import { BlocksZoneForm, DrawersForm, SimpleZoneForm } from "./forms";
-import { Field, Select, Toggle } from "./ui";
+import { StepTabs, ZoneSidebar, type WizardStep } from "./ui";
+
+type ZoneStepKey = keyof SelectedZones;
+type StepKey = "project" | ZoneStepKey | "summary";
+
+const ZONE_STEP_ORDER: ZoneStepKey[] = ["undercabinet", "toeKick", "crown", "base", "wall", "pantry", "drawers"];
 
 export function ConfiguratorClient() {
   const [state, setState] = useState<ConfiguratorState>(() => defaultConfiguratorState());
   const [quoteId, setQuoteId] = useState<string | null>(null);
+  const [activeStep, setActiveStep] = useState<StepKey>("project");
   const t = useTranslations();
+  const { locale, setLocale } = useLocale();
 
   // Deep link from "My saved projects" (e.g. /configurator?quote=<id>) —
   // read straight off window.location instead of next/navigation's
@@ -39,17 +47,23 @@ export function ConfiguratorClient() {
 
   const bom = useMemo(() => computeBom(state), [state]);
 
-  const ZONE_META: { key: keyof SelectedZones; title: string }[] = [
-    { key: "undercabinet", title: t("configurator.zoneNames.undercabinet") },
-    { key: "toeKick", title: t("configurator.zoneNames.toeKick") },
-    { key: "crown", title: t("configurator.zoneNames.crown") },
-    { key: "base", title: t("configurator.zoneNames.base") },
-    { key: "wall", title: t("configurator.zoneNames.wall") },
-    { key: "pantry", title: t("configurator.zoneNames.pantry") },
-    { key: "drawers", title: t("configurator.zoneNames.drawers") },
+  const ZONE_META: Record<ZoneStepKey, { title: string; allowPuck?: boolean }> = {
+    undercabinet: { title: t("configurator.zoneNames.undercabinet"), allowPuck: true },
+    toeKick: { title: t("configurator.zoneNames.toeKick"), allowPuck: false },
+    crown: { title: t("configurator.zoneNames.crown"), allowPuck: false },
+    base: { title: t("configurator.zoneNames.base") },
+    wall: { title: t("configurator.zoneNames.wall") },
+    pantry: { title: t("configurator.zoneNames.pantry") },
+    drawers: { title: t("configurator.zoneNames.drawers") },
+  };
+
+  const STEPS: WizardStep[] = [
+    { key: "project", label: t("configurator.project") },
+    ...ZONE_STEP_ORDER.map((key) => ({ key, label: ZONE_META[key].title, done: state.selected[key] })),
+    { key: "summary", label: t("configurator.summary") },
   ];
 
-  const toggleZone = (key: keyof SelectedZones, value: boolean) => {
+  const toggleZone = (key: ZoneStepKey, value: boolean) => {
     setState((s) => ({ ...s, selected: { ...s.selected, [key]: value } }));
   };
 
@@ -69,159 +83,157 @@ export function ConfiguratorClient() {
     setState((s) => ({ ...s, project: { ...s.project, ...patch } }));
   };
 
-  return (
-    <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={32} className="h-8 w-auto" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <AccountStatus />
-            <button
-              onClick={() => {
-                setState(defaultConfiguratorState());
-                setQuoteId(null);
-              }}
-              className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
-            >
-              {t("configurator.clear")}
-            </button>
-          </div>
-        </div>
-      </header>
+  function renderStepContent() {
+    if (activeStep === "project") {
+      return (
+        <ProjectInfoStep
+          project={state.project}
+          onChange={patchProject}
+          state={state}
+          bom={bom}
+          quoteId={quoteId}
+          onSaved={(id) => setQuoteId(id)}
+          onLoad={(id, loaded) => {
+            setState(loaded);
+            setQuoteId(id);
+          }}
+        />
+      );
+    }
 
-      <div className="mx-auto w-full max-w-6xl px-6 py-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">{t("configurator.kicker")}</p>
-        <h1 className="mt-2 text-3xl font-semibold text-foreground">{t("configurator.title")}</h1>
-        <p className="mt-3 max-w-2xl text-muted">{t("configurator.intro")}</p>
-
-        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="flex flex-col gap-8">
-            <section className="rounded-2xl border border-border bg-surface p-6">
-              <h2 className="text-lg font-semibold text-foreground">{t("configurator.project")}</h2>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <Field label={t("configurator.projectName")}>
-                  <input
-                    className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    value={state.project.name}
-                    onChange={(e) => patchProject({ name: e.target.value })}
-                  />
-                </Field>
-                <Field label={t("configurator.client")}>
-                  <input
-                    className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    value={state.project.client}
-                    onChange={(e) => patchProject({ client: e.target.value })}
-                  />
-                </Field>
-                <Field label={t("configurator.cabinetType")}>
-                  <Select
-                    value={state.project.cabinet}
-                    onChange={(v) => patchProject({ cabinet: v as ConfiguratorState["project"]["cabinet"] })}
-                    options={[
-                      { value: "frameless", label: t("configurator.frameless") },
-                      { value: "framed", label: t("configurator.framed") },
-                    ]}
-                  />
-                </Field>
-                <Field label={t("configurator.preference")}>
-                  <Select
-                    value={state.project.install}
-                    onChange={(v) => patchProject({ install: v as ConfiguratorState["project"]["install"] })}
-                    options={[
-                      { value: "plug", label: t("configurator.plug") },
-                      { value: "hardwire", label: t("configurator.hardwire") },
-                    ]}
-                  />
-                </Field>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-surface p-6">
-              <h2 className="text-lg font-semibold text-foreground">{t("configurator.zones")}</h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {ZONE_META.map((z) => (
-                  <Toggle
-                    key={z.key}
-                    label={z.title}
-                    checked={state.selected[z.key]}
-                    onChange={(v) => toggleZone(z.key, v)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {state.selected.undercabinet && (
-              <SimpleZoneForm
-                zoneKey="undercabinet"
-                title={t("configurator.zoneNames.undercabinet")}
-                allowPuck
-                state={state.simple.undercabinet}
-                onChange={(patch) => patchSimple("undercabinet", patch)}
-              />
-            )}
-            {state.selected.toeKick && (
-              <SimpleZoneForm
-                zoneKey="toeKick"
-                title={t("configurator.zoneNames.toeKick")}
-                allowPuck={false}
-                state={state.simple.toeKick}
-                onChange={(patch) => patchSimple("toeKick", patch)}
-              />
-            )}
-            {state.selected.crown && (
-              <SimpleZoneForm
-                zoneKey="crown"
-                title={t("configurator.zoneNames.crown")}
-                allowPuck={false}
-                state={state.simple.crown}
-                onChange={(patch) => patchSimple("crown", patch)}
-              />
-            )}
-            {state.selected.base && (
-              <BlocksZoneForm
-                zoneKey="base"
-                title={t("configurator.zoneNames.base")}
-                state={state.base}
-                onChange={(patch) => patchBlocks("base", patch)}
-              />
-            )}
-            {state.selected.wall && (
-              <BlocksZoneForm
-                zoneKey="wall"
-                title={t("configurator.zoneNames.wall")}
-                state={state.wall}
-                onChange={(patch) => patchBlocks("wall", patch)}
-              />
-            )}
-            {state.selected.pantry && (
-              <BlocksZoneForm
-                zoneKey="pantry"
-                title={t("configurator.zoneNames.pantry")}
-                state={state.pantry}
-                onChange={(patch) => patchBlocks("pantry", patch)}
-              />
-            )}
-            {state.selected.drawers && <DrawersForm state={state.drawers} onChange={patchDrawers} />}
-          </div>
-
-          <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
-            <SavedProjectsPanel
-              state={state}
-              bom={bom}
-              quoteId={quoteId}
-              onSaved={(id) => setQuoteId(id)}
-              onLoad={(id, loaded) => {
-                setState(loaded);
-                setQuoteId(id);
-              }}
-            />
-            <BomSummary bom={bom} />
+    if (activeStep === "summary") {
+      return (
+        <div className="flex flex-col gap-6">
+          <BomSummaryStep bom={bom} project={state.project} />
+          <div className="grid gap-6 print:hidden lg:grid-cols-2">
             <PartsList bom={bom} project={state.project} />
             <PricingPanel parts={consolidateParts(bom)} />
           </div>
         </div>
+      );
+    }
+
+    switch (activeStep) {
+      case "undercabinet":
+      case "toeKick":
+      case "crown":
+        return (
+          <SimpleZoneForm
+            zoneKey={activeStep}
+            title={ZONE_META[activeStep].title}
+            allowPuck={Boolean(ZONE_META[activeStep].allowPuck)}
+            state={state.simple[activeStep]}
+            onChange={(patch) => patchSimple(activeStep, patch)}
+            included={state.selected[activeStep]}
+            onToggleIncluded={(v) => toggleZone(activeStep, v)}
+            bom={bom}
+          />
+        );
+      case "base":
+      case "wall":
+      case "pantry":
+        return (
+          <BlocksZoneForm
+            zoneKey={activeStep}
+            title={ZONE_META[activeStep].title}
+            state={state[activeStep]}
+            onChange={(patch) => patchBlocks(activeStep, patch)}
+            included={state.selected[activeStep]}
+            onToggleIncluded={(v) => toggleZone(activeStep, v)}
+            bom={bom}
+          />
+        );
+      case "drawers":
+        return (
+          <DrawersForm
+            state={state.drawers}
+            onChange={patchDrawers}
+            included={state.selected.drawers}
+            onToggleIncluded={(v) => toggleZone("drawers", v)}
+            bom={bom}
+          />
+        );
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <header className="border-b border-border bg-surface print:hidden">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+          <Link href="/" className="flex items-center gap-3">
+            <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={32} className="h-8 w-auto" />
+          </Link>
+          <div className="flex items-center gap-4">
+            <div
+              className="flex items-center overflow-hidden rounded-full border border-border text-xs font-semibold"
+              role="group"
+              aria-label="Language / Langue / Idioma"
+            >
+              {LOCALES.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  aria-pressed={locale === l}
+                  onClick={() => setLocale(l)}
+                  className={locale === l ? "bg-foreground px-2.5 py-1.5 text-white" : "px-2.5 py-1.5 text-muted hover:text-foreground"}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <AccountStatus />
+          </div>
+        </div>
+      </header>
+
+      <div className="bg-foreground text-white print:hidden">
+        <div className="mx-auto w-full max-w-6xl px-6 py-10">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">{t("configurator.kicker")}</p>
+          <h1 className="mt-2 text-3xl font-semibold text-white">{t("configurator.title")}</h1>
+          <p className="mt-3 max-w-2xl text-white/70">{t("configurator.intro")}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setState(defaultConfiguratorState());
+              setQuoteId(null);
+              setActiveStep("project");
+            }}
+            className="mt-3 text-sm font-medium text-accent-soft underline-offset-2 hover:underline"
+          >
+            {t("configurator.clear")}
+          </button>
+        </div>
+      </div>
+
+      <div className="print:hidden">
+        <StepTabs steps={STEPS} activeKey={activeStep} onSelect={(key) => setActiveStep(key as StepKey)} />
+      </div>
+
+      <div className="mx-auto w-full max-w-6xl px-6 py-10">
+        {activeStep === "summary" ? (
+          renderStepContent()
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <div>{renderStepContent()}</div>
+            <div className="print:hidden">
+              <ZoneSidebar
+                kicker={t("configurator.kitchenOnly")}
+                heading={t("configurator.zones")}
+                zones={ZONE_STEP_ORDER.map((key) => ({
+                  key,
+                  label: ZONE_META[key].title,
+                  included: state.selected[key],
+                }))}
+                summaryLabel={t("configurator.summary")}
+                activeKey={activeStep}
+                onSelectZone={(key) => setActiveStep(key as StepKey)}
+                onJumpToSummary={() => setActiveStep("summary")}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
