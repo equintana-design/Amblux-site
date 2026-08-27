@@ -144,6 +144,7 @@ const en = {
     title: "Tell us about the kitchen. AMBLUX builds the lighting system.",
     intro: "Select the kitchen zones you want to light. The questions and calculations follow the approved AMBLUX configurator exactly.",
     clear: "Clear all form data",
+    kitchenOnly: "Kitchen only",
     project: "Project Info",
     summary: "BOM & Summary",
     include: "Include this zone",
@@ -353,6 +354,10 @@ const en = {
     noSavedProjects: "No saved projects yet.",
     loadProject: "Load",
     loadingProjects: "Loading your saved projects…",
+    defaultProjectTitle: "AMBLUX Kitchen",
+    bomEmailSubject: "AMBLUX Kitchen — bill of materials",
+    bomEmailIntro: "Here's the AMBLUX bill of materials for",
+    bomEmailAttach: "Print or save this page as a PDF and attach it before sending.",
   },
 };
 
@@ -470,6 +475,7 @@ const fr: Messages = {
     title: "Décrivez la cuisine. AMBLUX conçoit le système d’éclairage.",
     intro: "Sélectionnez les zones de cuisine à éclairer. Les questions et calculs suivent exactement le configurateur AMBLUX approuvé.",
     clear: "Effacer toutes les données",
+    kitchenOnly: "Cuisine seulement",
     project: "Informations du projet",
     summary: "Liste de matériel et résumé",
     include: "Inclure cette zone",
@@ -680,6 +686,10 @@ const fr: Messages = {
     noSavedProjects: "No saved projects yet.",
     loadProject: "Load",
     loadingProjects: "Loading your saved projects…",
+    defaultProjectTitle: "Cuisine AMBLUX",
+    bomEmailSubject: "Cuisine AMBLUX — liste de matériel",
+    bomEmailIntro: "Voici la liste de matériel AMBLUX pour",
+    bomEmailAttach: "Imprimez ou enregistrez cette page en PDF et joignez-la avant l'envoi.",
   },
 };
 
@@ -791,6 +801,7 @@ const es: Messages = {
     title: "Describa la cocina. AMBLUX diseña el sistema de iluminación.",
     intro: "Seleccione las zonas de cocina que desea iluminar. Las preguntas y los cálculos siguen exactamente el configurador AMBLUX aprobado.",
     clear: "Borrar todos los datos",
+    kitchenOnly: "Solo cocina",
     project: "Información del proyecto",
     summary: "Materiales y resumen",
     include: "Incluir esta zona",
@@ -1001,6 +1012,10 @@ const es: Messages = {
     noSavedProjects: "No saved projects yet.",
     loadProject: "Load",
     loadingProjects: "Loading your saved projects…",
+    defaultProjectTitle: "Cocina AMBLUX",
+    bomEmailSubject: "Cocina AMBLUX — lista de materiales",
+    bomEmailIntro: "Aquí está la lista de materiales AMBLUX para",
+    bomEmailAttach: "Imprima o guarde esta página como PDF y adjúntela antes de enviarla.",
   },
 };
 
