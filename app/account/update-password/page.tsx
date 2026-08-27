@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PasswordInput } from "@/app/components/PasswordInput";
 import { SiteHeader } from "@/app/components/SiteHeader";
 import { createClient } from "@/lib/supabase/server";
 import { updatePasswordAction } from "../actions";
 
 // Reached two ways: (1) an already signed-in user clicking "Change
 // password" on /account, or (2) a fresh recovery session created by
-// clicking the emailed reset link (see app/auth/confirm/route.ts). Either
+// clicking the emailed reset link (see app/auth/confirm/ConfirmClient.tsx). Either
 // way this page just needs *some* active session — updatePasswordAction
 // works the same regardless of how that session was established, so
 // there's no need to distinguish the two cases here.
@@ -36,26 +37,13 @@ export default async function UpdatePasswordPage({
         )}
 
         <form action={updatePasswordAction} className="mt-6 flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-muted">New password</span>
-            <input
-              type="password"
-              name="password"
-              required
-              minLength={6}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-muted">Confirm new password</span>
-            <input
-              type="password"
-              name="confirmPassword"
-              required
-              minLength={6}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </label>
+          <PasswordInput label="New password" name="password" minLength={6} autoComplete="new-password" />
+          <PasswordInput
+            label="Confirm new password"
+            name="confirmPassword"
+            minLength={6}
+            autoComplete="new-password"
+          />
           <button
             type="submit"
             className="mt-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
