@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signInAction } from "@/app/account/actions";
+import { PasswordInput } from "@/app/components/PasswordInput";
 import { SiteHeader } from "@/app/components/SiteHeader";
 
 export default async function SignInPage({
@@ -37,15 +38,7 @@ export default async function SignInPage({
               className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-muted">Password</span>
-            <input
-              type="password"
-              name="password"
-              required
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </label>
+          <PasswordInput label="Password" name="password" autoComplete="current-password" />
           <Link href="/forgot-password" className="-mt-2 self-end text-xs font-medium text-accent-strong hover:underline">
             Forgot password?
           </Link>
