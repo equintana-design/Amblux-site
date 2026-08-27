@@ -9,10 +9,9 @@ import {
   updateProductCostAction,
   upsertScopedParametersAction,
 } from "./actions";
-import { FobEditForm } from "./FobEditForm";
 import { NewOverrideForm } from "./NewOverrideForm";
+import { OverridesList } from "./OverridesList";
 import { ParamFieldset } from "./ParamFieldset";
-import { SkuMarginFieldset } from "./SkuMarginFieldset";
 
 function formatCad(cents: number | undefined): string {
   if (cents == null) return "—";
@@ -201,53 +200,16 @@ export default async function AdminPricingPage({
           whole parameter set for that scope — there&apos;s no partial merge with global.
         </p>
 
-        {overrides.length > 0 && (
-          <div className="mt-4 flex flex-col gap-4">
-            {overrides.map((o) => (
-              <div key={o.id} className="rounded-xl border border-border p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-foreground">
-                    {o.scope === "category" ? "Category" : "SKU"}: <span className="font-mono">{o.scope_key}</span>
-                  </p>
-                  <form action={deleteScopedParametersAction}>
-                    <input type="hidden" name="id" value={o.id} />
-                    <button type="submit" className="text-xs font-medium text-muted hover:text-red-600">
-                      Remove override
-                    </button>
-                  </form>
-                </div>
-                {o.scope === "sku" ? (
-                  <div className="mt-3">
-                    <FobEditForm
-                      sku={o.scope_key ?? ""}
-                      cost={costBySku[o.scope_key ?? ""]}
-                      updateAction={updateProductCostAction}
-                      addAction={addProductCostAction}
-                    />
-                  </div>
-                ) : null}
-                <form action={upsertScopedParametersAction} className="mt-3 flex flex-col gap-3">
-                  <input type="hidden" name="scope" value={o.scope} />
-                  <input type="hidden" name="scope_key" value={o.scope_key ?? ""} />
-                  {o.scope === "sku" ? (
-                    <SkuMarginFieldset
-                      defaults={o as unknown as Record<string, number>}
-                      fobUsd={fobBySku[o.scope_key ?? ""]}
-                    />
-                  ) : (
-                    <ParamFieldset defaults={o as unknown as Record<string, number>} />
-                  )}
-                  <button
-                    type="submit"
-                    className="w-fit rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
-                  >
-                    Save
-                  </button>
-                </form>
-              </div>
-            ))}
-          </div>
-        )}
+        <OverridesList
+          overrides={overrides}
+          costBySku={costBySku}
+          fobBySku={fobBySku}
+          upsertAction={upsertScopedParametersAction}
+          deleteAction={deleteScopedParametersAction}
+          updateCostAction={updateProductCostAction}
+          addCostAction={addProductCostAction}
+          initialOpenKey={override_sku}
+        />
 
         <NewOverrideForm
           action={upsertScopedParametersAction}
@@ -259,7 +221,7 @@ export default async function AdminPricingPage({
           globalDefaults={global as unknown as Record<string, number>}
           initialScope={override_sku ? "sku" : "category"}
           initialScopeKey={override_sku ?? ""}
-          openInitially={Boolean(override_sku)}
+          openInitially={Boolean(override_sku) && !skuOverrideKeys.has(override_sku ?? "")}
         />
       </section>
 
