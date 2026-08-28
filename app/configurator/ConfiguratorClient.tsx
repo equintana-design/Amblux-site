@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AccountStatus } from "@/app/components/AccountStatus";
+import { zonesForApplication } from "@/lib/configurator/catalog";
 import { computeBom, consolidateParts } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
@@ -15,13 +16,30 @@ import { BomSummaryStep } from "./BomSummaryStep";
 import { PartsList } from "./PartsList";
 import { PricingPanel } from "./PricingPanel";
 import { ProjectInfoStep } from "./ProjectInfoStep";
+import { SaveProjectButton } from "./SaveProjectButton";
 import { BlocksZoneForm, DrawersForm, SimpleZoneForm } from "./forms";
 import { StepTabs, ZoneSidebar, type WizardStep } from "./ui";
 
 type ZoneStepKey = keyof SelectedZones;
 type StepKey = "project" | ZoneStepKey | "summary";
 
-const ZONE_STEP_ORDER: ZoneStepKey[] = ["undercabinet", "toeKick", "crown", "base", "wall", "pantry", "drawers"];
+// Master zone order (all built zones, every project type combined) — the
+// step tabs, sidebar tracker, and Project Info checklist all filter this
+// down to zonesForApplication(state.project.application) so only the zones
+// that make sense for the selected project type ever show up. Order here
+// roughly follows the reference doc's Kitchen zone order.
+const ZONE_STEP_ORDER: ZoneStepKey[] = [
+  "undercabinet",
+  "floating",
+  "toeKick",
+  "crown",
+  "base",
+  "wall",
+  "pantry",
+  "drawers",
+  "highCabinet",
+  "library",
+];
 
 export function ConfiguratorClient() {
   const [state, setState] = useState<ConfiguratorState>(() => defaultConfiguratorState());
@@ -47,19 +65,43 @@ export function ConfiguratorClient() {
 
   const bom = useMemo(() => computeBom(state), [state]);
 
+  // The sidebar used to hardcode "Kitchen only" here since that was the
+  // only project type the wizard actually supported — now that Application
+  // is a real switch, the sidebar kicker should say whichever project type
+  // is actually selected instead of always claiming Kitchen.
+  const APPLICATION_KICKER: Record<ConfiguratorState["project"]["application"], string> = {
+    kitchen: t("configurator.applicationKitchen"),
+    closets: t("configurator.applicationClosets"),
+    bathroom: t("configurator.applicationBathroom"),
+    furniture: t("configurator.applicationFurniture"),
+  };
+
   const ZONE_META: Record<ZoneStepKey, { title: string; allowPuck?: boolean }> = {
     undercabinet: { title: t("configurator.zoneNames.undercabinet"), allowPuck: true },
+    floating: { title: t("configurator.zoneNames.floating") },
     toeKick: { title: t("configurator.zoneNames.toeKick"), allowPuck: false },
     crown: { title: t("configurator.zoneNames.crown"), allowPuck: false },
     base: { title: t("configurator.zoneNames.base") },
     wall: { title: t("configurator.zoneNames.wall") },
     pantry: { title: t("configurator.zoneNames.pantry") },
     drawers: { title: t("configurator.zoneNames.drawers") },
+    highCabinet: { title: t("configurator.zoneNames.highCabinet") },
+    library: { title: t("configurator.zoneNames.library") },
   };
+
+  // The one list every zone-facing UI (step tabs, sidebar tracker, Project
+  // Info's zone checklist) filters down to — this is what makes the
+  // Application field a real project-type switch instead of descriptive
+  // metadata: Kitchen sees all built zones, Closet/Furniture/Bathroom see
+  // their subset (Bathroom's other 2 reference zones — Vanity, Floating
+  // Cabinet — aren't built yet). See catalog.ts's ZONES_BY_APPLICATION for
+  // the per-project-type list and its comment for how to extend it as more
+  // zones get built.
+  const visibleZoneKeys = ZONE_STEP_ORDER.filter((key) => zonesForApplication(state.project.application).includes(key));
 
   const STEPS: WizardStep[] = [
     { key: "project", label: t("configurator.project") },
-    ...ZONE_STEP_ORDER.map((key) => ({ key, label: ZONE_META[key].title, done: state.selected[key] })),
+    ...visibleZoneKeys.map((key) => ({ key, label: ZONE_META[key].title, done: state.selected[key] })),
     { key: "summary", label: t("configurator.summary") },
   ];
 
@@ -71,7 +113,7 @@ export function ConfiguratorClient() {
     setState((s) => ({ ...s, simple: { ...s.simple, [key]: { ...s.simple[key], ...patch } } }));
   };
 
-  const patchBlocks = (key: "base" | "wall" | "pantry", patch: Partial<ConfiguratorState["base"]>) => {
+  const patchBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library", patch: Partial<ConfiguratorState["base"]>) => {
     setState((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
   };
 
@@ -80,7 +122,35 @@ export function ConfiguratorClient() {
   };
 
   const patchProject = (patch: Partial<ConfiguratorState["project"]>) => {
-    setState((s) => ({ ...s, project: { ...s.project, ...patch } }));
+    setState((s) => {
+      const project = { ...s.project, ...patch };
+      if (!patch.application || patch.application === s.project.application) {
+        return { ...s, project };
+      }
+      // Switching project type changes which zones are even visible — a
+      // zone that's still selected but no longer offered would otherwise
+      // keep silently contributing to the BOM/wattage total with no way to
+      // see or turn it off (since its tab, sidebar row, and checklist entry
+      // all disappear). Its configured data (lengths, wattages, etc.) is
+      // left untouched in state in case the user switches back — only the
+      // "included" flag is cleared.
+      const allowed = new Set(zonesForApplication(patch.application));
+      const selected = { ...s.selected };
+      (Object.keys(selected) as ZoneStepKey[]).forEach((key) => {
+        if (!allowed.has(key)) selected[key] = false;
+      });
+      return { ...s, project, selected };
+    });
+    if (patch.application) {
+      // If the step the user is currently on just disappeared from the tab
+      // strip, land back on Project Info instead of leaving them stranded
+      // on a step with no way back to it via the UI.
+      const nextApplication = patch.application;
+      setActiveStep((step) => {
+        if (step === "project" || step === "summary") return step;
+        return zonesForApplication(nextApplication).includes(step as ZoneStepKey) ? step : "project";
+      });
+    }
   };
 
   function renderStepContent() {
@@ -96,7 +166,17 @@ export function ConfiguratorClient() {
           onLoad={(id, loaded) => {
             setState(loaded);
             setQuoteId(id);
+            // Jump straight to the summary so loading a saved project
+            // immediately shows proof that the full BOM came back intact —
+            // this was the direct fix for "when we load a project it
+            // doesn't load completely" (the state itself loads fine; the
+            // user just had no visible confirmation without paging through
+            // all 9 steps themselves).
+            setActiveStep("summary");
           }}
+          zoneMeta={visibleZoneKeys.map((key) => ({ key, title: ZONE_META[key].title }))}
+          selected={state.selected}
+          onToggleZone={toggleZone}
         />
       );
     }
@@ -131,7 +211,10 @@ export function ConfiguratorClient() {
         );
       case "base":
       case "wall":
+      case "floating":
       case "pantry":
+      case "highCabinet":
+      case "library":
         return (
           <BlocksZoneForm
             zoneKey={activeStep}
@@ -183,6 +266,9 @@ export function ConfiguratorClient() {
                 </button>
               ))}
             </div>
+            <div className="print:hidden">
+              <SaveProjectButton state={state} bom={bom} quoteId={quoteId} onSaved={(id) => setQuoteId(id)} />
+            </div>
             <AccountStatus />
           </div>
         </div>
@@ -219,13 +305,14 @@ export function ConfiguratorClient() {
             <div>{renderStepContent()}</div>
             <div className="print:hidden">
               <ZoneSidebar
-                kicker={t("configurator.kitchenOnly")}
+                kicker={APPLICATION_KICKER[state.project.application]}
                 heading={t("configurator.zones")}
-                zones={ZONE_STEP_ORDER.map((key) => ({
+                zones={visibleZoneKeys.map((key) => ({
                   key,
                   label: ZONE_META[key].title,
                   included: state.selected[key],
                 }))}
+                emptyMessage={t("configuratorExtra.noZonesForApplication")}
                 summaryLabel={t("configurator.summary")}
                 activeKey={activeStep}
                 onSelectZone={(key) => setActiveStep(key as StepKey)}

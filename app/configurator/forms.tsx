@@ -315,7 +315,7 @@ export function BlocksZoneForm({
   onToggleIncluded,
   bom,
 }: {
-  zoneKey: "base" | "wall" | "pantry";
+  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library";
   title: string;
   state: BlocksState;
   onChange: (patch: Partial<BlocksState>) => void;
@@ -324,11 +324,13 @@ export function BlocksZoneForm({
   bom: BomResult;
 }) {
   const t = useTranslations();
-  const isWall = zoneKey === "wall";
-  const isFloating = isWall && state.section === "floating";
+  // Floating Shelves is its own zone/step now (previously a mode switch
+  // inside Wall Cabinets — see types.ts BlocksState.section's comment), so
+  // this is a plain zoneKey check rather than reading state.section.
+  const isFloating = zoneKey === "floating";
   const controlZone = isFloating ? "floating" : zoneKey;
-  const supportsTopLight = zoneKey === "pantry" || (isWall && !isFloating);
-  const independentDrivers = zoneKey === "base" || (isWall && !isFloating);
+  const supportsTopLight = zoneKey === "pantry" || zoneKey === "wall" || zoneKey === "highCabinet" || zoneKey === "library";
+  const independentDrivers = zoneKey === "base" || zoneKey === "wall";
 
   const updateBlock = (index: number, patch: Partial<CabinetBlock>) => {
     const blocks = state.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b));
@@ -347,19 +349,6 @@ export function BlocksZoneForm({
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
-
-      {isWall && (
-        <Field label={t("configurator.section")}>
-          <Select
-            value={state.section || "wall"}
-            onChange={(v) => onChange({ section: v as BlocksState["section"] })}
-            options={[
-              { value: "wall", label: t("configurator.wallCabinet") },
-              { value: "floating", label: t("configurator.floating") },
-            ]}
-          />
-        </Field>
-      )}
 
       {!independentDrivers && (
         <>
@@ -433,7 +422,7 @@ function CabinetBlockRow({
   onChange,
 }: {
   index: number;
-  zoneKey: "base" | "wall" | "pantry";
+  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library";
   unit: Unit;
   block: CabinetBlock;
   supportsTopLight: boolean;
