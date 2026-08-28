@@ -366,14 +366,17 @@ export function computeBom(state: ConfiguratorState): BomResult {
   const rows: BomRow[] = [];
   let total = 0;
 
-  // ---- undercabinet / toeKick / crown ("simple" zones) ----
-  const addSimple = (key: "undercabinet" | "toeKick" | "crown") => {
+  // ---- undercabinet / toeKick / crown / floatingCabinet ("simple" zones) ----
+  const addSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet") => {
     if (!selected[key]) return;
     const z: SimpleZoneState = simple[key];
-    // Toe Kick / Crown Moulding now support 1-4 runs sharing one fixture
-    // spec, exactly like Undercabinet already did — see mergeConfiguratorState()
-    // for the one-time migration that carries an older saved project's
-    // single `length` value into zoneLengths[0] the first time it reloads.
+    // Toe Kick / Crown Moulding / Floating Cabinet now support 1-4 runs
+    // sharing one fixture spec, exactly like Undercabinet already did — see
+    // mergeConfiguratorState() for the one-time migration that carries an
+    // older saved project's single `length` value into zoneLengths[0] the
+    // first time it reloads. Floating Cabinet (Bathroom) is the identical
+    // engine as Toe Kick/Crown under its own zone key/label — see catalog.ts's
+    // ZONES_BY_APPLICATION comment.
     const runLengths = z.zoneLengths.slice(0, Math.max(1, z.zoneCount));
     const isPuck = key === "undercabinet" && z.lightType === "puck";
     const family = getLinearFamily(z.linearFamily);
@@ -462,6 +465,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
   addSimple("undercabinet");
   addSimple("toeKick");
   addSimple("crown");
+  addSimple("floatingCabinet");
 
   // ---- base / wall / floating / pantry / highCabinet / library (per-cabinet-block "blocks" zones) ----
   // Floating Shelves shares this exact engine with Base/Wall/Pantry (same

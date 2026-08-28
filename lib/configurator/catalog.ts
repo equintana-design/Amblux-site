@@ -16,6 +16,7 @@ export const ZONES = [
   "library",
   "closetHangers",
   "shoeRack",
+  "floatingCabinet",
 ] as const;
 export type ZoneKey = (typeof ZONES)[number];
 
@@ -28,12 +29,21 @@ export type ZoneKey = (typeof ZONES)[number];
 // Shelving Cabinet, Closet Hangers, Shoe Rack, Drawer Lights, Toe Kick,
 // Crown; Bathroom: Vanity, High Cabinet, Floating Cabinet; Furniture:
 // Library/Bookcase, Toe Kick, Crown) — filtered down to only the zones
-// AMBLUX has actually built so far. Vanity and Floating Cabinet don't exist
-// yet, so Bathroom shows only High Cabinet — the wizard falls back to a
-// "more zones coming soon" message wherever that makes the zone list empty
-// (see ConfiguratorClient.tsx/ui.tsx). Add a zone to a project type's list
-// here the moment its engine and real AMBLUX parts exist; nothing else
-// about the wizard needs to change.
+// AMBLUX has actually built so far. Vanity doesn't exist yet, so Bathroom
+// shows High Cabinet + Floating Cabinet (Stage 3, 2026-08-28) — the wizard
+// falls back to a "more zones coming soon" message wherever that makes the
+// zone list empty (see ConfiguratorClient.tsx/ui.tsx). Add a zone to a
+// project type's list here the moment its engine and real AMBLUX parts
+// exist; nothing else about the wizard needs to change.
+//
+// Floating Cabinet reuses the exact same "simple linear-run" engine as Toe
+// Kick/Crown Moulding (see engine.ts's addSimple() and forms.tsx's
+// SimpleZoneForm) — the reference doc describes it as that same engine
+// "just relabeled as a single cabinet." It's motion-only control, same
+// shape as Toe Kick/Crown/Floating Shelves (CONTROL_OPTIONS.floatingCabinet
+// below), and — now that Toe Kick/Crown support 1-4 runs sharing one
+// fixture spec — Floating Cabinet gets that too, for the same reason: it's
+// the identical engine, not a reduced variant.
 //
 // High Cabinet (Bathroom) and Library/Bookcase (Furniture) reuse the exact
 // same "storage cabinet" engine as Pantry — see engine.ts's addBlocks() and
@@ -59,7 +69,7 @@ export type ApplicationType = "kitchen" | "closets" | "bathroom" | "furniture";
 export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
   kitchen: ["undercabinet", "floating", "wall", "base", "pantry", "toeKick", "crown", "drawers"],
   closets: ["floating", "pantry", "closetHangers", "shoeRack", "toeKick", "crown", "drawers"],
-  bathroom: ["highCabinet"],
+  bathroom: ["highCabinet", "floatingCabinet"],
   furniture: ["library", "toeKick", "crown"],
 };
 
@@ -487,6 +497,9 @@ export const WIRELESS_SENSOR_RECEIVER_DESCRIPTION = "LED Wireless receiver";
 export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   toeKick: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
   crown: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  // Floating Cabinet (Bathroom) — identical shape to Toe Kick/Crown, per the
+  // reference doc's list of motion-only zones.
+  floatingCabinet: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
   base: { wired: ["door", "doubleDoor", "motion"], wireless: ["wirelessDoor"], wallControl: [] },
   wall: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
   floating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "remoteButton", "bluetoothApp"] },
@@ -548,4 +561,5 @@ export const ZONE_NAMES: Record<ZoneKey, string> = {
   library: "Library / Bookcase",
   closetHangers: "Closet Hangers",
   shoeRack: "Shoe Rack",
+  floatingCabinet: "Floating Cabinet",
 };

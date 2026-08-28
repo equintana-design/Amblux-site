@@ -25,6 +25,7 @@ export const LABELS = {
     library: "Library / Bookcase",
     closetHangers: "Closet Hangers",
     shoeRack: "Shoe Rack",
+    floatingCabinet: "Floating Cabinet",
   },
   selectableWhite: "Selectable White",
   puck: "Puck light",

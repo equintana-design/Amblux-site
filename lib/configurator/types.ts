@@ -28,6 +28,7 @@ export interface SelectedZones {
   library: boolean;
   closetHangers: boolean;
   shoeRack: boolean;
+  floatingCabinet: boolean;
 }
 
 export interface ProjectInfo {
@@ -80,6 +81,10 @@ export interface SimpleState {
   undercabinet: SimpleZoneState;
   toeKick: SimpleZoneState;
   crown: SimpleZoneState;
+  // Floating Cabinet (Bathroom) — same "simple linear-run" engine/shape as
+  // Toe Kick/Crown, just under its own zone key (see catalog.ts's
+  // ZONES_BY_APPLICATION comment and engine.ts's addSimple()).
+  floatingCabinet: SimpleZoneState;
 }
 
 // Base / wall / pantry cabinet blocks (each block = one cabinet run).
@@ -252,6 +257,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       library: false,
       closetHangers: false,
       shoeRack: false,
+      floatingCabinet: false,
     },
     project: {
       name: "",
@@ -272,6 +278,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       undercabinet: { ...simpleDefault(), control: "remote1Zone" },
       toeKick: { ...simpleDefault(true), control: "motion" },
       crown: { ...simpleDefault(true), control: "motion" },
+      floatingCabinet: { ...simpleDefault(true), control: "motion" },
     },
     base: {
       unit: "in",
@@ -452,6 +459,10 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
       undercabinet: { ...base.simple.undercabinet, ...(loaded.simple?.undercabinet ?? {}) },
       toeKick: migrateSimpleZone(loaded.simple?.toeKick, base.simple.toeKick),
       crown: migrateSimpleZone(loaded.simple?.crown, base.simple.crown),
+      // Brand-new zone (no prior saved shape to migrate from), but reusing
+      // migrateSimpleZone here too costs nothing and keeps this block
+      // uniform with its two siblings above.
+      floatingCabinet: migrateSimpleZone(loaded.simple?.floatingCabinet, base.simple.floatingCabinet),
     },
     base: {
       ...base.base,
