@@ -15,7 +15,7 @@ import {
   maxShelvesFor,
   puckWattsFor,
 } from "@/lib/configurator/catalog";
-import { finishLabel, LABELS } from "@/lib/configurator/labels";
+import { blockUnitLabel, finishLabel, LABELS } from "@/lib/configurator/labels";
 import type {
   BlocksState,
   BomResult,
@@ -126,10 +126,17 @@ export function SimpleZoneForm({
   bom: BomResult;
 }) {
   const t = useTranslations();
-  const isMultiZone = zoneKey === "undercabinet";
+  // Toe Kick / Crown Moulding now support 1-4 runs sharing one fixture
+  // spec, exactly like Undercabinet always did (see engine.ts's addSimple)
+  // — every SimpleZoneForm zone shows the multi-run UI. kineticOnly is the
+  // one remaining real difference: Undercabinet's control is Kinetic
+  // (battery/app) only, no wired/wireless option, per the reference doc —
+  // Toe Kick/Crown keep their normal motion-sensor CONTROL_OPTIONS choices.
+  const hasMultipleRuns = zoneKey === "undercabinet" || zoneKey === "toeKick" || zoneKey === "crown";
+  const kineticOnly = zoneKey === "undercabinet";
   const isPuck = state.lightType === "puck";
   const controlZone = zoneKey; // toeKick / crown map directly; undercabinet uses its own remote list
-  const availableControls = isMultiZone
+  const availableControls = kineticOnly
     ? UNDERCABINET_REMOTE_CONTROLS.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }))
     : controlOptionsFor(controlZone, state.controlSystem);
 
@@ -159,12 +166,13 @@ export function SimpleZoneForm({
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
 
-      {isMultiZone ? (
+      {hasMultipleRuns ? (
         <>
-          <Field label={t("configurator.underCabinetZones")}>
+          <Field label={kineticOnly ? t("configurator.underCabinetZones") : t("configuratorExtra.numberOfRuns")}>
             <NumberInput
               value={state.zoneCount}
               min={1}
+              max={4}
               onChange={(v) => onChange({ zoneCount: Math.max(1, Math.min(4, v)) })}
             />
           </Field>
@@ -279,12 +287,12 @@ export function SimpleZoneForm({
           value={state.controlSystem}
           onChange={(v) => {
             const system = v as SimpleZoneState["controlSystem"];
-            const opts = isMultiZone
+            const opts = kineticOnly
               ? UNDERCABINET_REMOTE_CONTROLS
               : CONTROL_OPTIONS[controlZone]?.[system] || [];
             onChange({ controlSystem: system, control: opts[0] || state.control });
           }}
-          options={isMultiZone ? [{ value: "wallControl", label: t("configurator.wallControl") }] : controlSystemOptions(controlZone, t)}
+          options={kineticOnly ? [{ value: "wallControl", label: t("configurator.wallControl") }] : controlSystemOptions(controlZone, t)}
         />
       </Field>
       <Field label={t("configurator.switches")}>
@@ -338,7 +346,14 @@ export function BlocksZoneForm({
     zoneKey === "library" ||
     zoneKey === "closetHangers" ||
     zoneKey === "shoeRack";
-  const independentDrivers = zoneKey === "base" || zoneKey === "wall";
+  // Floating Shelves is the one zone where pooled-vs-independent
+  // driver/control is a real customer choice (see the reference doc:
+  // "shelves can share one pooled control or each get their own") rather
+  // than being fixed by zone the way Base/Wall (always independent) and
+  // Pantry/etc. (always pooled) are — state.group:false switches it to the
+  // same "one driver per block" code path Base/Wall already use. See
+  // engine.ts's addBlocks() for the matching calculation-side logic.
+  const independentDrivers = zoneKey === "base" || zoneKey === "wall" || (isFloating && state.group === false);
   // Closet Hangers / Shoe Rack are open shelving with a real physical cap
   // on shelf count and no puck option — see catalog.ts's
   // MAX_SHELVES_BY_ZONE/isLinearOnlyZone(). undefined maxShelves means "no
@@ -363,6 +378,19 @@ export function BlocksZoneForm({
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
+
+      {isFloating && (
+        <Field label={t("configuratorExtra.shelfControlGrouping")}>
+          <Select
+            value={state.group === false ? "separate" : "together"}
+            onChange={(v) => onChange({ group: v === "together" })}
+            options={[
+              { value: "together", label: t("configurator.together") },
+              { value: "separate", label: t("configurator.separate") },
+            ]}
+          />
+        </Field>
+      )}
 
       {!independentDrivers && (
         <>
@@ -418,8 +446,8 @@ export function BlocksZoneForm({
             <CalculatedSolution
               key={`sol-${i}`}
               heading={t("configurator.calculate")}
-              title={`${zoneLabel} · ${LABELS.cabinet} ${i + 1}`}
-              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1}`)}
+              title={`${zoneLabel} · ${blockUnitLabel(zoneKey)} ${i + 1}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${blockUnitLabel(zoneKey)} ${i + 1}`)}
             />
           )
       )}
@@ -453,45 +481,71 @@ function CabinetBlockRow({
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
   const t = useTranslations();
+  // Floating Shelves has no cabinet body or side panels to gable-light and
+  // no internal "how many shelves in this cabinet" concept — each block
+  // already IS one physical shelf — so it never gets the Layout (shelf vs.
+  // vertical) or Shelves-count fields at all; engine.ts's addBlocks()
+  // defensively forces the same effective shelf-only, 1-fixture behavior
+  // even if a block somehow still has stale mode:"vertical"/shelves>1 data
+  // from before this zone had its own engine.
+  const isFloatingShelf = zoneKey === "floating";
   // linearOnly zones never actually offer the puck option (the Light Type
   // field below doesn't even render for them) — this guard also covers a
   // block whose lightType is stale/invalid puck data (e.g. loaded from
   // another zone), so the row still renders correctly as linear rather than
-  // showing puck fields that don't apply here.
-  const isPuck = !linearOnly && block.lightType === "puck";
+  // showing puck fields that don't apply here. Vertical/gable lighting is
+  // also always linear (matches engine.ts's computeBom exactly) — a point
+  // fixture doesn't make sense run down a cabinet's side panel — so the
+  // Light Type field is hidden whenever Layout is Vertical too, not just
+  // for linearOnly zones.
+  const isPuck = !linearOnly && block.mode !== "vertical" && block.lightType === "puck";
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
         <span className="font-medium text-foreground">
-          {t("configurator.cabinet")} {index + 1}
+          {isFloatingShelf ? t("configurator.shelfUnit") : t("configurator.cabinet")} {index + 1}
         </span>
         <Toggle label={t("configurator.includeBlock")} checked={block.included} onChange={(v) => onChange({ included: v })} />
       </div>
       {block.included && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label={t("configuratorExtra.layout")}>
-            <Select
-              value={block.mode}
-              onChange={(v) => {
-                const mode = v as CabinetBlock["mode"];
-                // Some linear profiles (e.g. Rigid 6 × 8 mm) are sold only
-                // for vertical side-panel lighting — if the block is leaving
-                // vertical mode and its selected profile is vertical-only,
-                // fall back to the first profile that's valid for shelf use.
-                const stillValid = linearFamiliesFor(block.mounting, mode).some((f) => f.id === block.linearFamily);
-                if (stillValid) {
-                  onChange({ mode });
-                } else {
-                  onChange({ mode, ...defaultLinearPatch(block.mounting, mode) });
-                }
-              }}
-              options={[
-                { value: "shelf", label: t("configurator.shelfLight") },
-                { value: "vertical", label: t("configurator.vertical") },
-              ]}
-            />
-          </Field>
-          {block.mode === "vertical" ? (
+          {!isFloatingShelf && (
+            <Field label={t("configuratorExtra.layout")}>
+              <Select
+                value={block.mode}
+                onChange={(v) => {
+                  const mode = v as CabinetBlock["mode"];
+                  if (mode === "vertical") {
+                    // Vertical/gable lighting is always a recess-mount
+                    // linear run restricted to the 3 real profiles rated
+                    // for side-panel use (see catalog.ts's
+                    // VERTICAL_LINEAR_FAMILY_IDS) — force both regardless
+                    // of whatever the block's shelf-mode mounting/light
+                    // type/family were, rather than risk landing on an
+                    // empty family list (e.g. leaving a surface mounting
+                    // in place).
+                    onChange({ mode, ...defaultLinearPatch("recess", mode), lightType: "linear" });
+                    return;
+                  }
+                  // Some linear profiles (e.g. Rigid 6 × 8 mm) are sold only
+                  // for vertical side-panel lighting — if the block is leaving
+                  // vertical mode and its selected profile is vertical-only,
+                  // fall back to the first profile that's valid for shelf use.
+                  const stillValid = linearFamiliesFor(block.mounting, mode).some((f) => f.id === block.linearFamily);
+                  if (stillValid) {
+                    onChange({ mode });
+                  } else {
+                    onChange({ mode, ...defaultLinearPatch(block.mounting, mode) });
+                  }
+                }}
+                options={[
+                  { value: "shelf", label: t("configurator.shelfLight") },
+                  { value: "vertical", label: t("configurator.vertical") },
+                ]}
+              />
+            </Field>
+          )}
+          {block.mode === "vertical" && !isFloatingShelf ? (
             <Field label={`${t("configurator.height")} (${unit})`}>
               <NumberInput value={block.height} onChange={(v) => onChange({ height: v })} />
             </Field>
@@ -500,13 +554,15 @@ function CabinetBlockRow({
               <Field label={`${t("configurator.shelfRun")} (${unit})`}>
                 <NumberInput value={block.length} onChange={(v) => onChange({ length: v })} />
               </Field>
-              <Field label={t("configurator.shelves")}>
-                <NumberInput value={block.shelves} min={1} max={maxShelves} onChange={(v) => onChange({ shelves: v })} />
-              </Field>
+              {!isFloatingShelf && (
+                <Field label={t("configurator.shelves")}>
+                  <NumberInput value={block.shelves} min={1} max={maxShelves} onChange={(v) => onChange({ shelves: v })} />
+                </Field>
+              )}
             </>
           )}
 
-          {!linearOnly && (
+          {!linearOnly && block.mode !== "vertical" && (
             <Field label={t("configurator.lightType")}>
               <Select
                 value={block.lightType}
@@ -519,23 +575,30 @@ function CabinetBlockRow({
             </Field>
           )}
 
-          <Field label={t("configurator.mounting")}>
-            <Select
-              value={block.mounting}
-              onChange={(v) => {
-                const mounting = v as CabinetBlock["mounting"];
-                onChange(
-                  isPuck
-                    ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"], puckWatts: puckWattsFor(mounting) }
-                    : defaultLinearPatch(mounting, block.mode)
-                );
-              }}
-              options={[
-                { value: "recess", label: t("configurator.recess") },
-                { value: "surface", label: t("configurator.surface") },
-              ]}
-            />
-          </Field>
+          {block.mode !== "vertical" && (
+            <Field label={t("configurator.mounting")}>
+              <Select
+                value={block.mounting}
+                onChange={(v) => {
+                  const mounting = v as CabinetBlock["mounting"];
+                  onChange(
+                    isPuck
+                      ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"], puckWatts: puckWattsFor(mounting) }
+                      : defaultLinearPatch(mounting, block.mode)
+                  );
+                }}
+                options={[
+                  { value: "recess", label: t("configurator.recess") },
+                  { value: "surface", label: t("configurator.surface") },
+                ]}
+              />
+            </Field>
+          )}
+          {block.mode === "vertical" && (
+            <Field label={t("configurator.mounting")}>
+              <ReadOnly value={t("configurator.recess")} />
+            </Field>
+          )}
 
           {isPuck ? (
             <>
