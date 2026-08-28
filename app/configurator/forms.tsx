@@ -6,10 +6,12 @@ import {
   RECESSED_FACEPLATES,
   SURFACE_PUCKS,
   UNDERCABINET_REMOTE_CONTROLS,
+  availablePowerTypes,
   controlSku,
   familyCcts,
   getLinearFamily,
   linearFamiliesFor,
+  puckWattsFor,
 } from "@/lib/configurator/catalog";
 import { finishLabel, LABELS } from "@/lib/configurator/labels";
 import type {
@@ -49,6 +51,17 @@ function controlSystemOptions(zone: string, t: TFunction): { value: string; labe
   return opts;
 }
 
+// Only offers a driver kind if catalog.ts's DRIVER_LINES has a real AMBLUX
+// product line behind it — today that's just the 24V "ultra-thin" driver,
+// so Hardwire is absent everywhere until a real 120V hardwire driver SKU
+// exists. See catalog.ts's DRIVER_LINES/availablePowerTypes() comment.
+function powerTypeOptions(t: TFunction): { value: string; label: string }[] {
+  return availablePowerTypes().map((kind) => ({
+    value: kind,
+    label: kind === "hardwire" ? t("configurator.hardPsu") : t("configurator.ultra"),
+  }));
+}
+
 function puckFinishOptions(mounting: "recess" | "surface"): { value: string; label: string }[] {
   const keys = Object.keys(mounting === "recess" ? RECESSED_FACEPLATES : SURFACE_PUCKS);
   return keys.map((k) => ({ value: k, label: finishLabel(k) }));
@@ -67,6 +80,15 @@ function linearFamilyOptions(mounting: "recess" | "surface", mode?: "shelf" | "v
 
 function cctOptionsForFamily(familyId: string): { value: string; label: string }[] {
   return familyCcts(getLinearFamily(familyId)).map((c) => ({ value: c, label: `${c} K` }));
+}
+
+// AMBLUX's linear families store wattage as W/metre (catalog.ts's real
+// numbers) — this just re-expresses that in whichever unit the zone/block
+// is currently using, so an installer working in feet doesn't have to do
+// the metric conversion by hand.
+const METRES_PER_FOOT = 0.3048;
+function linearWattsLabel(wattsPerMetre: number, unit: Unit): string {
+  return unit === "ft" ? `${(wattsPerMetre * METRES_PER_FOOT).toFixed(2)} W/ft` : `${wattsPerMetre.toFixed(2)} W/m`;
 }
 
 // Picks the first family available for a mounting, and the first CCT that
@@ -182,7 +204,7 @@ export function SimpleZoneForm({
             const mounting = v as SimpleZoneState["mounting"];
             onChange(
               isPuck
-                ? { mounting, puckFinish: "white" as SimpleZoneState["puckFinish"] }
+                ? { mounting, puckFinish: "white" as SimpleZoneState["puckFinish"], puckWatts: puckWattsFor(mounting) }
                 : { ...defaultLinearPatch(mounting) }
             );
           }}
@@ -213,7 +235,7 @@ export function SimpleZoneForm({
             </div>
           </Field>
           <Field label={t("configurator.puckWatts")}>
-            <ReadOnly value={`${state.puckWatts} W`} />
+            <ReadOnly value={`${puckWattsFor(state.mounting)} W`} />
           </Field>
         </>
       ) : (
@@ -234,6 +256,9 @@ export function SimpleZoneForm({
               onChange={(v) => onChange({ cct: v as SimpleZoneState["cct"] })}
               options={cctOptionsForFamily(state.linearFamily)}
             />
+          </Field>
+          <Field label={t("configurator.linearWatts")}>
+            <ReadOnly value={linearWattsLabel(getLinearFamily(state.linearFamily).wattsPerMetre, state.unit)} />
           </Field>
           {getLinearFamily(state.linearFamily).installAccessoryOptional && (
             <Field label={getLinearFamily(state.linearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
@@ -268,10 +293,7 @@ export function SimpleZoneForm({
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as SimpleZoneState["powerType"] })}
-          options={[
-            { value: "ultra", label: t("configurator.ultra") },
-            { value: "hardwire", label: t("configurator.hardPsu") },
-          ]}
+          options={powerTypeOptions(t)}
         />
       </Field>
 
@@ -366,10 +388,7 @@ export function BlocksZoneForm({
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as BlocksState["powerType"] })}
-          options={[
-            { value: "ultra", label: t("configurator.ultra") },
-            { value: "hardwire", label: t("configurator.hardPsu") },
-          ]}
+          options={powerTypeOptions(t)}
         />
       </Field>
 
@@ -488,7 +507,7 @@ function CabinetBlockRow({
                 const mounting = v as CabinetBlock["mounting"];
                 onChange(
                   isPuck
-                    ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"] }
+                    ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"], puckWatts: puckWattsFor(mounting) }
                     : defaultLinearPatch(mounting, block.mode)
                 );
               }}
@@ -511,6 +530,9 @@ function CabinetBlockRow({
               <Field label={`${t("configurator.spacing")} (in)`}>
                 <NumberInput value={block.spacing} min={1} onChange={(v) => onChange({ spacing: v })} />
               </Field>
+              <Field label={t("configurator.puckWatts")}>
+                <ReadOnly value={`${puckWattsFor(block.mounting)} W`} />
+              </Field>
             </>
           ) : (
             <>
@@ -530,6 +552,9 @@ function CabinetBlockRow({
                   onChange={(v) => onChange({ cct: v as CabinetBlock["cct"] })}
                   options={cctOptionsForFamily(block.linearFamily)}
                 />
+              </Field>
+              <Field label={t("configurator.linearWatts")}>
+                <ReadOnly value={linearWattsLabel(getLinearFamily(block.linearFamily).wattsPerMetre, unit)} />
               </Field>
               {getLinearFamily(block.linearFamily).installAccessoryOptional && (
                 <Field label={getLinearFamily(block.linearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
@@ -637,10 +662,7 @@ export function DrawersForm({
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as DrawersState["powerType"] })}
-          options={[
-            { value: "ultra", label: t("configurator.ultra") },
-            { value: "hardwire", label: t("configurator.hardPsu") },
-          ]}
+          options={powerTypeOptions(t)}
         />
       </Field>
 
@@ -690,6 +712,9 @@ export function DrawersForm({
                     onChange={(v) => updateBlock(i, { cct: v as DrawerBlock["cct"] })}
                     options={cctOptionsForFamily(b.linearFamily)}
                   />
+                </Field>
+                <Field label={t("configurator.linearWatts")}>
+                  <ReadOnly value={linearWattsLabel(getLinearFamily(b.linearFamily).wattsPerMetre, state.unit)} />
                 </Field>
               </div>
             )}
