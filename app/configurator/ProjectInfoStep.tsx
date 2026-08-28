@@ -4,10 +4,11 @@
 // types.ts; the data model already had all of these) plus the existing
 // save/load-quote panel, which lives here now instead of a permanent
 // sidebar widget since the reference design has no such sidebar slot.
-import type { BomResult, ConfiguratorState, ProjectInfo } from "@/lib/configurator/types";
+import type { ApplicationType } from "@/lib/configurator/catalog";
+import type { BomResult, ConfiguratorState, ProjectInfo, SelectedZones } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
 import { SavedProjectsPanel } from "./SavedProjectsPanel";
-import { Field, Section, Select, Textarea } from "./ui";
+import { Field, Section, Select, Textarea, Toggle } from "./ui";
 
 export function ProjectInfoStep({
   project,
@@ -17,6 +18,9 @@ export function ProjectInfoStep({
   quoteId,
   onSaved,
   onLoad,
+  zoneMeta,
+  selected,
+  onToggleZone,
 }: {
   project: ProjectInfo;
   onChange: (patch: Partial<ProjectInfo>) => void;
@@ -25,6 +29,9 @@ export function ProjectInfoStep({
   quoteId: string | null;
   onSaved: (id: string, jobNumber: string) => void;
   onLoad: (id: string, loaded: ConfiguratorState) => void;
+  zoneMeta: { key: keyof SelectedZones; title: string }[];
+  selected: SelectedZones;
+  onToggleZone: (key: keyof SelectedZones, value: boolean) => void;
 }) {
   const t = useTranslations();
   const textClass =
@@ -106,10 +113,15 @@ export function ProjectInfoStep({
           />
         </Field>
         <Field label={t("configurator.application")}>
-          <input
-            className={textClass}
+          <Select
             value={project.application}
-            onChange={(e) => onChange({ application: e.target.value })}
+            onChange={(v) => onChange({ application: v as ApplicationType })}
+            options={[
+              { value: "kitchen", label: t("configurator.applicationKitchen") },
+              { value: "closets", label: t("configurator.applicationClosets") },
+              { value: "bathroom", label: t("configurator.applicationBathroom") },
+              { value: "furniture", label: t("configurator.applicationFurniture") },
+            ]}
           />
         </Field>
         <Field label={t("configurator.preference")}>
@@ -125,6 +137,26 @@ export function ProjectInfoStep({
         <Field label={t("configurator.notes")} wide>
           <Textarea value={project.notes} onChange={(v) => onChange({ notes: v })} />
         </Field>
+      </Section>
+
+      {/* Lets someone who already knows what a kitchen needs pick every
+          zone up front, right here, instead of stepping through each zone
+          tab just to turn it on — each toggle here is exactly the same
+          "Include this zone" state each zone step's own header shows, so
+          checking one here or on its own step has the same effect either
+          way. zoneMeta is already filtered to the zones the selected
+          Application (project type) actually offers — see
+          ConfiguratorClient.tsx's zonesForApplication() — so this list (and
+          the step tabs, and the sidebar tracker) all change together the
+          moment Application changes above. */}
+      <Section title={t("configurator.zones")}>
+        {zoneMeta.length === 0 ? (
+          <p className="sm:col-span-2 text-sm text-muted">{t("configuratorExtra.noZonesForApplication")}</p>
+        ) : (
+          zoneMeta.map((z) => (
+            <Toggle key={z.key} label={z.title} checked={selected[z.key]} onChange={(v) => onToggleZone(z.key, v)} />
+          ))
+        )}
       </Section>
 
       <SavedProjectsPanel state={state} bom={bom} quoteId={quoteId} onSaved={onSaved} onLoad={onLoad} />
