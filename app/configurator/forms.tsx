@@ -348,12 +348,17 @@ export function BlocksZoneForm({
     zoneKey === "closetHangers" ||
     zoneKey === "shoeRack";
   // Floating Shelves is the one zone where pooled-vs-independent
-  // driver/control is a real customer choice (see the reference doc:
-  // "shelves can share one pooled control or each get their own") rather
-  // than being fixed by zone the way Base/Wall (always independent) and
-  // Pantry/etc. (always pooled) are — state.group:false switches it to the
-  // same "one driver per block" code path Base/Wall already use. See
-  // engine.ts's addBlocks() for the matching calculation-side logic.
+  // driver/control is a real customer choice — verified directly against
+  // the live reference wizard's "Control all floating shelves with one
+  // sensor/switch?" field, whose default is blank/No (independent, each
+  // shelf gets its own control) rather than being fixed by zone the way
+  // Base/Wall (always independent) and Pantry/etc. (always pooled) are —
+  // state.group:false switches it to the same "one driver per block" code
+  // path Base/Wall already use, but ALSO (Floating Shelves only) lets each
+  // shelf pick its own control type/switch rather than sharing one zone-wide
+  // choice — see CabinetBlockRow's per-shelf Control System/Switches fields
+  // below and engine.ts's addBlocks() for the matching calculation-side
+  // logic.
   const independentDrivers = zoneKey === "base" || zoneKey === "wall" || (isFloating && state.group === false);
   // Closet Hangers / Shoe Rack are open shelving with a real physical cap
   // on shelf count and no puck option — see catalog.ts's
@@ -693,11 +698,38 @@ function CabinetBlockRow({
             </>
           )}
 
+          {isFloatingShelf && independentDrivers && (
+            <>
+              <Field label={t("configurator.controlSystem")}>
+                <Select
+                  value={block.controlSystem ?? "wired"}
+                  onChange={(v) => {
+                    const system = v as NonNullable<CabinetBlock["controlSystem"]>;
+                    const opts = CONTROL_OPTIONS.floating?.[system] || [];
+                    onChange({ controlSystem: system, control: opts[0] || block.control });
+                  }}
+                  options={controlSystemOptions("floating", t)}
+                />
+              </Field>
+              <Field label={t("configurator.switches")}>
+                <Select
+                  value={block.control ?? "motion"}
+                  onChange={(v) => onChange({ control: v })}
+                  options={controlOptionsFor("floating", block.controlSystem ?? "wired")}
+                />
+              </Field>
+            </>
+          )}
+
           {independentDrivers && (
             <p className="sm:col-span-2 text-xs text-muted">
               {t("configuratorExtra.independentDriverNote").replace(
                 "{zone}",
-                zoneKey === "base" ? t("configurator.zoneNames.base") : t("configurator.zoneNames.wall")
+                zoneKey === "base"
+                  ? t("configurator.zoneNames.base")
+                  : zoneKey === "wall"
+                    ? t("configurator.zoneNames.wall")
+                    : t("configurator.zoneNames.floating")
               )}
             </p>
           )}
