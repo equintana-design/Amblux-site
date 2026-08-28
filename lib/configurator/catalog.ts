@@ -16,6 +16,57 @@ export type ZoneKey = (typeof ZONES)[number];
 
 export const PSU = [24, 36, 60, 96] as const;
 
+// ---------------------------------------------------------------------
+// Driver lines, gated by real product existence
+// ---------------------------------------------------------------------
+// A driver "kind" is the axis Cabinet Light Builder calls plug-and-play vs.
+// hardwire (see types.ts PowerType = "ultra" | "hardwire"). AMBLUX's real
+// product line today only has one: the compact 24V "ultra-thin" driver
+// (AMB-DRV-24V-{24,36,60,96}W). There is currently no real 120V hardwire
+// driver SKU at all — confirmed directly against amblux_products (no SKU
+// matches DRV/120V/HW patterns other than the four 24V sizes above).
+//
+// Rather than let every zone's Power select unconditionally offer
+// "Hardwire" (which is what the previous build did — cosmetically labeling
+// the BOM row "Hardwire power supply" while still emitting the real 24V
+// AMB-DRV-24V-{size}W SKU underneath, since that was the only SKU pattern
+// wired in), driver kinds are modeled as a small catalog table exactly like
+// LINEAR_FAMILIES: a kind is only selectable in the wizard if a real stock
+// list + SKU pattern is defined for it here. Add a "hardwire" entry the
+// moment a real AMBLUX 120V hardwire driver line exists (with its own real
+// stock sizes and SKU pattern — they need not match the 24V line's
+// 24/36/60/96W steps) and every zone's Power dropdown picks it up
+// automatically; nothing else needs to change. Until then, "hardwire" is
+// simply absent from every Power select, and any old saved project that
+// still has powerType:"hardwire" on file falls back to the real ultra-thin
+// driver at calculation time (driverLineFor() below) rather than emitting
+// an invented SKU.
+export interface DriverLine {
+  // Real stock wattage sizes this driver line actually ships in.
+  sizes: readonly number[];
+  // Real AMBLUX SKU for a given stock size.
+  skuFor: (watts: number) => string;
+}
+
+export const DRIVER_LINES: Partial<Record<"ultra" | "hardwire", DriverLine>> = {
+  ultra: {
+    sizes: PSU,
+    skuFor: (w) => `AMB-DRV-24V-${w}W`,
+  },
+  // hardwire: intentionally absent — see comment above.
+};
+
+// Only kinds with a real DRIVER_LINES entry are offered anywhere in the
+// wizard — this is the single source of truth every Power select reads
+// from, so a new driver line only needs to be added once, here.
+export function availablePowerTypes(): ("ultra" | "hardwire")[] {
+  return Object.keys(DRIVER_LINES) as ("ultra" | "hardwire")[];
+}
+
+export function driverLineFor(kind: "ultra" | "hardwire"): DriverLine {
+  return DRIVER_LINES[kind] ?? DRIVER_LINES.ultra!;
+}
+
 export const PUCK_SKU = "AMB-PK-RC58-24V-345-90-35W-LE";
 
 export const RECESSED_FACEPLATES: Record<string, string> = {
@@ -368,6 +419,17 @@ export function puckFixtureSku(mounting: "recess" | "surface", finish: string): 
 
 export function puckFaceplateSku(mounting: "recess" | "surface", finish: string): string | null {
   return mounting === "recess" ? RECESSED_FACEPLATES[normalizedPuckFinish(mounting, finish)] : null;
+}
+
+// Real per-fixture puck wattage differs by mounting — the recessed puck is
+// the 3.5 W AMB-PK-RC58 fixture (PUCK_SKU above), the surface-mount puck is
+// the 2 W AMB-PK-SLSR35 fixture (SURFACE_PUCKS above). SimpleZoneState/
+// CabinetBlock store `puckWatts` as a plain field rather than deriving it
+// inline everywhere it's read, so every caller that flips a puck zone's
+// mounting needs to re-sync it through this helper — see forms.tsx's
+// mounting <Select> onChange handlers.
+export function puckWattsFor(mounting: "recess" | "surface"): number {
+  return mounting === "recess" ? 3.5 : 2;
 }
 
 export const ZONE_NAMES: Record<ZoneKey, string> = {

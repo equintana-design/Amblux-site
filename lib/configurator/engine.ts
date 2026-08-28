@@ -43,6 +43,7 @@ import {
   EXTENSION_SKU,
   UNDERCABINET_REMOTE_CONTROLS,
   controlSku,
+  driverLineFor,
   familyLengthsM,
   familyPieceSku,
   getLinearFamily,
@@ -54,7 +55,6 @@ import {
   WIRELESS_DIMMING_RECEIVER,
   WIRELESS_DIMMING_RECEIVER_DESCRIPTION,
   WIRELESS_SENSOR_RECEIVER_DESCRIPTION,
-  PSU,
   CLIPS_PER_METRE,
   CLIPS_PER_BAG,
   type LinearFamily,
@@ -66,6 +66,7 @@ import type {
   BomResult,
   BomRow,
   ConfiguratorState,
+  PowerType,
   SimpleZoneState,
   Unit,
 } from "./types";
@@ -117,20 +118,26 @@ export function calcPuckPlacement(runInches: number, spacingIn: number): PuckPla
 const PSU_MAX_LOADING = 0.8;
 
 export interface PsuSupply {
-  watts: (typeof PSU)[number];
+  watts: number;
   usedWatts: number;
 }
 
-export function selectPowerSupplies(totalWatts: number): PsuSupply[] {
+// kind picks which real driver line's stock sizes to size against (see
+// catalog.ts DRIVER_LINES) — defaults to "ultra" since that's AMBLUX's only
+// real driver line today; driverLineFor() itself falls back to "ultra" for
+// any kind with no real line defined yet, so this never sizes against an
+// invented stock list.
+export function selectPowerSupplies(totalWatts: number, kind: PowerType = "ultra"): PsuSupply[] {
   const total = round2(totalWatts);
   if (total <= 0) return [];
 
+  const sizes = driverLineFor(kind).sizes;
   const minCapacity = total / PSU_MAX_LOADING;
-  const largest = PSU[PSU.length - 1];
+  const largest = sizes[sizes.length - 1];
   const usableLargest = round2(largest * PSU_MAX_LOADING);
 
   if (minCapacity <= largest) {
-    for (const size of PSU) {
+    for (const size of sizes) {
       if (minCapacity <= size) return [{ watts: size, usedWatts: total }];
     }
   }
@@ -142,7 +149,7 @@ export function selectPowerSupplies(totalWatts: number): PsuSupply[] {
     remaining = round2(remaining - usableLargest);
   }
   const remCapacity = remaining / PSU_MAX_LOADING;
-  for (const size of PSU) {
+  for (const size of sizes) {
     if (remCapacity <= size) {
       supplies.push({ watts: size, usedWatts: remaining });
       break;
@@ -155,21 +162,22 @@ export function selectPowerSupplies(totalWatts: number): PsuSupply[] {
 // into one row (qty = count) — same visual shape as before, but now
 // correctly splits into different-size rows when a remainder driver differs
 // from the full-size ones ahead of it.
-function psuRows(zone: string, watts: number, psuLabel: string, notes?: string): BomRow[] {
-  const supplies = selectPowerSupplies(watts);
+function psuRows(zone: string, watts: number, psuLabel: string, kind: PowerType, notes?: string): BomRow[] {
+  const supplies = selectPowerSupplies(watts, kind);
+  const skuFor = driverLineFor(kind).skuFor;
   const bySize = new Map<number, number>();
   supplies.forEach((s) => bySize.set(s.watts, (bySize.get(s.watts) || 0) + 1));
   return Array.from(bySize.entries()).map(([size, count]) => ({
     zone,
     qty: count,
-    sku: `AMB-DRV-24V-${size}W`,
+    sku: skuFor(size),
     description: `${psuLabel} · ${size} W`,
     notes,
   }));
 }
 
-function supplyCount(watts: number): number {
-  return selectPowerSupplies(watts).length;
+function supplyCount(watts: number, kind: PowerType = "ultra"): number {
+  return selectPowerSupplies(watts, kind).length;
 }
 
 // ---------------------------------------------------------------------
@@ -412,7 +420,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
 
     if (key === "undercabinet" && z.zoneCount > 1 && z.zoneControl === "separate") {
       results.forEach(({ zone, watts }) => {
-        rows.push(...psuRows(zone, watts, z.powerType === "hardwire" ? LABELS.hardPsu : LABELS.ultra));
+        rows.push(...psuRows(zone, watts, z.powerType === "hardwire" ? LABELS.hardPsu : LABELS.ultra, z.powerType));
         rows.push({
           zone,
           qty: 1,
@@ -420,12 +428,20 @@ export function computeBom(state: ConfiguratorState): BomResult {
           description: findControlLabel(availableControls, z.control) || z.control,
         });
         if (receiver) {
-          rows.push({ zone, qty: supplyCount(watts), sku: receiver, description: receiverDescription(receiver) });
+          rows.push({ zone, qty: supplyCount(watts, z.powerType), sku: receiver, description: receiverDescription(receiver) });
         }
       });
     } else if (results.length) {
       const totalZoneWatts = results.reduce((sum, result) => sum + result.watts, 0);
-      rows.push(...psuRows(name, totalZoneWatts, z.powerType === "hardwire" ? LABELS.hardPsu : LABELS.ultra, results.length > 1 ? LABELS.combinedDriver : undefined));
+      rows.push(
+        ...psuRows(
+          name,
+          totalZoneWatts,
+          z.powerType === "hardwire" ? LABELS.hardPsu : LABELS.ultra,
+          z.powerType,
+          results.length > 1 ? LABELS.combinedDriver : undefined
+        )
+      );
       rows.push({
         zone: name,
         qty: 1,
@@ -433,7 +449,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
         description: findControlLabel(availableControls, z.control) || z.control,
       });
       if (receiver) {
-        rows.push({ zone: name, qty: supplyCount(totalZoneWatts), sku: receiver, description: receiverDescription(receiver) });
+        rows.push({ zone: name, qty: supplyCount(totalZoneWatts, z.powerType), sku: receiver, description: receiverDescription(receiver) });
       }
     }
   };
@@ -527,7 +543,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
         total += topWatts;
 
         if (b.topLightControl === "separate") {
-          rows.push(...psuRows(topZone, topWatts, LABELS.power, LABELS.separateTopControl));
+          rows.push(...psuRows(topZone, topWatts, LABELS.power, zoneState.powerType, LABELS.separateTopControl));
           const topControls = zoneControls("pantry", b.topControlSystem);
           rows.push({
             zone: topZone,
@@ -537,7 +553,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
           });
           const topReceiver = receiverSku(b.topControl);
           if (topReceiver) {
-            rows.push({ zone: topZone, qty: supplyCount(topWatts), sku: topReceiver, description: receiverDescription(topReceiver) });
+            rows.push({ zone: topZone, qty: supplyCount(topWatts, zoneState.powerType), sku: topReceiver, description: receiverDescription(topReceiver) });
           }
         } else {
           zoneWatts += topWatts;
@@ -546,7 +562,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
 
       if (independentDrivers) {
         const driverWatts = watts + (hasTopLight && b.topLightControl === "same" ? topWatts : 0);
-        rows.push(...psuRows(zone, driverWatts, LABELS.power, LABELS.independentDriver));
+        rows.push(...psuRows(zone, driverWatts, LABELS.power, zoneState.powerType, LABELS.independentDriver));
         const availableControls = zoneControls(key === "wall" ? "wall" : key, zoneState.controlSystem);
         rows.push({
           zone,
@@ -556,14 +572,14 @@ export function computeBom(state: ConfiguratorState): BomResult {
         });
         const receiver = receiverSku(zoneState.control);
         if (receiver) {
-          rows.push({ zone, qty: supplyCount(driverWatts), sku: receiver, description: receiverDescription(receiver) });
+          rows.push({ zone, qty: supplyCount(driverWatts, zoneState.powerType), sku: receiver, description: receiverDescription(receiver) });
         }
       }
     });
 
     if (zoneWatts && !independentDrivers) {
       const activeBlocks = zoneState.blocks.filter((block) => block.included).length;
-      rows.push(...psuRows(LABELS.zoneNames[key], zoneWatts, LABELS.power, activeBlocks > 1 ? LABELS.combinedDriver : undefined));
+      rows.push(...psuRows(LABELS.zoneNames[key], zoneWatts, LABELS.power, zoneState.powerType, activeBlocks > 1 ? LABELS.combinedDriver : undefined));
       const availableControls = zoneControls(isFloatingShelf ? "floating" : key, zoneState.controlSystem);
       rows.push({
         zone: LABELS.zoneNames[key],
@@ -573,7 +589,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
       });
       const receiver = receiverSku(zoneState.control);
       if (receiver) {
-        rows.push({ zone: LABELS.zoneNames[key], qty: supplyCount(zoneWatts), sku: receiver, description: receiverDescription(receiver) });
+        rows.push({ zone: LABELS.zoneNames[key], qty: supplyCount(zoneWatts, zoneState.powerType), sku: receiver, description: receiverDescription(receiver) });
       }
     }
   };
@@ -601,7 +617,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
     });
     if (drawers.blocks.some((b) => b.included)) {
       const activeDrawers = drawers.blocks.filter((block) => block.included).length;
-      rows.push(...psuRows(LABELS.zoneNames.drawers, drawerWatts, LABELS.power, activeDrawers > 1 ? LABELS.combinedDriver : undefined));
+      rows.push(...psuRows(LABELS.zoneNames.drawers, drawerWatts, LABELS.power, drawers.powerType, activeDrawers > 1 ? LABELS.combinedDriver : undefined));
     }
   }
 
