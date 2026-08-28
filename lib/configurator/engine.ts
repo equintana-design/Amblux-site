@@ -47,6 +47,7 @@ import {
   familyLengthsM,
   familyPieceSku,
   getLinearFamily,
+  isLinearOnlyZone,
   normalizedPuckFinish,
   puckFaceplateSku,
   puckFixtureSku,
@@ -361,7 +362,7 @@ function pushLinearRows(
  * behind a server boundary later without changing behaviour.
  */
 export function computeBom(state: ConfiguratorState): BomResult {
-  const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library } = state;
+  const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library, closetHangers, shoeRack } = state;
   const rows: BomRow[] = [];
   let total = 0;
 
@@ -470,15 +471,25 @@ export function computeBom(state: ConfiguratorState): BomResult {
   // under a different zone key/label (see catalog.ts's ZONES_BY_APPLICATION
   // comment) — they fall in wherever Pantry does below (opt-in top light,
   // pooled driver, door/motion controls).
-  const addBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library", zoneState: BlocksState) => {
+  //
+  // Closet Hangers and Shoe Rack also share this engine, but are always
+  // linear (never puck) for both the main run and its optional top light —
+  // catalog.ts's isLinearOnlyZone() is the single source of truth for that,
+  // so a block loaded with a stale/invalid puck lightType still computes
+  // and displays as linear rather than emitting a puck row that couldn't
+  // exist for these zones in the wizard.
+  const addBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack", zoneState: BlocksState) => {
     if (!selected[key]) return;
     let zoneWatts = 0;
     const isFloatingShelf = key === "floating";
     const independentDrivers = key === "base" || key === "wall";
+    const linearOnly = isLinearOnlyZone(key);
 
     zoneState.blocks.forEach((b, i) => {
       if (!b.included) return;
-      const hasTopLight = (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library") && b.topLight;
+      const hasTopLight =
+        (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library" || key === "closetHangers" || key === "shoeRack") &&
+        b.topLight;
       // Vertical Gable Lighting is always installed on both sides of the
       // cabinet (matches Cabinet Light Builder exactly) — length, wattage,
       // fixture count, and purchase-piece counts all double.
@@ -494,7 +505,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
       const finish = normalizedPuckFinish(b.mounting, b.puckFinish);
       const family = getLinearFamily(b.linearFamily);
 
-      if (b.lightType === "puck" && b.mode !== "vertical") {
+      if (!linearOnly && b.lightType === "puck" && b.mode !== "vertical") {
         const placement = calcPuckPlacement(inches, spacingIn);
         const puckQty = placement.puckCount * fixtures;
         watts = puckQty * b.puckWatts;
@@ -528,7 +539,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
       let topWatts = 0;
       if (hasTopLight) {
         const topZone = `${zone} · ${LABELS.topLightZone}`;
-        if (b.lightType === "puck") {
+        if (!linearOnly && b.lightType === "puck") {
           const placement = calcPuckPlacement(topInches, spacingIn);
           topWatts = placement.puckCount * b.puckWatts;
           if (placement.puckCount > 0) {
@@ -611,6 +622,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
   addBlocks("pantry", pantry);
   addBlocks("highCabinet", highCabinet);
   addBlocks("library", library);
+  addBlocks("closetHangers", closetHangers);
+  addBlocks("shoeRack", shoeRack);
 
   // ---- drawers ----
   if (selected.drawers) {

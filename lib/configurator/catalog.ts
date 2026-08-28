@@ -14,6 +14,8 @@ export const ZONES = [
   "drawers",
   "highCabinet",
   "library",
+  "closetHangers",
+  "shoeRack",
 ] as const;
 export type ZoneKey = (typeof ZONES)[number];
 
@@ -26,13 +28,12 @@ export type ZoneKey = (typeof ZONES)[number];
 // Shelving Cabinet, Closet Hangers, Shoe Rack, Drawer Lights, Toe Kick,
 // Crown; Bathroom: Vanity, High Cabinet, Floating Cabinet; Furniture:
 // Library/Bookcase, Toe Kick, Crown) — filtered down to only the zones
-// AMBLUX has actually built so far. Closet Hangers, Shoe Rack, Vanity, and
-// Floating Cabinet don't exist yet, so Closet shows a subset today and
-// Bathroom shows only High Cabinet — the wizard falls back to a "more zones
-// coming soon" message wherever that makes the zone list empty (see
-// ConfiguratorClient.tsx/ui.tsx). Add a zone to a project type's list here
-// the moment its engine and real AMBLUX parts exist; nothing else about the
-// wizard needs to change.
+// AMBLUX has actually built so far. Vanity and Floating Cabinet don't exist
+// yet, so Bathroom shows only High Cabinet — the wizard falls back to a
+// "more zones coming soon" message wherever that makes the zone list empty
+// (see ConfiguratorClient.tsx/ui.tsx). Add a zone to a project type's list
+// here the moment its engine and real AMBLUX parts exist; nothing else
+// about the wizard needs to change.
 //
 // High Cabinet (Bathroom) and Library/Bookcase (Furniture) reuse the exact
 // same "storage cabinet" engine as Pantry — see engine.ts's addBlocks() and
@@ -44,14 +45,48 @@ export type ZoneKey = (typeof ZONES)[number];
 // Wall's. Since there's no auto-fold-in behavior in the real Pantry to
 // strip out, High Cabinet/Library simply are Pantry under a different zone
 // key and label.
+//
+// Closet Hangers and Shoe Rack (Closet) also reuse the same engine, but
+// with two real differences from Pantry: they're open shelving, not
+// cabinets with doors (so their control options are motion/wall-remote
+// only — no door sensor, see CONTROL_OPTIONS below), and a hanging bay or
+// shoe shelf stack has nowhere near a pantry's shelf count, so their block
+// rows cap "shelves" at a small number (see MAX_SHELVES_BY_ZONE) and only
+// ever offer linear light, never puck (see LINEAR_ONLY_ZONES) — both the
+// main run and its optional top light.
 export type ApplicationType = "kitchen" | "closets" | "bathroom" | "furniture";
 
 export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
   kitchen: ["undercabinet", "floating", "wall", "base", "pantry", "toeKick", "crown", "drawers"],
-  closets: ["floating", "pantry", "toeKick", "crown", "drawers"],
+  closets: ["floating", "pantry", "closetHangers", "shoeRack", "toeKick", "crown", "drawers"],
   bathroom: ["highCabinet"],
   furniture: ["library", "toeKick", "crown"],
 };
+
+// ---------------------------------------------------------------------
+// Per-zone "storage cabinet" engine overrides
+// ---------------------------------------------------------------------
+// Both tables default to "no restriction" for any zone not listed — Base/
+// Wall/Pantry/Floating/High Cabinet/Library keep their existing unlimited
+// shelf count and full puck-or-linear choice; only Closet Hangers/Shoe Rack
+// opt into the caps, matching what those fixtures are physically like in
+// the reference doc. Add a zone to either table (or adjust its number) the
+// moment a real AMBLUX product fact requires it — nothing else about
+// engine.ts/forms.tsx needs to change.
+export const MAX_SHELVES_BY_ZONE: Partial<Record<ZoneKey, number>> = {
+  closetHangers: 2,
+  shoeRack: 2,
+};
+
+export function maxShelvesFor(zone: ZoneKey): number | undefined {
+  return MAX_SHELVES_BY_ZONE[zone];
+}
+
+export const LINEAR_ONLY_ZONES: ZoneKey[] = ["closetHangers", "shoeRack"];
+
+export function isLinearOnlyZone(zone: ZoneKey): boolean {
+  return (LINEAR_ONLY_ZONES as ZoneKey[]).includes(zone);
+}
 
 export function zonesForApplication(app: ApplicationType): ZoneKey[] {
   return ZONES_BY_APPLICATION[app] ?? ZONES_BY_APPLICATION.kitchen;
@@ -443,6 +478,10 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // above for why High Cabinet/Library are exact Pantry behavioral clones.
   highCabinet: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
   library: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  // Open shelving, not cabinet doors — motion/wall-remote only, same shape
+  // as Toe Kick/Crown/Floating rather than Pantry's door-sensor options.
+  closetHangers: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  shoeRack: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
 };
 
 // Fixed id list for the under-cabinet zone's remote/app control picker
@@ -490,4 +529,6 @@ export const ZONE_NAMES: Record<ZoneKey, string> = {
   drawers: "Drawer lights",
   highCabinet: "High Cabinet",
   library: "Library / Bookcase",
+  closetHangers: "Closet Hangers",
+  shoeRack: "Shoe Rack",
 };
