@@ -3,7 +3,7 @@
 // the calculation engine (engine.ts) can be ported as pure functions that
 // take this state as input, independent of any UI framework.
 
-import type { ZoneKey } from "./catalog";
+import type { ApplicationType, ZoneKey } from "./catalog";
 
 export type Unit = "in" | "ft" | "cm" | "m";
 export type WattUnit = "W/m" | "W/ft";
@@ -16,12 +16,15 @@ export type ZoneControlMode = "together" | "separate";
 
 export interface SelectedZones {
   undercabinet: boolean;
+  floating: boolean;
   toeKick: boolean;
   crown: boolean;
   base: boolean;
   wall: boolean;
   pantry: boolean;
   drawers: boolean;
+  highCabinet: boolean;
+  library: boolean;
 }
 
 export interface ProjectInfo {
@@ -36,7 +39,10 @@ export interface ProjectInfo {
   cabinet: "framed" | "frameless";
   installLocation: "factory" | "jobSite";
   installer: "cabinet" | "electrician";
-  application: string;
+  // Now a real project-type switch (see catalog.ts's ZONES_BY_APPLICATION/
+  // zonesForApplication) rather than descriptive-only metadata — it decides
+  // which zones the wizard offers, not just what gets printed on the BOM.
+  application: ApplicationType;
   install: "plug" | "hardwire";
 }
 
@@ -103,6 +109,12 @@ export interface BlocksState {
   group?: boolean;
   powerType: PowerType;
   control: string;
+  // Legacy only — Floating Shelves used to be a mode switch inside the Wall
+  // Cabinets zone rather than its own zone/step. Kept only so
+  // mergeConfiguratorState() can detect and migrate an old saved project
+  // that still has wall.section==="floating" into the new standalone
+  // `floating` zone; nothing reads this to change behavior anymore (see
+  // engine.ts's addBlocks(), which now branches on the zone key itself).
   section?: "wall" | "floating";
   blocks: CabinetBlock[];
 }
@@ -129,8 +141,15 @@ export interface ConfiguratorState {
   simple: SimpleState;
   base: BlocksState;
   wall: BlocksState;
+  floating: BlocksState;
   pantry: BlocksState;
   drawers: DrawersState;
+  // High Cabinet (Bathroom) and Library/Bookcase (Furniture) — exact
+  // behavioral clones of the Pantry "storage cabinet" engine under their
+  // own zone identity. See catalog.ts's ZONES_BY_APPLICATION comment for
+  // why these are clones rather than a reduced variant.
+  highCabinet: BlocksState;
+  library: BlocksState;
 }
 
 export interface BomRow {
@@ -205,12 +224,15 @@ export function defaultConfiguratorState(): ConfiguratorState {
   return {
     selected: {
       undercabinet: false,
+      floating: false,
       toeKick: false,
       crown: false,
       base: false,
       wall: false,
       pantry: false,
       drawers: false,
+      highCabinet: false,
+      library: false,
     },
     project: {
       name: "",
@@ -251,6 +273,21 @@ export function defaultConfiguratorState(): ConfiguratorState {
       section: "wall",
       blocks: Array.from({ length: 4 }, blockDefault),
     },
+    // Floating Shelves — its own zone/step now (previously a mode switch
+    // inside Wall Cabinets, see BlocksState.section's comment). "doubleDoor"
+    // isn't a valid control for this zone (CONTROL_OPTIONS.floating has no
+    // door-sensor options at all — it's a shelf, not a cabinet), so this
+    // defaults to "motion" instead, matching Toe Kick/Crown's default.
+    floating: {
+      unit: "in",
+      mounting: "recess",
+      controlSystem: "wired",
+      group: true,
+      powerType: "ultra",
+      control: "motion",
+      section: "floating",
+      blocks: Array.from({ length: 4 }, blockDefault),
+    },
     pantry: {
       unit: "in",
       mounting: "recess",
@@ -271,6 +308,117 @@ export function defaultConfiguratorState(): ConfiguratorState {
         // Drawers have no vertical layout concept, so — same reasoning as
         // blockDefault() above — the default can't be the vertical-only
         // Rigid 6 × 8 mm profile.
+        linearFamily: "rigid-10x15",
+        mounting: "recess" as Mounting,
+        cct: "3000" as const,
+      })),
+    },
+    // Pantry-clone defaults — see the ConfiguratorState.highCabinet/library
+    // comment above.
+    highCabinet: {
+      unit: "in",
+      mounting: "recess",
+      controlSystem: "wired",
+      sensorInstall: "recess",
+      powerType: "ultra",
+      control: "door",
+      blocks: Array.from({ length: 4 }, blockDefault),
+    },
+    library: {
+      unit: "in",
+      mounting: "recess",
+      controlSystem: "wired",
+      sensorInstall: "recess",
+      powerType: "ultra",
+      control: "door",
+      blocks: Array.from({ length: 4 }, blockDefault),
+    },
+  };
+}
+
+// Defensively reconstitutes a ConfiguratorState loaded from a saved quote
+// (lib/configurator/quotes.ts) on top of a fresh default state, rather than
+// trusting the loaded JSON blob to already have every field the app
+// currently expects. A quote saved by an older version of the app (fewer
+// ProjectInfo fields, fewer blocks per zone, a since-renamed key) would
+// otherwise leave those fields `undefined` on load — which for a
+// controlled <input value={...}> means the field silently goes blank/
+// uncontrolled instead of falling back to a sane default, which is exactly
+// what "the saved project doesn't load completely" looks like from the
+// UI. Every nested object is merged shallowly onto its `default*()`
+// counterpart so a missing or stale key always falls back cleanly instead
+// of propagating `undefined`.
+export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null | undefined): ConfiguratorState {
+  const base = defaultConfiguratorState();
+  if (!loaded) return base;
+
+  const mergeBlocks = <T extends { included: boolean }>(defaults: T[], loadedBlocks: T[] | undefined, factory: () => T): T[] => {
+    if (!Array.isArray(loadedBlocks) || loadedBlocks.length === 0) return defaults;
+    return loadedBlocks.map((b) => ({ ...factory(), ...b }));
+  };
+
+  // One-time migration: Floating Shelves used to live inside the Wall
+  // Cabinets zone as a mode switch (wall.section === "floating") instead of
+  // being its own zone/step. An older saved project with that flag set has
+  // its real data (and its "included" toggle) filed under wall/
+  // selected.wall — route both to the new floating/selected.floating slot
+  // instead of losing them; `wall` itself falls back to its own defaults,
+  // since a project that was actually using Floating Shelves mode never had
+  // real Wall Cabinets data worth keeping there.
+  const wallWasFloating = loaded.wall?.section === "floating";
+  const loadedWallSlot = wallWasFloating ? undefined : loaded.wall;
+  const loadedFloatingSlot = wallWasFloating ? loaded.wall : loaded.floating;
+
+  return {
+    selected: {
+      ...base.selected,
+      ...(loaded.selected ?? {}),
+      wall: wallWasFloating ? false : (loaded.selected?.wall ?? base.selected.wall),
+      floating: wallWasFloating ? (loaded.selected?.wall ?? base.selected.floating) : (loaded.selected?.floating ?? base.selected.floating),
+    },
+    project: { ...base.project, ...(loaded.project ?? {}) },
+    simple: {
+      undercabinet: { ...base.simple.undercabinet, ...(loaded.simple?.undercabinet ?? {}) },
+      toeKick: { ...base.simple.toeKick, ...(loaded.simple?.toeKick ?? {}) },
+      crown: { ...base.simple.crown, ...(loaded.simple?.crown ?? {}) },
+    },
+    base: {
+      ...base.base,
+      ...(loaded.base ?? {}),
+      blocks: mergeBlocks(base.base.blocks, loaded.base?.blocks, blockDefault),
+    },
+    wall: {
+      ...base.wall,
+      ...(loadedWallSlot ?? {}),
+      blocks: mergeBlocks(base.wall.blocks, loadedWallSlot?.blocks, blockDefault),
+    },
+    floating: {
+      ...base.floating,
+      ...(loadedFloatingSlot ?? {}),
+      blocks: mergeBlocks(base.floating.blocks, loadedFloatingSlot?.blocks, blockDefault),
+    },
+    pantry: {
+      ...base.pantry,
+      ...(loaded.pantry ?? {}),
+      blocks: mergeBlocks(base.pantry.blocks, loaded.pantry?.blocks, blockDefault),
+    },
+    highCabinet: {
+      ...base.highCabinet,
+      ...(loaded.highCabinet ?? {}),
+      blocks: mergeBlocks(base.highCabinet.blocks, loaded.highCabinet?.blocks, blockDefault),
+    },
+    library: {
+      ...base.library,
+      ...(loaded.library ?? {}),
+      blocks: mergeBlocks(base.library.blocks, loaded.library?.blocks, blockDefault),
+    },
+    drawers: {
+      ...base.drawers,
+      ...(loaded.drawers ?? {}),
+      blocks: mergeBlocks(base.drawers.blocks, loaded.drawers?.blocks, () => ({
+        included: false,
+        count: 1,
+        length: 24,
         linearFamily: "rigid-10x15",
         mounting: "recess" as Mounting,
         cct: "3000" as const,

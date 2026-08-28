@@ -5,14 +5,57 @@
 
 export const ZONES = [
   "undercabinet",
+  "floating",
   "toeKick",
   "crown",
   "base",
   "wall",
   "pantry",
   "drawers",
+  "highCabinet",
+  "library",
 ] as const;
 export type ZoneKey = (typeof ZONES)[number];
+
+// ---------------------------------------------------------------------
+// Project types & which built zones apply to each
+// ---------------------------------------------------------------------
+// Mirrors the Cabinet Light Builder reference doc's per-project-type zone
+// lists (Kitchen: Undercabinet, Floating Shelves, Wall Cabinets, Base
+// Cabinets, Pantry, Toe Kick, Crown, Drawers; Closet: Floating Shelves,
+// Shelving Cabinet, Closet Hangers, Shoe Rack, Drawer Lights, Toe Kick,
+// Crown; Bathroom: Vanity, High Cabinet, Floating Cabinet; Furniture:
+// Library/Bookcase, Toe Kick, Crown) — filtered down to only the zones
+// AMBLUX has actually built so far. Closet Hangers, Shoe Rack, Vanity, and
+// Floating Cabinet don't exist yet, so Closet shows a subset today and
+// Bathroom shows only High Cabinet — the wizard falls back to a "more zones
+// coming soon" message wherever that makes the zone list empty (see
+// ConfiguratorClient.tsx/ui.tsx). Add a zone to a project type's list here
+// the moment its engine and real AMBLUX parts exist; nothing else about the
+// wizard needs to change.
+//
+// High Cabinet (Bathroom) and Library/Bookcase (Furniture) reuse the exact
+// same "storage cabinet" engine as Pantry — see engine.ts's addBlocks() and
+// forms.tsx's BlocksZoneForm. They're built as pure behavioral clones of
+// Pantry as it exists today (optional opt-in top light, same driver/control
+// logic), not a "reduced" variant — the CLB reference doc describes Pantry
+// as auto-including a top fixture, but AMBLUX's actual shipped Pantry has
+// never implemented that; its topLight is a plain toggle, identical to
+// Wall's. Since there's no auto-fold-in behavior in the real Pantry to
+// strip out, High Cabinet/Library simply are Pantry under a different zone
+// key and label.
+export type ApplicationType = "kitchen" | "closets" | "bathroom" | "furniture";
+
+export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
+  kitchen: ["undercabinet", "floating", "wall", "base", "pantry", "toeKick", "crown", "drawers"],
+  closets: ["floating", "pantry", "toeKick", "crown", "drawers"],
+  bathroom: ["highCabinet"],
+  furniture: ["library", "toeKick", "crown"],
+};
+
+export function zonesForApplication(app: ApplicationType): ZoneKey[] {
+  return ZONES_BY_APPLICATION[app] ?? ZONES_BY_APPLICATION.kitchen;
+}
 
 export const PSU = [24, 36, 60, 96] as const;
 
@@ -396,6 +439,10 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   wall: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
   floating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "remoteButton", "bluetoothApp"] },
   pantry: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  // Clones of pantry's own options — see the ZONES_BY_APPLICATION comment
+  // above for why High Cabinet/Library are exact Pantry behavioral clones.
+  highCabinet: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  library: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
 };
 
 // Fixed id list for the under-cabinet zone's remote/app control picker
@@ -434,10 +481,13 @@ export function puckWattsFor(mounting: "recess" | "surface"): number {
 
 export const ZONE_NAMES: Record<ZoneKey, string> = {
   undercabinet: "Under-cabinet lighting",
+  floating: "Floating Shelves",
   toeKick: "Toe kick",
   crown: "Crown moulding",
   base: "Base Cabinets",
-  wall: "Wall Cabinets / Floating Shelf",
+  wall: "Wall Cabinets",
   pantry: "Pantries",
   drawers: "Drawer lights",
+  highCabinet: "High Cabinet",
+  library: "Library / Bookcase",
 };

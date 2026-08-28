@@ -12,12 +12,15 @@
 export const LABELS = {
   zoneNames: {
     undercabinet: "Under-cabinet lighting",
+    floating: "Floating Shelves",
     toeKick: "Toe kick",
     crown: "Crown moulding",
     base: "Base Cabinets",
-    wall: "Wall Cabinets / Floating Shelf",
+    wall: "Wall Cabinets",
     pantry: "Pantries",
     drawers: "Drawer lights",
+    highCabinet: "High Cabinet",
+    library: "Library / Bookcase",
   },
   selectableWhite: "Selectable White",
   puck: "Puck light",

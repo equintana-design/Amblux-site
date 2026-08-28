@@ -361,7 +361,7 @@ function pushLinearRows(
  * behind a server boundary later without changing behaviour.
  */
 export function computeBom(state: ConfiguratorState): BomResult {
-  const { selected, simple, base, wall, pantry, drawers } = state;
+  const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library } = state;
   const rows: BomRow[] = [];
   let total = 0;
 
@@ -458,16 +458,27 @@ export function computeBom(state: ConfiguratorState): BomResult {
   addSimple("toeKick");
   addSimple("crown");
 
-  // ---- base / wall / pantry (per-cabinet-block "blocks" zones) ----
-  const addBlocks = (key: "base" | "wall" | "pantry", zoneState: BlocksState) => {
+  // ---- base / wall / floating / pantry / highCabinet / library (per-cabinet-block "blocks" zones) ----
+  // Floating Shelves shares this exact engine with Base/Wall/Pantry (same
+  // as the reference doc's "storage cabinet" reuse pattern) — it used to be
+  // reached via key==="wall" with zoneState.section==="floating"; it's now
+  // its own top-level zone/step, so isFloatingShelf below is just
+  // key==="floating" directly. See BlocksState.section's comment and
+  // mergeConfiguratorState() for the one-time migration of old saved data.
+  //
+  // High Cabinet and Library/Bookcase are exact behavioral clones of Pantry
+  // under a different zone key/label (see catalog.ts's ZONES_BY_APPLICATION
+  // comment) — they fall in wherever Pantry does below (opt-in top light,
+  // pooled driver, door/motion controls).
+  const addBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library", zoneState: BlocksState) => {
     if (!selected[key]) return;
     let zoneWatts = 0;
-    const isFloatingShelf = key === "wall" && zoneState.section === "floating";
-    const independentDrivers = key === "base" || (key === "wall" && !isFloatingShelf);
+    const isFloatingShelf = key === "floating";
+    const independentDrivers = key === "base" || key === "wall";
 
     zoneState.blocks.forEach((b, i) => {
       if (!b.included) return;
-      const hasTopLight = (key === "pantry" || (key === "wall" && !isFloatingShelf)) && b.topLight;
+      const hasTopLight = (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library") && b.topLight;
       // Vertical Gable Lighting is always installed on both sides of the
       // cabinet (matches Cabinet Light Builder exactly) — length, wattage,
       // fixture count, and purchase-piece counts all double.
@@ -596,7 +607,10 @@ export function computeBom(state: ConfiguratorState): BomResult {
 
   addBlocks("base", base);
   addBlocks("wall", wall);
+  addBlocks("floating", floating);
   addBlocks("pantry", pantry);
+  addBlocks("highCabinet", highCabinet);
+  addBlocks("library", library);
 
   // ---- drawers ----
   if (selected.drawers) {
