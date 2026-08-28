@@ -38,6 +38,7 @@ const ZONE_STEP_ORDER: ZoneStepKey[] = [
   "pantry",
   "drawers",
   "highCabinet",
+  "floatingCabinet",
   "library",
   "closetHangers",
   "shoeRack",
@@ -88,6 +89,7 @@ export function ConfiguratorClient() {
     pantry: { title: t("configurator.zoneNames.pantry") },
     drawers: { title: t("configurator.zoneNames.drawers") },
     highCabinet: { title: t("configurator.zoneNames.highCabinet") },
+    floatingCabinet: { title: t("configurator.zoneNames.floatingCabinet"), allowPuck: false },
     library: { title: t("configurator.zoneNames.library") },
     closetHangers: { title: t("configurator.zoneNames.closetHangers") },
     shoeRack: { title: t("configurator.zoneNames.shoeRack") },
@@ -113,7 +115,7 @@ export function ConfiguratorClient() {
     setState((s) => ({ ...s, selected: { ...s.selected, [key]: value } }));
   };
 
-  const patchSimple = (key: "undercabinet" | "toeKick" | "crown", patch: Partial<ConfiguratorState["simple"][typeof key]>) => {
+  const patchSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet", patch: Partial<ConfiguratorState["simple"][typeof key]>) => {
     setState((s) => ({ ...s, simple: { ...s.simple, [key]: { ...s.simple[key], ...patch } } }));
   };
 
@@ -204,6 +206,7 @@ export function ConfiguratorClient() {
       case "undercabinet":
       case "toeKick":
       case "crown":
+      case "floatingCabinet":
         return (
           <SimpleZoneForm
             zoneKey={activeStep}

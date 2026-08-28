@@ -116,7 +116,7 @@ export function SimpleZoneForm({
   onToggleIncluded,
   bom,
 }: {
-  zoneKey: "undercabinet" | "toeKick" | "crown";
+  zoneKey: "undercabinet" | "toeKick" | "crown" | "floatingCabinet";
   title: string;
   allowPuck: boolean;
   state: SimpleZoneState;
@@ -126,13 +126,14 @@ export function SimpleZoneForm({
   bom: BomResult;
 }) {
   const t = useTranslations();
-  // Toe Kick / Crown Moulding now support 1-4 runs sharing one fixture
-  // spec, exactly like Undercabinet always did (see engine.ts's addSimple)
-  // — every SimpleZoneForm zone shows the multi-run UI. kineticOnly is the
-  // one remaining real difference: Undercabinet's control is Kinetic
-  // (battery/app) only, no wired/wireless option, per the reference doc —
-  // Toe Kick/Crown keep their normal motion-sensor CONTROL_OPTIONS choices.
-  const hasMultipleRuns = zoneKey === "undercabinet" || zoneKey === "toeKick" || zoneKey === "crown";
+  // Toe Kick / Crown Moulding / Floating Cabinet now support 1-4 runs
+  // sharing one fixture spec, exactly like Undercabinet always did (see
+  // engine.ts's addSimple) — every SimpleZoneForm zone shows the multi-run
+  // UI. kineticOnly is the one remaining real difference: Undercabinet's
+  // control is Kinetic (battery/app) only, no wired/wireless option, per
+  // the reference doc — the other three keep their normal motion-sensor
+  // CONTROL_OPTIONS choices.
+  const hasMultipleRuns = zoneKey === "undercabinet" || zoneKey === "toeKick" || zoneKey === "crown" || zoneKey === "floatingCabinet";
   const kineticOnly = zoneKey === "undercabinet";
   const isPuck = state.lightType === "puck";
   const controlZone = zoneKey; // toeKick / crown map directly; undercabinet uses its own remote list
