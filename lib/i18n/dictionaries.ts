@@ -242,6 +242,7 @@ const en = {
     finishIncluded: "Finish included in the surface-mount puck",
     sensor: "Sensor / Switch option",
     cabinet: "Cabinet",
+    shelfUnit: "Shelf",
     drawer: "Drawer",
     includeBlock: "Include",
     lightingType: "Lighting type",
@@ -369,6 +370,8 @@ const en = {
     bomEmailAttach: "Print or save this page as a PDF and attach it before sending.",
     priceBreakdown: "Price breakdown by product",
     noZonesForApplication: "More zones for this project type are coming soon — check back after AMBLUX adds them.",
+    numberOfRuns: "Number of runs",
+    shelfControlGrouping: "Shelf driver & control",
   },
 };
 
@@ -584,6 +587,7 @@ const fr: Messages = {
     finishIncluded: "Fini intégré à la rondelle en surface",
     sensor: "Option de capteur / interrupteur",
     cabinet: "Armoire",
+    shelfUnit: "Tablette",
     drawer: "Tiroir",
     includeBlock: "Inclure",
     lightingType: "Type d’éclairage",
@@ -712,6 +716,8 @@ const fr: Messages = {
     bomEmailAttach: "Imprimez ou enregistrez cette page en PDF et joignez-la avant l'envoi.",
     priceBreakdown: "Répartition des prix par produit",
     noZonesForApplication: "D'autres zones pour ce type de projet arrivent bientôt — revenez après qu'AMBLUX les ajoute.",
+    numberOfRuns: "Nombre de sections",
+    shelfControlGrouping: "Alimentation et contrôle des tablettes",
   },
 };
 
@@ -921,6 +927,7 @@ const es: Messages = {
     finishIncluded: "Acabado integrado en el puck de superficie",
     sensor: "Opción de sensor / interruptor",
     cabinet: "Gabinete",
+    shelfUnit: "Repisa",
     drawer: "Cajón",
     includeBlock: "Incluir",
     lightingType: "Tipo de iluminación",
@@ -1049,6 +1056,8 @@ const es: Messages = {
     bomEmailAttach: "Imprima o guarde esta página como PDF y adjúntela antes de enviarla.",
     priceBreakdown: "Desglose de precios por producto",
     noZonesForApplication: "Más zonas para este tipo de proyecto llegarán pronto — vuelva a revisar cuando AMBLUX las agregue.",
+    numberOfRuns: "Número de tramos",
+    shelfControlGrouping: "Alimentación y control de las repisas",
   },
 };
 
