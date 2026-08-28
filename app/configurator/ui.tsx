@@ -169,6 +169,7 @@ export function ZoneSidebar({
   kicker,
   heading,
   zones,
+  emptyMessage,
   summaryLabel,
   activeKey,
   onSelectZone,
@@ -177,6 +178,8 @@ export function ZoneSidebar({
   kicker: string;
   heading: string;
   zones: { key: string; label: string; included: boolean }[];
+  /** Shown instead of the zone list when this project type has no built zones yet. */
+  emptyMessage?: string;
   summaryLabel: string;
   activeKey: string;
   onSelectZone: (key: string) => void;
@@ -186,6 +189,7 @@ export function ZoneSidebar({
     <div className="rounded-2xl bg-foreground p-6 text-white lg:sticky lg:top-6">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-soft">{kicker}</p>
       <p className="mt-3 text-sm font-semibold text-white">{heading}</p>
+      {zones.length === 0 && emptyMessage ? <p className="mt-3 text-sm text-white/70">{emptyMessage}</p> : null}
       <ul className="mt-3 flex flex-col">
         {zones.map((z) => (
           <li key={z.key} className="border-t border-white/10 first:border-t-0">
