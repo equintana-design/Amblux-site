@@ -610,14 +610,24 @@ export function computeBom(state: ConfiguratorState): BomResult {
       if (independentDrivers) {
         const driverWatts = watts + (hasTopLight && b.topLightControl === "same" ? topWatts : 0);
         rows.push(...psuRows(zone, driverWatts, LABELS.power, zoneState.powerType, LABELS.independentDriver));
-        const availableControls = zoneControls(key === "wall" ? "wall" : key, zoneState.controlSystem);
+        // Floating Shelves is the one zone where "each shelf gets its own
+        // independent driver" also means each shelf gets its own
+        // independently-chosen control type/switch (verified against the
+        // live reference wizard) — not just its own driver sized off one
+        // shared zone-wide control choice, the way Base/Wall's always-
+        // independent drivers still share one zone-level control pick. Fall
+        // back to the zone-level value if a block somehow has no per-shelf
+        // choice yet (e.g. a saved shelf from before this field existed).
+        const blockControlSystem = isFloatingShelf && b.controlSystem ? b.controlSystem : zoneState.controlSystem;
+        const blockControl = isFloatingShelf && b.control ? b.control : zoneState.control;
+        const availableControls = zoneControls(key === "wall" ? "wall" : key, blockControlSystem);
         rows.push({
           zone,
           qty: 1,
-          sku: controlSku(zoneState.control),
-          description: findControlLabel(availableControls, zoneState.control) || zoneState.control,
+          sku: controlSku(blockControl),
+          description: findControlLabel(availableControls, blockControl) || blockControl,
         });
-        const receiver = receiverSku(zoneState.control);
+        const receiver = receiverSku(blockControl);
         if (receiver) {
           rows.push({ zone, qty: supplyCount(driverWatts, zoneState.powerType), sku: receiver, description: receiverDescription(receiver) });
         }

@@ -107,6 +107,15 @@ export interface CabinetBlock {
   cct: "3000" | "4000";
   // Same optional-accessory opt-out as SimpleZoneState — see there.
   includeInstallBracket: boolean;
+  // Floating Shelves only — a real per-shelf control choice, used exactly
+  // when BlocksState.group === false (verified against the live reference
+  // wizard: "each shelf gets its own independent Control type + switch/
+  // sensor choice" when shelves aren't set to shared control). Every other
+  // zone leaves these undefined and keeps using its zone-level
+  // BlocksState.controlSystem/control instead — see engine.ts's addBlocks()
+  // and forms.tsx's CabinetBlockRow for the two callers.
+  controlSystem?: ControlSystem;
+  control?: string;
 }
 
 export interface BlocksState {
@@ -242,6 +251,15 @@ function cappedBlockDefault(maxShelves: number): CabinetBlock {
   return { ...blockDefault(), shelves: maxShelves };
 }
 
+// Floating Shelves' own block default: shelves is pre-capped at 1 (see
+// cappedBlockDefault's comment — each block already IS one physical shelf),
+// plus a starting per-shelf control choice ("wired"/"motion", matching the
+// zone-level default below) so a shelf already has a sane value the moment
+// the zone is switched to per-shelf ("Separate") control.
+function floatingShelfBlockDefault(): CabinetBlock {
+  return { ...cappedBlockDefault(1), controlSystem: "wired", control: "motion" };
+}
+
 export function defaultConfiguratorState(): ConfiguratorState {
   return {
     selected: {
@@ -304,23 +322,30 @@ export function defaultConfiguratorState(): ConfiguratorState {
     // isn't a valid control for this zone (CONTROL_OPTIONS.floating has no
     // door-sensor options at all — it's a shelf, not a cabinet), so this
     // defaults to "motion" instead, matching Toe Kick/Crown's default.
-    // group:true = pooled/shared control across all shelves by default
-    // (matches the previous, only-ever-pooled behavior) — the customer can
-    // switch to one independent driver/control per shelf instead (see
-    // forms.tsx's BlocksZoneForm). Each block is one physical shelf (no
-    // "how many shelves in this cabinet" sub-count, and no Layout/Vertical
-    // option — a floating shelf has no cabinet body or side panels to
-    // gable-light), so its block default is pre-set to shelves:1 rather
-    // than blockDefault()'s cabinet-oriented shelves:3.
+    // group:false = independent per-shelf control by default — verified
+    // directly against the live reference wizard's "Control all floating
+    // shelves with one sensor/switch?" field, whose default is blank and
+    // behaves exactly like "No" (each shelf gets its own independent
+    // control choice). Earlier this zone defaulted to pooled (group:true);
+    // corrected 2026-08-28 once the reference wizard's actual default
+    // behavior was confirmed. The customer can still switch to one pooled
+    // driver/control for the whole zone instead (see forms.tsx's
+    // BlocksZoneForm). Each block is one physical shelf (no "how many
+    // shelves in this cabinet" sub-count, and no Layout/Vertical option — a
+    // floating shelf has no cabinet body or side panels to gable-light), so
+    // its block default (floatingShelfBlockDefault()) is pre-set to
+    // shelves:1 rather than blockDefault()'s cabinet-oriented shelves:3, and
+    // carries its own starting per-shelf control choice for the
+    // group:false/independent default above.
     floating: {
       unit: "in",
       mounting: "recess",
       controlSystem: "wired",
-      group: true,
+      group: false,
       powerType: "ultra",
       control: "motion",
       section: "floating",
-      blocks: Array.from({ length: 4 }, () => cappedBlockDefault(1)),
+      blocks: Array.from({ length: 4 }, floatingShelfBlockDefault),
     },
     pantry: {
       unit: "in",
@@ -477,7 +502,7 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     floating: {
       ...base.floating,
       ...(loadedFloatingSlot ?? {}),
-      blocks: mergeBlocks(base.floating.blocks, loadedFloatingSlot?.blocks, () => cappedBlockDefault(1)),
+      blocks: mergeBlocks(base.floating.blocks, loadedFloatingSlot?.blocks, floatingShelfBlockDefault),
     },
     pantry: {
       ...base.pantry,
