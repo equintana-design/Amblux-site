@@ -39,6 +39,8 @@ const ZONE_STEP_ORDER: ZoneStepKey[] = [
   "drawers",
   "highCabinet",
   "library",
+  "closetHangers",
+  "shoeRack",
 ];
 
 export function ConfiguratorClient() {
@@ -87,6 +89,8 @@ export function ConfiguratorClient() {
     drawers: { title: t("configurator.zoneNames.drawers") },
     highCabinet: { title: t("configurator.zoneNames.highCabinet") },
     library: { title: t("configurator.zoneNames.library") },
+    closetHangers: { title: t("configurator.zoneNames.closetHangers") },
+    shoeRack: { title: t("configurator.zoneNames.shoeRack") },
   };
 
   // The one list every zone-facing UI (step tabs, sidebar tracker, Project
@@ -113,7 +117,10 @@ export function ConfiguratorClient() {
     setState((s) => ({ ...s, simple: { ...s.simple, [key]: { ...s.simple[key], ...patch } } }));
   };
 
-  const patchBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library", patch: Partial<ConfiguratorState["base"]>) => {
+  const patchBlocks = (
+    key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack",
+    patch: Partial<ConfiguratorState["base"]>
+  ) => {
     setState((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
   };
 
@@ -215,6 +222,8 @@ export function ConfiguratorClient() {
       case "pantry":
       case "highCabinet":
       case "library":
+      case "closetHangers":
+      case "shoeRack":
         return (
           <BlocksZoneForm
             zoneKey={activeStep}

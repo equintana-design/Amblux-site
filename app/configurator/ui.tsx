@@ -39,11 +39,18 @@ export function NumberInput({
   value,
   onChange,
   min = 0,
+  max,
   step = 1,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
+  // Optional hard cap — e.g. Closet Hangers/Shoe Rack's shelf count (see
+  // catalog.ts's MAX_SHELVES_BY_ZONE). Clamped in the change handler, not
+  // just the native min/max attributes, so a typed-in out-of-range value
+  // can't slip through the way it can with the browser's spinner-only
+  // enforcement.
+  max?: number;
   step?: number;
 }) {
   return (
@@ -52,8 +59,18 @@ export function NumberInput({
       className={controlClass}
       value={value}
       min={min}
+      max={max}
       step={step}
-      onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+      onChange={(e) => {
+        if (e.target.value === "") {
+          onChange(0);
+          return;
+        }
+        let next = Number(e.target.value);
+        if (max !== undefined && next > max) next = max;
+        if (next < min) next = min;
+        onChange(next);
+      }}
     />
   );
 }

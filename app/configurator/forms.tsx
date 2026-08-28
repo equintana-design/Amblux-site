@@ -10,7 +10,9 @@ import {
   controlSku,
   familyCcts,
   getLinearFamily,
+  isLinearOnlyZone,
   linearFamiliesFor,
+  maxShelvesFor,
   puckWattsFor,
 } from "@/lib/configurator/catalog";
 import { finishLabel, LABELS } from "@/lib/configurator/labels";
@@ -315,7 +317,7 @@ export function BlocksZoneForm({
   onToggleIncluded,
   bom,
 }: {
-  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library";
+  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack";
   title: string;
   state: BlocksState;
   onChange: (patch: Partial<BlocksState>) => void;
@@ -329,8 +331,20 @@ export function BlocksZoneForm({
   // this is a plain zoneKey check rather than reading state.section.
   const isFloating = zoneKey === "floating";
   const controlZone = isFloating ? "floating" : zoneKey;
-  const supportsTopLight = zoneKey === "pantry" || zoneKey === "wall" || zoneKey === "highCabinet" || zoneKey === "library";
+  const supportsTopLight =
+    zoneKey === "pantry" ||
+    zoneKey === "wall" ||
+    zoneKey === "highCabinet" ||
+    zoneKey === "library" ||
+    zoneKey === "closetHangers" ||
+    zoneKey === "shoeRack";
   const independentDrivers = zoneKey === "base" || zoneKey === "wall";
+  // Closet Hangers / Shoe Rack are open shelving with a real physical cap
+  // on shelf count and no puck option — see catalog.ts's
+  // MAX_SHELVES_BY_ZONE/isLinearOnlyZone(). undefined maxShelves means "no
+  // cap" for every other zone.
+  const linearOnly = isLinearOnlyZone(zoneKey);
+  const maxShelves = maxShelvesFor(zoneKey);
 
   const updateBlock = (index: number, patch: Partial<CabinetBlock>) => {
     const blocks = state.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b));
@@ -391,6 +405,8 @@ export function BlocksZoneForm({
             block={b}
             supportsTopLight={supportsTopLight}
             independentDrivers={independentDrivers}
+            linearOnly={linearOnly}
+            maxShelves={maxShelves}
             onChange={(patch) => updateBlock(i, patch)}
           />
         ))}
@@ -419,18 +435,30 @@ function CabinetBlockRow({
   block,
   supportsTopLight,
   independentDrivers,
+  linearOnly,
+  maxShelves,
   onChange,
 }: {
   index: number;
-  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library";
+  zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack";
   unit: Unit;
   block: CabinetBlock;
   supportsTopLight: boolean;
   independentDrivers: boolean;
+  // Closet Hangers / Shoe Rack only — see catalog.ts's
+  // MAX_SHELVES_BY_ZONE/isLinearOnlyZone(). Every other zone passes
+  // linearOnly:false and maxShelves:undefined (no restriction).
+  linearOnly: boolean;
+  maxShelves?: number;
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
   const t = useTranslations();
-  const isPuck = block.lightType === "puck";
+  // linearOnly zones never actually offer the puck option (the Light Type
+  // field below doesn't even render for them) — this guard also covers a
+  // block whose lightType is stale/invalid puck data (e.g. loaded from
+  // another zone), so the row still renders correctly as linear rather than
+  // showing puck fields that don't apply here.
+  const isPuck = !linearOnly && block.lightType === "puck";
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
@@ -473,21 +501,23 @@ function CabinetBlockRow({
                 <NumberInput value={block.length} onChange={(v) => onChange({ length: v })} />
               </Field>
               <Field label={t("configurator.shelves")}>
-                <NumberInput value={block.shelves} min={1} onChange={(v) => onChange({ shelves: v })} />
+                <NumberInput value={block.shelves} min={1} max={maxShelves} onChange={(v) => onChange({ shelves: v })} />
               </Field>
             </>
           )}
 
-          <Field label={t("configurator.lightType")}>
-            <Select
-              value={block.lightType}
-              onChange={(v) => onChange({ lightType: v as CabinetBlock["lightType"] })}
-              options={[
-                { value: "puck", label: t("configurator.puck") },
-                { value: "linear", label: t("configurator.linear") },
-              ]}
-            />
-          </Field>
+          {!linearOnly && (
+            <Field label={t("configurator.lightType")}>
+              <Select
+                value={block.lightType}
+                onChange={(v) => onChange({ lightType: v as CabinetBlock["lightType"] })}
+                options={[
+                  { value: "puck", label: t("configurator.puck") },
+                  { value: "linear", label: t("configurator.linear") },
+                ]}
+              />
+            </Field>
+          )}
 
           <Field label={t("configurator.mounting")}>
             <Select
