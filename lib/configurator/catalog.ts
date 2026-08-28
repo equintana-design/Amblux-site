@@ -373,13 +373,30 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
   },
 ];
 
+// Vertical/gable lighting (both side panels of a cabinet) is real-world
+// restricted to exactly these 3 profiles — the two verticalOnly ones
+// (silicone-4x8.5-trim, rigid-6x8), plus silicone-6x6 which also works
+// there even though it isn't exclusively for it. rigid-10x15 and every
+// surface-mount profile were previously offered for "vertical" too (the
+// old rule was just "skip verticalOnly unless mode is vertical," which
+// let every non-restricted profile through) — per direct product
+// confirmation, vertical lighting is recess-only and limited to this list.
+export const VERTICAL_LINEAR_FAMILY_IDS = ["silicone-6x6", "silicone-4x8.5-trim", "rigid-6x8"] as const;
+
 // mode omitted/"shelf" => excludes verticalOnly profiles (correct for every
 // caller that has no Layout concept at all — simple zones, drawers — as
-// well as a shelf-mode cabinet block). mode "vertical" => full list for
-// that mounting, since a vertical block may still use a general-purpose
-// profile; verticalOnly profiles are simply also available there.
+// well as a shelf-mode cabinet block). mode "vertical" => restricted to
+// VERTICAL_LINEAR_FAMILY_IDS only, regardless of mounting — since every one
+// of those is recess-mount, requesting "vertical" with mounting "surface"
+// correctly returns an empty list; callers should force mounting to
+// "recess" the moment a block's Layout becomes "vertical" (see forms.tsx's
+// CabinetBlockRow) rather than relying on this function to silently fall
+// back.
 export function linearFamiliesFor(mounting: "recess" | "surface", mode?: "shelf" | "vertical"): LinearFamily[] {
-  return LINEAR_FAMILIES.filter((f) => f.mounting === mounting && (mode === "vertical" || !f.verticalOnly));
+  if (mode === "vertical") {
+    return LINEAR_FAMILIES.filter((f) => f.mounting === mounting && (VERTICAL_LINEAR_FAMILY_IDS as readonly string[]).includes(f.id));
+  }
+  return LINEAR_FAMILIES.filter((f) => f.mounting === mounting && !f.verticalOnly);
 }
 
 export function getLinearFamily(id: string): LinearFamily {

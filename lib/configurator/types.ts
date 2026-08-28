@@ -297,6 +297,14 @@ export function defaultConfiguratorState(): ConfiguratorState {
     // isn't a valid control for this zone (CONTROL_OPTIONS.floating has no
     // door-sensor options at all — it's a shelf, not a cabinet), so this
     // defaults to "motion" instead, matching Toe Kick/Crown's default.
+    // group:true = pooled/shared control across all shelves by default
+    // (matches the previous, only-ever-pooled behavior) — the customer can
+    // switch to one independent driver/control per shelf instead (see
+    // forms.tsx's BlocksZoneForm). Each block is one physical shelf (no
+    // "how many shelves in this cabinet" sub-count, and no Layout/Vertical
+    // option — a floating shelf has no cabinet body or side panels to
+    // gable-light), so its block default is pre-set to shelves:1 rather
+    // than blockDefault()'s cabinet-oriented shelves:3.
     floating: {
       unit: "in",
       mounting: "recess",
@@ -305,7 +313,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       powerType: "ultra",
       control: "motion",
       section: "floating",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 4 }, () => cappedBlockDefault(1)),
     },
     pantry: {
       unit: "in",
@@ -399,6 +407,27 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     return loadedBlocks.map((b) => ({ ...factory(), ...b }));
   };
 
+  // One-time migration: Toe Kick / Crown Moulding used to be a single-run
+  // zone (only SimpleZoneState.length was ever read/written by the UI or
+  // engine) — they now support 1-4 runs exactly like Undercabinet already
+  // did, reading zoneCount/zoneLengths instead (see engine.ts's addSimple).
+  // An older saved project has its real run length filed only under
+  // `length`, with zoneLengths still at its untouched default ([0,0,0,0]) —
+  // detect that shape and seed zoneLengths[0] from it so the saved length
+  // isn't silently dropped the first time the project reloads under the
+  // new logic. A no-op for Undercabinet (already used zoneLengths) or any
+  // project that already has real zoneLengths data.
+  const migrateSimpleZone = (loadedZone: Partial<SimpleZoneState> | undefined, baseZone: SimpleZoneState): SimpleZoneState => {
+    const merged: SimpleZoneState = { ...baseZone, ...(loadedZone ?? {}) };
+    const hasRealZoneLength = Array.isArray(merged.zoneLengths) && merged.zoneLengths.some((n) => n > 0);
+    if (!hasRealZoneLength && merged.length > 0) {
+      const zoneLengths = [...merged.zoneLengths];
+      zoneLengths[0] = merged.length;
+      return { ...merged, zoneLengths, zoneCount: Math.max(1, merged.zoneCount || 1) };
+    }
+    return merged;
+  };
+
   // One-time migration: Floating Shelves used to live inside the Wall
   // Cabinets zone as a mode switch (wall.section === "floating") instead of
   // being its own zone/step. An older saved project with that flag set has
@@ -421,8 +450,8 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     project: { ...base.project, ...(loaded.project ?? {}) },
     simple: {
       undercabinet: { ...base.simple.undercabinet, ...(loaded.simple?.undercabinet ?? {}) },
-      toeKick: { ...base.simple.toeKick, ...(loaded.simple?.toeKick ?? {}) },
-      crown: { ...base.simple.crown, ...(loaded.simple?.crown ?? {}) },
+      toeKick: migrateSimpleZone(loaded.simple?.toeKick, base.simple.toeKick),
+      crown: migrateSimpleZone(loaded.simple?.crown, base.simple.crown),
     },
     base: {
       ...base.base,
@@ -437,7 +466,7 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     floating: {
       ...base.floating,
       ...(loadedFloatingSlot ?? {}),
-      blocks: mergeBlocks(base.floating.blocks, loadedFloatingSlot?.blocks, blockDefault),
+      blocks: mergeBlocks(base.floating.blocks, loadedFloatingSlot?.blocks, () => cappedBlockDefault(1)),
     },
     pantry: {
       ...base.pantry,

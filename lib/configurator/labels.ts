@@ -9,6 +9,8 @@
 // lib/i18n/dictionaries.ts's `configurator`/`configuratorExtra` namespaces
 // and is wired through useTranslations() — see app/configurator/forms.tsx.
 
+import type { ZoneKey } from "./catalog";
+
 export const LABELS = {
   zoneNames: {
     undercabinet: "Under-cabinet lighting",
@@ -51,4 +53,13 @@ export const LABELS = {
 
 export function finishLabel(finish: string): string {
   return LABELS.finish[finish] || finish;
+}
+
+// Floating Shelves' per-block BOM row/UI unit is a "Shelf," not a
+// "Cabinet" — a floating shelf has no cabinet body, just a mounted run. See
+// engine.ts's addBlocks() (row zone naming) and forms.tsx's BlocksZoneForm
+// (CalculatedSolution title, which must match the row zone string exactly
+// for the rows.filter() lookup to work) for the two callers of this.
+export function blockUnitLabel(zone: ZoneKey): string {
+  return zone === "floating" ? "Shelf" : LABELS.cabinet;
 }

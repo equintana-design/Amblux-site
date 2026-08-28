@@ -60,7 +60,7 @@ import {
   CLIPS_PER_BAG,
   type LinearFamily,
 } from "./catalog";
-import { LABELS, finishLabel } from "./labels";
+import { LABELS, blockUnitLabel, finishLabel } from "./labels";
 import type {
   BlocksState,
   BomGroup,
@@ -370,7 +370,11 @@ export function computeBom(state: ConfiguratorState): BomResult {
   const addSimple = (key: "undercabinet" | "toeKick" | "crown") => {
     if (!selected[key]) return;
     const z: SimpleZoneState = simple[key];
-    const runLengths = key === "undercabinet" ? z.zoneLengths.slice(0, z.zoneCount) : [z.length];
+    // Toe Kick / Crown Moulding now support 1-4 runs sharing one fixture
+    // spec, exactly like Undercabinet already did — see mergeConfiguratorState()
+    // for the one-time migration that carries an older saved project's
+    // single `length` value into zoneLengths[0] the first time it reloads.
+    const runLengths = z.zoneLengths.slice(0, Math.max(1, z.zoneCount));
     const isPuck = key === "undercabinet" && z.lightType === "puck";
     const family = getLinearFamily(z.linearFamily);
     const spacingIn = z.spacing > 0 ? toInches(z.spacing, z.spacingUnit) : 16;
@@ -382,7 +386,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
     const results = runLengths
       .map((length, index) => {
         const inches = toInches(length, z.unit);
-        const zone = key === "undercabinet" && z.zoneCount > 1 ? `${name} · Zone ${index + 1}` : name;
+        const zone = z.zoneCount > 1 ? `${name} · Zone ${index + 1}` : name;
 
         if (isPuck) {
           const placement = calcPuckPlacement(inches, spacingIn);
@@ -419,7 +423,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
       })
       .filter((result) => result.watts > 0);
 
-    if (key === "undercabinet" && z.zoneCount > 1 && z.zoneControl === "separate") {
+    if (z.zoneCount > 1 && z.zoneControl === "separate") {
       results.forEach(({ zone, watts }) => {
         rows.push(...psuRows(zone, watts, z.powerType === "hardwire" ? LABELS.hardPsu : LABELS.ultra, z.powerType));
         rows.push({
@@ -478,34 +482,51 @@ export function computeBom(state: ConfiguratorState): BomResult {
   // so a block loaded with a stale/invalid puck lightType still computes
   // and displays as linear rather than emitting a puck row that couldn't
   // exist for these zones in the wizard.
+  //
+  // Floating Shelves is its own real engine per the reference doc (not the
+  // "storage cabinet" engine's shelf/vertical + top-light shape) — a shelf
+  // has no cabinet body or side panels to gable-light, and no independent
+  // "light on top" add-on, so it always computes as a single shelf run
+  // (effectiveMode below), never vertical, regardless of what's stored on
+  // the block (defensive — the UI no longer exposes a way to set
+  // mode:"vertical" for this zone, but this keeps a pre-existing saved
+  // block correct too). It's also the one zone where pooled-vs-independent
+  // driver/control is a real customer choice rather than fixed by zone —
+  // zoneState.group:false switches it to one independent driver/control per
+  // shelf, same code path Base/Wall already use.
   const addBlocks = (key: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack", zoneState: BlocksState) => {
     if (!selected[key]) return;
     let zoneWatts = 0;
     const isFloatingShelf = key === "floating";
-    const independentDrivers = key === "base" || key === "wall";
+    const independentDrivers = key === "base" || key === "wall" || (isFloatingShelf && zoneState.group === false);
     const linearOnly = isLinearOnlyZone(key);
 
     zoneState.blocks.forEach((b, i) => {
       if (!b.included) return;
       const hasTopLight =
+        !isFloatingShelf &&
         (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library" || key === "closetHangers" || key === "shoeRack") &&
         b.topLight;
+      const effectiveMode = isFloatingShelf ? "shelf" : b.mode;
       // Vertical Gable Lighting is always installed on both sides of the
       // cabinet (matches Cabinet Light Builder exactly) — length, wattage,
-      // fixture count, and purchase-piece counts all double.
+      // fixture count, and purchase-piece counts all double. A floating
+      // shelf block is always exactly one shelf (no "how many shelves in
+      // this cabinet" sub-count the way Base/Wall/Pantry have) regardless
+      // of whatever b.shelves holds.
       const sideCount = 2;
-      const fixtures = b.mode === "vertical" ? sideCount : Math.max(1, b.shelves);
-      const length = b.mode === "vertical" ? b.height : b.length;
+      const fixtures = isFloatingShelf ? 1 : effectiveMode === "vertical" ? sideCount : Math.max(1, b.shelves);
+      const length = effectiveMode === "vertical" ? b.height : b.length;
       const inches = toInches(length, zoneState.unit);
       const spacingIn = b.spacing > 0 ? b.spacing : 16;
       const mountingLabel = b.mounting === "recess" ? LABELS.recess : LABELS.surface;
 
       let watts = 0;
-      const zone = `${LABELS.zoneNames[key]} · ${LABELS.cabinet} ${i + 1}`;
+      const zone = `${LABELS.zoneNames[key]} · ${blockUnitLabel(key)} ${i + 1}`;
       const finish = normalizedPuckFinish(b.mounting, b.puckFinish);
       const family = getLinearFamily(b.linearFamily);
 
-      if (!linearOnly && b.lightType === "puck" && b.mode !== "vertical") {
+      if (!linearOnly && b.lightType === "puck" && effectiveMode !== "vertical") {
         const placement = calcPuckPlacement(inches, spacingIn);
         const puckQty = placement.puckCount * fixtures;
         watts = puckQty * b.puckWatts;
@@ -525,7 +546,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
         const lengthM = toMetres(length, zoneState.unit);
         watts = lengthM * family.wattsPerMetre * fixtures;
         pushLinearRows(rows, zone, family, b.cct, lengthM, fixtures, b.mounting, {
-          notes: b.mode === "vertical" ? "both sides" : undefined,
+          notes: effectiveMode === "vertical" ? "both sides" : undefined,
           includeOptionalAccessory: b.includeInstallBracket,
         });
         rows.push({ zone, qty: fixtures, sku: EXTENSION_SKU, description: "2m extension cord" });
