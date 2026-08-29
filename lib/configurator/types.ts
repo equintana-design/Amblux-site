@@ -4,7 +4,7 @@
 // take this state as input, independent of any UI framework.
 
 import type { ApplicationType, ZoneKey } from "./catalog";
-import { VANITY_MAX_UNITS } from "./catalog";
+import { DEFAULT_COUNT_CAP } from "./catalog";
 
 export type Unit = "in" | "ft" | "cm" | "m";
 export type WattUnit = "W/m" | "W/ft";
@@ -154,11 +154,11 @@ export interface DrawersState {
 }
 
 // Vanity (Bathroom, Stage 4) — a real composite zone verified against
-// bathroomzoneslogic.md's live-tested spec: each of up to VANITY_MAX_UNITS
+// bathroomzoneslogic.md's live-tested spec: each of up to DEFAULT_COUNT_CAP
 // cabinet units independently turns on a Doors sub-fixture and/or a
 // Drawers sub-fixture, per unit — a vanity project can have Doors only,
 // Drawers only, or both, on any given unit. See catalog.ts's
-// CONTROL_OPTIONS.vanityDoors/VANITY_MAX_UNITS and engine.ts's addVanity().
+// CONTROL_OPTIONS.vanityDoors/DEFAULT_COUNT_CAP and engine.ts's addVanity().
 export interface VanityUnit {
   included: boolean;
 
@@ -189,7 +189,7 @@ export interface VanityUnit {
   // field set/behavior exactly (DrawersState/DrawerBlock above) — a real
   // linearFamily/mounting/cct picker tied to real SKUs, not the reference
   // doc's single fully-fixed "Cuttable drawer LED light" description (see
-  // catalog.ts's VANITY_MAX_UNITS comment for why). No control/switch
+  // catalog.ts's DEFAULT_COUNT_CAP comment for why). No control/switch
   // choice is offered at all for Drawers, matching the doc exactly.
   drawersInclude: boolean;
   drawersCount: number;
@@ -251,7 +251,13 @@ export function simpleDefault(linearOnly = false): SimpleZoneState {
   return {
     length: 0,
     zoneCount: 1,
-    zoneLengths: [0, 0, 0, 0],
+    // Backing array for up to DEFAULT_COUNT_CAP runs (2026-08-29: raised
+    // from a hardcoded 4 — see catalog.ts's DEFAULT_COUNT_CAP comment). A
+    // fixed-length array pre-filled with zeros rather than growing
+    // dynamically with zoneCount — engine.ts's addSimple() and forms.tsx's
+    // SimpleZoneForm both only ever read/write indices < zoneCount, so the
+    // unused tail stays harmlessly at 0.
+    zoneLengths: Array.from({ length: DEFAULT_COUNT_CAP }, () => 0),
     zoneControl: "together",
     unit: "in",
     lightType: linearOnly ? "linear" : "puck",
@@ -309,7 +315,7 @@ function cappedBlockDefault(maxShelves: number): CabinetBlock {
 // the way a generic capped default would. lightType is already "linear"
 // from blockDefault(), matching this zone's linear-only restriction
 // (catalog.ts's LINEAR_ONLY_ZONES), so nothing else needs overriding here.
-function closetHangerBlockDefault(): CabinetBlock {
+export function closetHangerBlockDefault(): CabinetBlock {
   return { ...blockDefault(), shelves: 1 };
 }
 
@@ -318,8 +324,27 @@ function closetHangerBlockDefault(): CabinetBlock {
 // plus a starting per-shelf control choice ("wired"/"motion", matching the
 // zone-level default below) so a shelf already has a sane value the moment
 // the zone is switched to per-shelf ("Separate") control.
-function floatingShelfBlockDefault(): CabinetBlock {
+export function floatingShelfBlockDefault(): CabinetBlock {
   return { ...cappedBlockDefault(1), controlSystem: "wired", control: "motion" };
+}
+
+// Drawer Lights' (and Vanity Drawers') per-drawer default — pulled out into
+// a real named/exported factory (2026-08-29) so forms.tsx's "+ Add another
+// drawer" button can create a properly-shaped new DrawerBlock instead of
+// duplicating this object literal a third time (it was previously inlined
+// separately in both defaultConfiguratorState() and mergeConfiguratorState()
+// below). Drawers have no vertical layout concept, so — same reasoning as
+// blockDefault() — the default can't be the vertical-only Rigid 6 × 8 mm
+// profile.
+export function drawerBlockDefault(): DrawerBlock {
+  return {
+    included: false,
+    count: 1,
+    length: 24,
+    linearFamily: "rigid-10x15",
+    mounting: "recess",
+    cct: "3000",
+  };
 }
 
 // A fresh Vanity cabinet unit starts with both Doors and Drawers off (the
@@ -327,7 +352,7 @@ function floatingShelfBlockDefault(): CabinetBlock {
 // each sub-fixture's own fields already hold sane, real-SKU-backed starting
 // values the moment it's switched on, matching every other zone's pattern.
 // doorsMounting starts (and stays) "recess" — see VanityUnit's comment.
-function vanityUnitDefault(): VanityUnit {
+export function vanityUnitDefault(): VanityUnit {
   return {
     included: false,
     doorsInclude: false,
@@ -393,7 +418,14 @@ export function defaultConfiguratorState(): ConfiguratorState {
       sensorInstall: "recess",
       powerType: "ultra",
       control: "doubleDoor",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      // A fresh zone starts with just 1 cabinet card — the customer clicks
+      // "+ Add another cabinet" (forms.tsx's BlocksZoneForm) to reveal more,
+      // up to DEFAULT_COUNT_CAP (2026-08-29: previously pre-allocated 4
+      // fixed slots with no way to add a 5th — see catalog.ts's
+      // DEFAULT_COUNT_CAP comment). A saved project's own blocks array
+      // length is always preserved as-is by mergeConfiguratorState()'s
+      // mergeBlocks(), regardless of this default.
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
     wall: {
       unit: "in",
@@ -403,7 +435,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       powerType: "ultra",
       control: "doubleDoor",
       section: "wall",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
     // Floating Shelves — its own zone/step now (previously a mode switch
     // inside Wall Cabinets, see BlocksState.section's comment). "doubleDoor"
@@ -433,7 +465,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       powerType: "ultra",
       control: "motion",
       section: "floating",
-      blocks: Array.from({ length: 4 }, floatingShelfBlockDefault),
+      blocks: Array.from({ length: 1 }, floatingShelfBlockDefault),
     },
     pantry: {
       unit: "in",
@@ -442,23 +474,13 @@ export function defaultConfiguratorState(): ConfiguratorState {
       sensorInstall: "recess",
       powerType: "ultra",
       control: "door",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
     drawers: {
       unit: "in",
       control: "door",
       powerType: "ultra",
-      blocks: Array.from({ length: 4 }, () => ({
-        included: false,
-        count: 1,
-        length: 24,
-        // Drawers have no vertical layout concept, so — same reasoning as
-        // blockDefault() above — the default can't be the vertical-only
-        // Rigid 6 × 8 mm profile.
-        linearFamily: "rigid-10x15",
-        mounting: "recess" as Mounting,
-        cct: "3000" as const,
-      })),
+      blocks: Array.from({ length: 1 }, drawerBlockDefault),
     },
     // Pantry-clone defaults — see the ConfiguratorState.highCabinet/library
     // comment above.
@@ -469,7 +491,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       sensorInstall: "recess",
       powerType: "ultra",
       control: "door",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
     library: {
       unit: "in",
@@ -478,7 +500,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       sensorInstall: "recess",
       powerType: "ultra",
       control: "door",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
     // Open shelving, not cabinets with doors — same reasoning as Floating
     // Shelves' defaults (no sensorInstall, "motion" control since "door"
@@ -498,7 +520,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       group: true,
       powerType: "ultra",
       control: "motion",
-      blocks: Array.from({ length: 4 }, closetHangerBlockDefault),
+      blocks: Array.from({ length: 1 }, closetHangerBlockDefault),
     },
     shoeRack: {
       unit: "in",
@@ -507,11 +529,15 @@ export function defaultConfiguratorState(): ConfiguratorState {
       group: true,
       powerType: "ultra",
       control: "motion",
-      blocks: Array.from({ length: 4 }, blockDefault),
+      blocks: Array.from({ length: 1 }, blockDefault),
     },
+    // Vanity's own unit cap used to be a distinct, lower hardcoded number
+    // (6) — as of 2026-08-29 every zone's "how many can I add" cap is the
+    // same DEFAULT_COUNT_CAP (10), so Vanity starts at 1 unit like every
+    // other zone rather than pre-allocating a zone-specific count.
     vanity: {
       unit: "in",
-      blocks: Array.from({ length: VANITY_MAX_UNITS }, vanityUnitDefault),
+      blocks: Array.from({ length: 1 }, vanityUnitDefault),
     },
   };
 }
@@ -547,9 +573,20 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
   // isn't silently dropped the first time the project reloads under the
   // new logic. A no-op for Undercabinet (already used zoneLengths) or any
   // project that already has real zoneLengths data.
+  //
+  // Also normalizes zoneLengths to the current DEFAULT_COUNT_CAP-length
+  // backing array regardless of migration path (2026-08-29: the run-count
+  // cap was raised from 4 to DEFAULT_COUNT_CAP — see catalog.ts's comment —
+  // so a project saved before that change may still carry a short 4-slot
+  // zoneLengths array; padding it out here means increasing zoneCount past
+  // 4 on an old project always finds a real 0 at every index instead of an
+  // `undefined` hole that would compute as NaN watts).
+  const normalizeZoneLengths = (lengths: number[] | undefined): number[] =>
+    Array.from({ length: DEFAULT_COUNT_CAP }, (_, i) => lengths?.[i] ?? 0);
+
   const migrateSimpleZone = (loadedZone: Partial<SimpleZoneState> | undefined, baseZone: SimpleZoneState): SimpleZoneState => {
-    const merged: SimpleZoneState = { ...baseZone, ...(loadedZone ?? {}) };
-    const hasRealZoneLength = Array.isArray(merged.zoneLengths) && merged.zoneLengths.some((n) => n > 0);
+    const merged: SimpleZoneState = { ...baseZone, ...(loadedZone ?? {}), zoneLengths: normalizeZoneLengths((loadedZone ?? {}).zoneLengths ?? baseZone.zoneLengths) };
+    const hasRealZoneLength = merged.zoneLengths.some((n) => n > 0);
     if (!hasRealZoneLength && merged.length > 0) {
       const zoneLengths = [...merged.zoneLengths];
       zoneLengths[0] = merged.length;
@@ -579,7 +616,11 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     },
     project: { ...base.project, ...(loaded.project ?? {}) },
     simple: {
-      undercabinet: { ...base.simple.undercabinet, ...(loaded.simple?.undercabinet ?? {}) },
+      // Routed through migrateSimpleZone too (2026-08-29) purely for its
+      // zoneLengths-normalization side effect — undercabinet never needed
+      // the length->zoneLengths[0] migration itself (it always used
+      // zoneLengths), so this stays a no-op for that part.
+      undercabinet: migrateSimpleZone(loaded.simple?.undercabinet, base.simple.undercabinet),
       toeKick: migrateSimpleZone(loaded.simple?.toeKick, base.simple.toeKick),
       crown: migrateSimpleZone(loaded.simple?.crown, base.simple.crown),
       // Brand-new zone (no prior saved shape to migrate from), but reusing
@@ -635,14 +676,7 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     drawers: {
       ...base.drawers,
       ...(loaded.drawers ?? {}),
-      blocks: mergeBlocks(base.drawers.blocks, loaded.drawers?.blocks, () => ({
-        included: false,
-        count: 1,
-        length: 24,
-        linearFamily: "rigid-10x15",
-        mounting: "recess" as Mounting,
-        cct: "3000" as const,
-      })),
+      blocks: mergeBlocks(base.drawers.blocks, loaded.drawers?.blocks, drawerBlockDefault),
     },
   };
 }
