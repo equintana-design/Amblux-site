@@ -690,9 +690,9 @@ export function computeBom(state: ConfiguratorState): BomResult {
   }
 
   // ---- vanity (Bathroom, Stage 4) ----
-  // Each of up to VANITY_MAX_UNITS cabinet units independently turns on
+  // Each of up to DEFAULT_COUNT_CAP cabinet units independently turns on
   // Doors and/or Drawers — verified against bathroomzoneslogic.md's
-  // live-tested spec (see catalog.ts's VANITY_MAX_UNITS comment and
+  // live-tested spec (see catalog.ts's DEFAULT_COUNT_CAP comment and
   // types.ts's VanityUnit). Doors reuses the exact vertical/gable-lighting
   // math the "blocks" zones use for mode:"vertical" above (both cabinet
   // sides, always linear), restricted to the door-sensor-only control
