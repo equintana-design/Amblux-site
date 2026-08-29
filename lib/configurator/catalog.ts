@@ -17,6 +17,7 @@ export const ZONES = [
   "closetHangers",
   "shoeRack",
   "floatingCabinet",
+  "vanity",
 ] as const;
 export type ZoneKey = (typeof ZONES)[number];
 
@@ -69,9 +70,38 @@ export type ApplicationType = "kitchen" | "closets" | "bathroom" | "furniture";
 export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
   kitchen: ["undercabinet", "floating", "wall", "base", "pantry", "toeKick", "crown", "drawers"],
   closets: ["floating", "pantry", "closetHangers", "shoeRack", "toeKick", "crown", "drawers"],
-  bathroom: ["highCabinet", "floatingCabinet"],
+  // Vanity (Stage 4, 2026-08-29) completes Bathroom's 3 reference zones — see
+  // VANITY_MAX_UNITS/CONTROL_OPTIONS.vanityDoors below and engine.ts's
+  // addVanity() for its own composite Doors+Drawers engine.
+  bathroom: ["highCabinet", "floatingCabinet", "vanity"],
   furniture: ["library", "toeKick", "crown"],
 };
+
+// Vanity is its own real engine — see types.ts's VanityState/VanityUnit and
+// engine.ts's addVanity() — but it's really two independent lighting
+// features bolted onto the same cabinet unit (Doors and Drawers), each with
+// its own on/off toggle, per verified spec (bathroomzoneslogic.md):
+//   - Doors reuses the exact same Vertical Gable Lighting math every other
+//     "blocks" zone uses for mode:"vertical" (both cabinet sides, always
+//     linear, restricted to the 3 real vertical-capable profiles — see
+//     VERTICAL_LINEAR_FAMILY_IDS below). Its own control choice is
+//     restricted to door-sensor variants only, no Kinetic at all (see
+//     CONTROL_OPTIONS.vanityDoors) — a door-position sensor has no
+//     motion/touch/app equivalent. Its power supply is permanently locked
+//     to the real Ultra-thin driver with no unlock condition at all (unlike
+//     the Pantry-engine family's global-preference unlock rule).
+//   - Drawers reuses the same real linearFamily/mounting/cct picker the
+//     already-shipped Kitchen "Drawer Lights" zone uses (drawers.blocks in
+//     types.ts) — the reference doc describes this as a single fixed
+//     fixture with no real-SKU choice, but AMBLUX's own shipped Drawer
+//     Lights zone already exposes a genuine per-family picker tied to real
+//     SKUs, so Vanity Drawers mirrors that already-shipped behavior rather
+//     than introducing a new, more restrictive one-off just for this zone.
+//     No control/switch choice is offered at all (matches the doc exactly),
+//     and its power supply is also permanently locked to Ultra-thin.
+// Doors and Drawers get their own separate driver when both are turned on
+// for the same cabinet unit (engine.ts prices them independently).
+export const VANITY_MAX_UNITS = 6;
 
 // ---------------------------------------------------------------------
 // Per-zone "storage cabinet" engine overrides
@@ -543,6 +573,15 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // as Toe Kick/Crown/Floating rather than Pantry's door-sensor options.
   closetHangers: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
   shoeRack: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  // Vanity Doors — door-position sensors only, no Kinetic option at all
+  // (verified live: "Wired single-door control sensor switch," "Wired
+  // double-door control sensor switch," and their wireless versions). Same
+  // real SKU shape as Wall Cabinets' door-sensor list today (AMBLUX has one
+  // real wireless door-sensor SKU covering both single/double doors — see
+  // CONTROL_SKU.wirelessDoor's description), kept as its own named entry
+  // since Vanity Doors is a distinct zone even though the option lists
+  // happen to match Wall's exactly right now.
+  vanityDoors: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
 };
 
 // Fixed id list for the under-cabinet zone's remote/app control picker
@@ -593,4 +632,5 @@ export const ZONE_NAMES: Record<ZoneKey, string> = {
   closetHangers: "Closet Hangers",
   shoeRack: "Shoe Rack",
   floatingCabinet: "Floating Cabinet",
+  vanity: "Vanity",
 };
