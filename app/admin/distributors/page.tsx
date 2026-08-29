@@ -1,14 +1,23 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setApprovalAction, setRoleAction } from "./actions";
+import { setApprovalAction, setBusinessTypeAction, setRoleAction } from "./actions";
 
 const ROLE_LABEL: Record<string, string> = {
   client: "Client",
-  distributor: "Distributor",
+  distributor: "Hardware Distributor",
   admin: "Admin",
 };
 
 const ROLE_OPTIONS = ["client", "distributor", "admin"] as const;
+
+// Kitchen Manufacturer vs Kitchen Dealer — a Client-only concept (see
+// setBusinessTypeAction), so the select below only ever renders for rows
+// where role === "client".
+const BUSINESS_TYPE_LABEL: Record<string, string> = {
+  manufacturer: "Kitchen Manufacturer",
+  dealer: "Kitchen Dealer",
+};
+const BUSINESS_TYPE_OPTIONS = ["", "manufacturer", "dealer"] as const;
 
 export default async function AdminDistributorsPage() {
   const supabase = await createClient();
@@ -24,7 +33,7 @@ export default async function AdminDistributorsPage() {
   // this to see every account, not just the caller's own row.
   const { data: profiles } = await supabase
     .from("amblux_profiles")
-    .select("id, email, role, company_name, approved, created_at")
+    .select("id, email, role, company_name, approved, business_type, created_at")
     .order("created_at", { ascending: false });
 
   const pending = (profiles ?? []).filter((p) => !p.approved);
@@ -36,8 +45,10 @@ export default async function AdminDistributorsPage() {
       <h1 className="mt-2 text-2xl font-semibold text-foreground">Accounts</h1>
       <p className="mt-2 text-sm text-muted">
         Every account starts as a Client. Approving an account grants it access to its tier&apos;s pricing on the
-        configurator, and you can promote a Client to Distributor or Admin below. Every other signed-in or
-        anonymous visitor only ever sees MSRP — that&apos;s enforced by the database itself, not by this page.
+        configurator, and you can promote a Client to Hardware Distributor or Admin below. Every other signed-in or
+        anonymous visitor only ever sees MSRP — that&apos;s enforced by the database itself, not by this page. A
+        Client account can also have a Business type (Kitchen Manufacturer or Kitchen Dealer) — used by the
+        configurator&apos;s pricing panel to recommend a resale price range — which you can set here too.
       </p>
 
       <section className="mt-8">
@@ -112,10 +123,11 @@ export default async function AdminDistributorsPage() {
                   </p>
                   <p className="text-xs text-muted">
                     {p.company_name || "No company name provided"} · {ROLE_LABEL[p.role] ?? p.role}
+                    {p.role === "client" && p.business_type ? ` · ${BUSINESS_TYPE_LABEL[p.business_type] ?? p.business_type}` : ""}
                   </p>
                 </div>
                 {p.id !== user.id && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <form action={setRoleAction} className="flex items-center gap-1.5">
                       <input type="hidden" name="id" value={p.id} />
                       <select
@@ -136,6 +148,28 @@ export default async function AdminDistributorsPage() {
                         Update
                       </button>
                     </form>
+                    {p.role === "client" && (
+                      <form action={setBusinessTypeAction} className="flex items-center gap-1.5">
+                        <input type="hidden" name="id" value={p.id} />
+                        <select
+                          name="businessType"
+                          defaultValue={p.business_type ?? ""}
+                          className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        >
+                          {BUSINESS_TYPE_OPTIONS.map((value) => (
+                            <option key={value} value={value}>
+                              {value === "" ? "Business type — not set" : BUSINESS_TYPE_LABEL[value]}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong"
+                        >
+                          Update
+                        </button>
+                      </form>
+                    )}
                     <form action={setApprovalAction}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="approved" value="false" />
