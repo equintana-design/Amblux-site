@@ -19,6 +19,13 @@ import {
   puckWattsFor,
 } from "@/lib/configurator/catalog";
 import { blockUnitLabel, finishLabel, LABELS } from "@/lib/configurator/labels";
+import {
+  blockDefault,
+  closetHangerBlockDefault,
+  drawerBlockDefault,
+  floatingShelfBlockDefault,
+  vanityUnitDefault,
+} from "@/lib/configurator/types";
 import type {
   BlocksState,
   BomResult,
@@ -107,6 +114,31 @@ function defaultLinearPatch(mounting: "recess" | "surface", mode?: "shelf" | "ve
   return { mounting, linearFamily: family.id, cct: cct as "3000" | "4000" };
 }
 
+// A real "+ Add another ___" affordance (2026-08-29), replacing what used
+// to be a fixed set of DEFAULT_COUNT_CAP-worth (previously 4, Vanity 6)
+// pre-allocated cards always shown at once with no way to add a 5th/7th.
+// Every "blocks"-style zone (Base/Wall/Pantry/High Cabinet/Library/Closet
+// Hangers/Shoe Rack/Floating Shelves), Drawer Lights, and Vanity now start
+// a fresh project with just 1 card and grow their own array one at a time,
+// hiding the button once the zone's real cap is reached (matches the
+// reference tool's own confirmed "the button disappears at the cap"
+// behavior). `count` is the zone's current live block-array length, not a
+// display index, so this reads correctly for a saved project that already
+// has more than 1 card.
+function AddAnotherRow({ count, onAdd, unitLabel }: { count: number; onAdd: () => void; unitLabel: string }) {
+  const t = useTranslations();
+  if (count >= DEFAULT_COUNT_CAP) return null;
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="rounded-xl border border-dashed border-border p-3 text-sm font-medium text-accent-strong transition-colors hover:border-accent hover:bg-background"
+    >
+      {t("configuratorExtra.addAnother").replace("{unit}", unitLabel)}
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------
 // Under-cabinet / toe kick / crown ("simple") zones
 // ---------------------------------------------------------------------
@@ -178,8 +210,8 @@ export function SimpleZoneForm({
             <NumberInput
               value={state.zoneCount}
               min={1}
-              max={4}
-              onChange={(v) => onChange({ zoneCount: Math.max(1, Math.min(4, v)) })}
+              max={DEFAULT_COUNT_CAP}
+              onChange={(v) => onChange({ zoneCount: Math.max(1, Math.min(DEFAULT_COUNT_CAP, v)) })}
             />
           </Field>
           {state.zoneCount > 1 && (
@@ -199,7 +231,13 @@ export function SimpleZoneForm({
               <NumberInput
                 value={state.zoneLengths[i] ?? 0}
                 onChange={(v) => {
-                  const zoneLengths = [...state.zoneLengths];
+                  // Pad out to a full DEFAULT_COUNT_CAP-length array on every
+                  // write, not just a copy of whatever length the backing
+                  // array happens to already be — self-heals a legacy saved
+                  // project's shorter zoneLengths array (from before the cap
+                  // was raised past 4) the first time any run length on it is
+                  // edited, so a later index never reads back as `undefined`.
+                  const zoneLengths = Array.from({ length: DEFAULT_COUNT_CAP }, (_, idx) => state.zoneLengths[idx] ?? 0);
                   zoneLengths[i] = v;
                   onChange({ zoneLengths });
                 }}
@@ -451,6 +489,14 @@ export function BlocksZoneForm({
             onChange={(patch) => updateBlock(i, patch)}
           />
         ))}
+        <AddAnotherRow
+          count={state.blocks.length}
+          unitLabel={isFloating ? t("configurator.shelfUnit") : t("configurator.cabinet")}
+          onAdd={() => {
+            const factory = isFloating ? floatingShelfBlockDefault : zoneKey === "closetHangers" ? closetHangerBlockDefault : blockDefault;
+            onChange({ blocks: [...state.blocks, factory()] });
+          }}
+        />
       </div>
 
       {state.blocks.map(
@@ -868,6 +914,11 @@ export function DrawersForm({
             )}
           </div>
         ))}
+        <AddAnotherRow
+          count={state.blocks.length}
+          unitLabel={t("configurator.drawer")}
+          onAdd={() => onChange({ blocks: [...state.blocks, drawerBlockDefault()] })}
+        />
       </div>
 
       {state.blocks.map(
@@ -888,13 +939,13 @@ export function DrawersForm({
 
 // ---------------------------------------------------------------------
 // Vanity (Bathroom, Stage 4) — a real composite zone: each of up to
-// VANITY_MAX_UNITS cabinet units independently turns on a Doors sub-fixture
+// DEFAULT_COUNT_CAP cabinet units independently turns on a Doors sub-fixture
 // (Vertical Gable Lighting engine, always recess/linear, door-sensor-only
 // control, permanently locked Ultra-thin power) and/or a Drawers
 // sub-fixture (same real linearFamily/mounting/cct picker as the
 // already-shipped Kitchen Drawer Lights zone, no control offered,
 // permanently locked Ultra-thin power) — see catalog.ts's
-// CONTROL_OPTIONS.vanityDoors/VANITY_MAX_UNITS and engine.ts's addVanity().
+// CONTROL_OPTIONS.vanityDoors/DEFAULT_COUNT_CAP and engine.ts's addVanity().
 // ---------------------------------------------------------------------
 
 export function VanityForm({
@@ -932,6 +983,11 @@ export function VanityForm({
         {state.blocks.map((b, i) => (
           <VanityUnitRow key={i} index={i} unit={state.unit} block={b} onChange={(patch) => updateUnit(i, patch)} />
         ))}
+        <AddAnotherRow
+          count={state.blocks.length}
+          unitLabel={t("configurator.cabinet")}
+          onAdd={() => onChange({ blocks: [...state.blocks, vanityUnitDefault()] })}
+        />
       </div>
 
       {state.blocks.map((b, i) => (
