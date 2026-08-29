@@ -60,16 +60,15 @@ export async function signOutAction() {
 }
 
 // Kicks off Supabase's built-in recovery-email flow. The redirect always
-// points at app/auth/confirm/route.ts (which exchanges the emailed
-// token_hash for a real session) with next=/account/update-password, so
-// clicking the email link lands the user straight on the "set a new
-// password" form already signed in.
-//
-// IMPORTANT: this only works once the "Reset Password" template in the
-// Supabase dashboard (Authentication > Emails) is edited to link to
-// `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/account/update-password`
-// instead of the default `{{ .ConfirmationURL }}` — see the /auth/confirm
-// route's own comment for why.
+// points at app/auth/confirm (which exchanges the emailed token/code for
+// a real session — see ConfirmClient.tsx for the three link shapes it
+// handles) with next=/account/update-password, so clicking the email
+// link lands the user straight on the "set a new password" form already
+// signed in. Works whether or not the "Reset Password" template in the
+// Supabase dashboard has been switched to the custom token_hash link —
+// ConfirmClient.tsx also handles Supabase's default {{ .ConfirmationURL }}
+// template — but switching it is still recommended, since the custom
+// link is a plain GET rather than relying on a client-side redirect.
 export async function requestPasswordResetAction(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
   if (!email) errorRedirect("/forgot-password", "Enter your email address.");
@@ -123,6 +122,27 @@ export async function updateCompanyNameAction(formData: FormData) {
   // id here for safety, but it's included anyway to keep the query itself
   // legible about intent.
   await supabase.from("amblux_profiles").update({ company_name: companyName || null }).eq("id", user.id);
+
+  redirect("/account");
+}
+
+// Kitchen Manufacturer vs Kitchen Dealer (migration 0030_business_type) —
+// used by the configurator's pricing panel to recommend a resale price
+// range for the lighting portion of a job. Saved once here (or inline the
+// first time the account opens that section in the pricing panel) so it
+// doesn't need to be re-asked on every project.
+export async function updateBusinessTypeAction(formData: FormData) {
+  const businessType = String(formData.get("businessType") || "");
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/sign-in");
+
+  const value = businessType === "manufacturer" || businessType === "dealer" ? businessType : null;
+
+  await supabase.from("amblux_profiles").update({ business_type: value }).eq("id", user.id);
 
   redirect("/account");
 }
