@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountStatus } from "@/app/components/AccountStatus";
 import { zonesForApplication } from "@/lib/configurator/catalog";
 import { computeBom } from "@/lib/configurator/engine";
@@ -52,6 +52,61 @@ export function ConfiguratorClient() {
   const t = useTranslations();
   const { locale, setLocale } = useLocale();
 
+  // Unsaved-work protection: a snapshot of whatever was last actually
+  // persisted (or freshly loaded/cleared, which counts as "in sync" too)
+  // to compare the live `state` against. `isDirty` drives both the small
+  // "Unsaved changes" indicator next to the header Save button and the
+  // beforeunload warning below — a plain JSON comparison is enough here
+  // since ConfiguratorState is already a small, fully-serializable object
+  // (the same assumption saveQuote()/loadQuoteState() already make).
+  const lastSavedStateRef = useRef<ConfiguratorState>(state);
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    setIsDirty(JSON.stringify(state) !== JSON.stringify(lastSavedStateRef.current));
+  }, [state]);
+
+  // Warns on tab close / navigation away from the site if there's
+  // unsaved work — the actual "tell them to save before closing the page"
+  // behavior. Browsers show their own generic confirmation text regardless
+  // of what's set on the event, so there's no custom copy to localize
+  // here; registered once and reads isDirty fresh on every unload attempt
+  // rather than re-registering the listener on every keystroke.
+  const isDirtyRef = useRef(isDirty);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (!isDirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // Used after a real save (both the header's SaveProjectButton and the
+  // Saved Projects panel's own Save button funnel through this) — marks
+  // whatever was just persisted as the new "in sync" baseline immediately,
+  // rather than waiting on the state-comparison effect above (state itself
+  // doesn't change on a save, so that effect wouldn't otherwise re-run).
+  function markSaved() {
+    lastSavedStateRef.current = state;
+    setIsDirty(false);
+  }
+
+  // Used for loading a saved project or starting a fresh one — both
+  // replace `state` wholesale, and the replacement itself should count as
+  // already "in sync" rather than dirty (nothing has actually diverged
+  // from what's on the server yet).
+  function loadState(newState: ConfiguratorState, id: string | null) {
+    setState(newState);
+    setQuoteId(id);
+    lastSavedStateRef.current = newState;
+    setIsDirty(false);
+  }
+
   // Deep link from "My saved projects" (e.g. /configurator?quote=<id>) —
   // read straight off window.location instead of next/navigation's
   // useSearchParams so this doesn't force a Suspense boundary around the
@@ -60,10 +115,7 @@ export function ConfiguratorClient() {
     const id = new URLSearchParams(window.location.search).get("quote");
     if (!id) return;
     loadQuoteState(createClient(), id).then((loaded) => {
-      if (loaded) {
-        setState(loaded);
-        setQuoteId(id);
-      }
+      if (loaded) loadState(loaded, id);
     });
   }, []);
 
@@ -177,10 +229,12 @@ export function ConfiguratorClient() {
           state={state}
           bom={bom}
           quoteId={quoteId}
-          onSaved={(id) => setQuoteId(id)}
-          onLoad={(id, loaded) => {
-            setState(loaded);
+          onSaved={(id) => {
             setQuoteId(id);
+            markSaved();
+          }}
+          onLoad={(id, loaded) => {
+            loadState(loaded, id);
             // Jump straight to the summary so loading a saved project
             // immediately shows proof that the full BOM came back intact —
             // this was the direct fix for "when we load a project it
@@ -272,11 +326,11 @@ export function ConfiguratorClient() {
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-border bg-surface print:hidden">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-5">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={32} className="h-8 w-auto" />
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <div
               className="flex items-center overflow-hidden rounded-full border border-border text-xs font-semibold"
               role="group"
@@ -295,8 +349,21 @@ export function ConfiguratorClient() {
               ))}
             </div>
             <div className="print:hidden">
-              <SaveProjectButton state={state} bom={bom} quoteId={quoteId} onSaved={(id) => setQuoteId(id)} />
+              <SaveProjectButton
+                state={state}
+                bom={bom}
+                quoteId={quoteId}
+                onSaved={(id) => {
+                  setQuoteId(id);
+                  markSaved();
+                }}
+              />
             </div>
+            {isDirty ? (
+              <span className="hidden shrink-0 text-xs font-medium text-accent-strong sm:inline">
+                {t("configuratorExtra.unsavedChanges")}
+              </span>
+            ) : null}
             <AccountStatus />
           </div>
         </div>
@@ -310,8 +377,7 @@ export function ConfiguratorClient() {
           <button
             type="button"
             onClick={() => {
-              setState(defaultConfiguratorState());
-              setQuoteId(null);
+              loadState(defaultConfiguratorState(), null);
               setActiveStep("project");
             }}
             className="mt-3 text-sm font-medium text-accent-soft underline-offset-2 hover:underline"
