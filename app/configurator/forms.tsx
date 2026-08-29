@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  CLOSET_HANGER_COMPARTMENT_COUNTS,
   CONTROL_LABEL,
   CONTROL_OPTIONS,
+  DEFAULT_COUNT_CAP,
   RECESSED_FACEPLATES,
   SURFACE_PUCKS,
   UNDERCABINET_REMOTE_CONTROLS,
@@ -10,6 +12,7 @@ import {
   controlSku,
   familyCcts,
   getLinearFamily,
+  hasVerticalOption,
   isLinearOnlyZone,
   linearFamiliesFor,
   maxShelvesFor,
@@ -360,10 +363,12 @@ export function BlocksZoneForm({
   // below and engine.ts's addBlocks() for the matching calculation-side
   // logic.
   const independentDrivers = zoneKey === "base" || zoneKey === "wall" || (isFloating && state.group === false);
-  // Closet Hangers / Shoe Rack are open shelving with a real physical cap
-  // on shelf count and no puck option — see catalog.ts's
-  // MAX_SHELVES_BY_ZONE/isLinearOnlyZone(). undefined maxShelves means "no
-  // cap" for every other zone.
+  // Closet Hangers / Shoe Rack are open shelving with no puck option — see
+  // catalog.ts's isLinearOnlyZone(). maxShelvesFor() returns the real cap
+  // for every zone's free-typed shelf-count field (10 by default, 2 for
+  // Closet Hangers — though Closet Hangers actually renders as a 1-or-2
+  // dropdown further down, not this NumberInput cap, since its field is a
+  // "hanging compartments" choice, not a free number).
   const linearOnly = isLinearOnlyZone(zoneKey);
   const maxShelves = maxShelvesFor(zoneKey);
 
@@ -479,9 +484,10 @@ function CabinetBlockRow({
   block: CabinetBlock;
   supportsTopLight: boolean;
   independentDrivers: boolean;
-  // Closet Hangers / Shoe Rack only — see catalog.ts's
-  // MAX_SHELVES_BY_ZONE/isLinearOnlyZone(). Every other zone passes
-  // linearOnly:false and maxShelves:undefined (no restriction).
+  // linearOnly: Closet Hangers/Shoe Rack only — see catalog.ts's
+  // isLinearOnlyZone(). maxShelves is the real cap for every zone's
+  // shelf-count field (see catalog.ts's maxShelvesFor()) — unused for
+  // Closet Hangers, which renders its own 1-or-2 dropdown instead.
   linearOnly: boolean;
   maxShelves?: number;
   onChange: (patch: Partial<CabinetBlock>) => void;
@@ -495,6 +501,17 @@ function CabinetBlockRow({
   // even if a block somehow still has stale mode:"vertical"/shelves>1 data
   // from before this zone had its own engine.
   const isFloatingShelf = zoneKey === "floating";
+  const isClosetHangers = zoneKey === "closetHangers";
+  // Closet Hangers has no shelf-vs-vertical choice at all (verified against
+  // the live reference wizard — see catalog.ts's hasVerticalOption()), same
+  // treatment as Floating Shelves. effectiveMode mirrors engine.ts's own
+  // defensive forcing exactly, so the UI can never show vertical-only
+  // fields (height, the read-only "Recessed" mounting) for a zone/block the
+  // engine will compute as shelf-mode regardless — including for a block
+  // that already has stale mode:"vertical" data saved from before Closet
+  // Hangers' Layout field was hidden.
+  const noVertical = isFloatingShelf || !hasVerticalOption(zoneKey);
+  const effectiveMode = noVertical ? "shelf" : block.mode;
   // linearOnly zones never actually offer the puck option (the Light Type
   // field below doesn't even render for them) — this guard also covers a
   // block whose lightType is stale/invalid puck data (e.g. loaded from
@@ -504,7 +521,7 @@ function CabinetBlockRow({
   // fixture doesn't make sense run down a cabinet's side panel — so the
   // Light Type field is hidden whenever Layout is Vertical too, not just
   // for linearOnly zones.
-  const isPuck = !linearOnly && block.mode !== "vertical" && block.lightType === "puck";
+  const isPuck = !linearOnly && effectiveMode !== "vertical" && block.lightType === "puck";
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
@@ -515,7 +532,7 @@ function CabinetBlockRow({
       </div>
       {block.included && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {!isFloatingShelf && (
+          {!noVertical && (
             <Field label={t("configuratorExtra.layout")}>
               <Select
                 value={block.mode}
@@ -551,7 +568,7 @@ function CabinetBlockRow({
               />
             </Field>
           )}
-          {block.mode === "vertical" && !isFloatingShelf ? (
+          {effectiveMode === "vertical" ? (
             <Field label={`${t("configurator.height")} (${unit})`}>
               <NumberInput value={block.height} onChange={(v) => onChange({ height: v })} />
             </Field>
@@ -560,15 +577,29 @@ function CabinetBlockRow({
               <Field label={`${t("configurator.shelfRun")} (${unit})`}>
                 <NumberInput value={block.length} onChange={(v) => onChange({ length: v })} />
               </Field>
-              {!isFloatingShelf && (
-                <Field label={t("configurator.shelves")}>
-                  <NumberInput value={block.shelves} min={1} max={maxShelves} onChange={(v) => onChange({ shelves: v })} />
-                </Field>
-              )}
+              {!isFloatingShelf &&
+                (isClosetHangers ? (
+                  // Closet Hangers' "shelves" field is really a 1-or-2
+                  // "hanging compartments" dropdown, not a free-typed number
+                  // — verified against the live reference wizard (see
+                  // catalog.ts's CLOSET_HANGER_COMPARTMENT_COUNTS).
+                  <Field label={t("configuratorExtra.hangingCompartments")}>
+                    <Select
+                      value={String(block.shelves)}
+                      onChange={(v) => onChange({ shelves: Number(v) })}
+                      options={CLOSET_HANGER_COMPARTMENT_COUNTS.map((n) => ({ value: String(n), label: String(n) }))}
+                    />
+                    <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hangingCompartmentsHint")}</p>
+                  </Field>
+                ) : (
+                  <Field label={t("configurator.shelves")}>
+                    <NumberInput value={block.shelves} min={1} max={maxShelves} onChange={(v) => onChange({ shelves: v })} />
+                  </Field>
+                ))}
             </>
           )}
 
-          {!linearOnly && block.mode !== "vertical" && (
+          {!linearOnly && effectiveMode !== "vertical" && (
             <Field label={t("configurator.lightType")}>
               <Select
                 value={block.lightType}
@@ -581,7 +612,7 @@ function CabinetBlockRow({
             </Field>
           )}
 
-          {block.mode !== "vertical" && (
+          {effectiveMode !== "vertical" && (
             <Field label={t("configurator.mounting")}>
               <Select
                 value={block.mounting}
@@ -590,7 +621,7 @@ function CabinetBlockRow({
                   onChange(
                     isPuck
                       ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"], puckWatts: puckWattsFor(mounting) }
-                      : defaultLinearPatch(mounting, block.mode)
+                      : defaultLinearPatch(mounting, effectiveMode)
                   );
                 }}
                 options={[
@@ -600,7 +631,7 @@ function CabinetBlockRow({
               />
             </Field>
           )}
-          {block.mode === "vertical" && (
+          {effectiveMode === "vertical" && (
             <Field label={t("configurator.mounting")}>
               <ReadOnly value={t("configurator.recess")} />
             </Field>
@@ -631,7 +662,7 @@ function CabinetBlockRow({
                     const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                     onChange({ linearFamily: v, cct: cct as CabinetBlock["cct"], includeInstallBracket: true });
                   }}
-                  options={linearFamilyOptions(block.mounting, block.mode)}
+                  options={linearFamilyOptions(block.mounting, effectiveMode)}
                 />
               </Field>
               <Field label={t("product.cct")}>
@@ -793,7 +824,7 @@ export function DrawersForm({
             {b.included && (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label={t("configurator.drawerCount")}>
-                  <NumberInput value={b.count} min={1} onChange={(v) => updateBlock(i, { count: v })} />
+                  <NumberInput value={b.count} min={1} max={DEFAULT_COUNT_CAP} onChange={(v) => updateBlock(i, { count: v })} />
                 </Field>
                 <Field label={`${t("configurator.drawerLength")} (${state.unit})`}>
                   <NumberInput value={b.length} onChange={(v) => updateBlock(i, { length: v })} />
