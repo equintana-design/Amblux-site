@@ -6,7 +6,7 @@ import { signOutAction, updateBusinessTypeAction, updateCompanyNameAction } from
 
 const ROLE_LABEL: Record<string, string> = {
   client: "Client",
-  distributor: "Distributor",
+  distributor: "Hardware Distributor",
   admin: "Admin",
 };
 
@@ -106,38 +106,42 @@ export default async function AccountPage({
             </div>
           </form>
 
-          <form action={updateBusinessTypeAction} className="mt-6 flex flex-col gap-2 border-t border-border pt-6 text-sm">
-            <span className="font-medium text-muted">Business type</span>
-            <p className="text-xs text-muted">
-              Used in the configurator&apos;s pricing panel to suggest a resale price range for the lighting portion of a job.
-            </p>
-            <div className="mt-1 flex flex-col gap-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="businessType"
-                  value="manufacturer"
-                  defaultChecked={profile?.business_type === "manufacturer"}
-                />
-                Kitchen Manufacturer
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="businessType"
-                  value="dealer"
-                  defaultChecked={profile?.business_type === "dealer"}
-                />
-                Kitchen Dealer
-              </label>
-            </div>
-            <button
-              type="submit"
-              className="mt-2 w-fit rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
-            >
-              Save
-            </button>
-          </form>
+          {profile?.role === "client" && (
+            <form action={updateBusinessTypeAction} className="mt-6 flex flex-col gap-2 border-t border-border pt-6 text-sm">
+              <span className="font-medium text-muted">Business type</span>
+              <p className="text-xs text-muted">
+                Whether you&apos;re a Kitchen Manufacturer or a Kitchen Dealer — used in the configurator&apos;s pricing
+                panel to recommend a price range to charge your own customer for the lighting portion of a job
+                (it multiplies your Dealer cost by a markup appropriate to your business).
+              </p>
+              <div className="mt-1 flex flex-col gap-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="businessType"
+                    value="manufacturer"
+                    defaultChecked={profile?.business_type === "manufacturer"}
+                  />
+                  Kitchen Manufacturer
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="businessType"
+                    value="dealer"
+                    defaultChecked={profile?.business_type === "dealer"}
+                  />
+                  Kitchen Dealer
+                </label>
+              </div>
+              <button
+                type="submit"
+                className="mt-2 w-fit rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+              >
+                Save
+              </button>
+            </form>
+          )}
 
           <div className="mt-6 border-t border-border pt-6">
             <Link href="/account/update-password" className="text-sm font-medium text-accent-strong hover:underline">
