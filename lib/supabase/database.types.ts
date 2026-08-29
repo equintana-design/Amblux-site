@@ -344,6 +344,7 @@ export type Database = {
       amblux_profiles: {
         Row: {
           approved: boolean
+          business_type: string | null
           company_name: string | null
           created_at: string
           email: string | null
@@ -352,6 +353,7 @@ export type Database = {
         }
         Insert: {
           approved?: boolean
+          business_type?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -360,6 +362,7 @@ export type Database = {
         }
         Update: {
           approved?: boolean
+          business_type?: string | null
           company_name?: string | null
           created_at?: string
           email?: string | null
