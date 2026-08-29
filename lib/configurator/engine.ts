@@ -363,7 +363,7 @@ function pushLinearRows(
  * behind a server boundary later without changing behaviour.
  */
 export function computeBom(state: ConfiguratorState): BomResult {
-  const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library, closetHangers, shoeRack } = state;
+  const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library, closetHangers, shoeRack, vanity } = state;
   const rows: BomRow[] = [];
   let total = 0;
 
@@ -687,6 +687,67 @@ export function computeBom(state: ConfiguratorState): BomResult {
       const activeDrawers = drawers.blocks.filter((block) => block.included).length;
       rows.push(...psuRows(LABELS.zoneNames.drawers, drawerWatts, LABELS.power, drawers.powerType, activeDrawers > 1 ? LABELS.combinedDriver : undefined));
     }
+  }
+
+  // ---- vanity (Bathroom, Stage 4) ----
+  // Each of up to VANITY_MAX_UNITS cabinet units independently turns on
+  // Doors and/or Drawers — verified against bathroomzoneslogic.md's
+  // live-tested spec (see catalog.ts's VANITY_MAX_UNITS comment and
+  // types.ts's VanityUnit). Doors reuses the exact vertical/gable-lighting
+  // math the "blocks" zones use for mode:"vertical" above (both cabinet
+  // sides, always linear), restricted to the door-sensor-only control
+  // family and a power supply that's permanently the real Ultra-thin
+  // driver — Vanity Doors/Drawers have no unlock condition at all, unlike
+  // the Pantry-engine family's global-preference unlock rule, so this
+  // always calls psuRows with kind "ultra" directly rather than reading a
+  // stored powerType (there's no such field on VanityUnit/VanityState to
+  // read). Drawers reuses the same fixed drawer-light math as the
+  // standalone Drawer Lights zone above (no control offered at all, also
+  // always Ultra-thin). Doors and Drawers get their own separate driver
+  // when both are on for the same unit, matching the doc exactly — each
+  // sub-fixture below prices its own independent driver.
+  if (selected.vanity) {
+    vanity.blocks.forEach((u, i) => {
+      if (!u.included) return;
+      const unitZone = `${LABELS.zoneNames.vanity} · ${LABELS.cabinet} ${i + 1}`;
+
+      if (u.doorsInclude) {
+        const zone = `${unitZone} · ${LABELS.vanityDoors}`;
+        const family = getLinearFamily(u.doorsLinearFamily);
+        const sideCount = 2;
+        const lengthM = toMetres(u.doorsHeight, vanity.unit);
+        const watts = lengthM * family.wattsPerMetre * sideCount;
+        total += watts;
+        pushLinearRows(rows, zone, family, u.doorsCct, lengthM, sideCount, u.doorsMounting, {
+          notes: "both sides",
+          includeOptionalAccessory: u.doorsIncludeInstallBracket,
+        });
+        rows.push({ zone, qty: sideCount, sku: EXTENSION_SKU, description: "2m extension cord" });
+        rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
+        const availableControls = zoneControls("vanityDoors", u.doorsControlSystem);
+        rows.push({
+          zone,
+          qty: 1,
+          sku: controlSku(u.doorsControl),
+          description: findControlLabel(availableControls, u.doorsControl) || u.doorsControl,
+        });
+        const receiver = receiverSku(u.doorsControl);
+        if (receiver) {
+          rows.push({ zone, qty: supplyCount(watts, "ultra"), sku: receiver, description: receiverDescription(receiver) });
+        }
+      }
+
+      if (u.drawersInclude) {
+        const zone = `${unitZone} · ${LABELS.vanityDrawers}`;
+        const family = getLinearFamily(u.drawersLinearFamily);
+        const lengthM = toMetres(u.drawersLength, vanity.unit);
+        const watts = lengthM * family.wattsPerMetre * u.drawersCount;
+        total += watts;
+        pushLinearRows(rows, zone, family, u.drawersCct, lengthM, u.drawersCount, u.drawersMounting, { includeAccessories: false });
+        rows.push({ zone, qty: u.drawersCount, sku: EXTENSION_SKU, description: "2m extension cord" });
+        rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
+      }
+    });
   }
 
   return { rows, total: round2(total) };
