@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AccountStatus } from "@/app/components/AccountStatus";
 import { zonesForApplication } from "@/lib/configurator/catalog";
-import { computeBom, consolidateParts } from "@/lib/configurator/engine";
+import { computeBom } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
@@ -202,7 +202,7 @@ export function ConfiguratorClient() {
           <BomSummaryStep bom={bom} project={state.project} />
           <div className="grid gap-6 print:hidden lg:grid-cols-2">
             <PartsList bom={bom} project={state.project} />
-            <PricingPanel parts={consolidateParts(bom)} />
+            <PricingPanel bom={bom} />
           </div>
         </div>
       );
