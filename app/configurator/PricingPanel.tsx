@@ -14,10 +14,12 @@
 // this renders a plain "temporarily unavailable" note rather than
 // crashing or blocking the BOM/parts list, which are unaffected either
 // way since they never depended on this data.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
+import { consolidateParts, consolidatePartsByZone } from "@/lib/configurator/engine";
 import type { PartListLine } from "@/lib/configurator/engine";
+import type { BomResult } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
 
 interface PricingRow {
@@ -31,11 +33,29 @@ function formatCents(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 
-export function PricingPanel({ parts }: { parts: PartListLine[] }) {
+// A Kitchen Manufacturer typically also does the install and carries more
+// of the job (higher markup); a Kitchen Dealer is reselling a more
+// turnkey line (lower markup). Both ranges are meant to cover product
+// cost, labor, and margin together — not separate line items — applied to
+// the viewer's own Dealer-tier cost (see the "estimate" section below).
+const BUSINESS_TYPE_MULTIPLIERS: Record<"manufacturer" | "dealer", [number, number]> = {
+  manufacturer: [2.5, 3],
+  dealer: [1.67, 1.8],
+};
+
+export function PricingPanel({ bom }: { bom: BomResult }) {
   const { user } = useSupabaseUser();
   const t = useTranslations();
+  const parts = useMemo(() => consolidateParts(bom), [bom]);
+  const zoneGroups = useMemo(() => consolidatePartsByZone(bom), [bom]);
   const [rows, setRows] = useState<PricingRow[] | null>(null);
   const [error, setError] = useState(false);
+  const [showZonePricing, setShowZonePricing] = useState(false);
+  const [showEstimate, setShowEstimate] = useState(false);
+  // undefined = not fetched yet, null = fetched but never set on the
+  // account, "manufacturer"/"dealer" = the account's saved choice.
+  const [businessType, setBusinessType] = useState<"manufacturer" | "dealer" | null | undefined>(undefined);
+  const [savingBusinessType, setSavingBusinessType] = useState(false);
   // Every tier now publishes both a CAD and a USD row (the pricing engine
   // computes CAD from the landed-cost ladder, then converts to USD by a
   // straight FX rate) — pick one explicitly rather than letting
@@ -81,6 +101,45 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skuKey]);
 
+  // Only bothers loading the account's saved business type once the
+  // customer actually opens the "help me estimate" section — most quotes
+  // will never touch this, so there's no reason to query it up front.
+  useEffect(() => {
+    if (!showEstimate || !user || businessType !== undefined) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("amblux_profiles")
+      .select("business_type")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const value = data?.business_type;
+        setBusinessType(value === "manufacturer" || value === "dealer" ? value : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEstimate, user, businessType]);
+
+  // Saves straight to amblux_profiles from the client — RLS ("amblux_profiles
+  // are updatable by their owner or by admins") already restricts this to
+  // the signed-in account's own row, the same guarantee the /account page's
+  // server-action form relies on. Optimistic: the UI switches to the
+  // computed range immediately rather than waiting on the write.
+  const chooseBusinessType = (value: "manufacturer" | "dealer") => {
+    if (!user) return;
+    setBusinessType(value);
+    setSavingBusinessType(true);
+    const supabase = createClient();
+    supabase
+      .from("amblux_profiles")
+      .update({ business_type: value })
+      .eq("id", user.id)
+      .then(() => setSavingBusinessType(false));
+  };
+
   if (parts.length === 0) return null;
 
   if (error) {
@@ -117,6 +176,22 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
       }
     });
     return { total, pricedCount, currency };
+  };
+
+  // Same math as totalFor() above, scoped to one zone's own consolidated
+  // parts instead of the whole project — powers the "pricing per zone"
+  // breakdown.
+  const zoneTotalFor = (zoneParts: PartListLine[], tier: string) => {
+    let total = 0;
+    let pricedCount = 0;
+    zoneParts.forEach((p) => {
+      const row = bySku.get(p.sku)?.find((r) => r.tier === tier && r.currency === currency);
+      if (row) {
+        total += row.price_cents * p.qty;
+        pricedCount += 1;
+      }
+    });
+    return { total, pricedCount };
   };
 
   // RLS (migration fix_pricing_tier_role_mapping) decides which tier rows
@@ -200,6 +275,204 @@ export function PricingPanel({ parts }: { parts: PartListLine[] }) {
               : t("configuratorExtra.signInToSeePrice")}
           </p>
         ) : null}
+      </div>
+
+      {/* Per-product breakdown — the overall totals above answer "what does
+          the whole job cost", but a distributor building a quote also
+          wants "what does each line item cost" without doing the math
+          themselves. One column per tier the viewer can actually see
+          (RLS-gated, same as the totals above), each cell showing unit
+          price and the extended (qty × unit) price. */}
+      {(distributor.pricedCount > 0 || dealer.pricedCount > 0 || msrp.pricedCount > 0) && (
+        <div className="mt-6 border-t border-border pt-4">
+          <h4 className="text-sm font-semibold text-foreground">{t("configuratorExtra.priceBreakdown")}</h4>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[420px] text-left text-xs">
+              <thead>
+                <tr className="text-muted">
+                  <th className="py-1.5 pr-2 font-medium">{t("configurator.part")}</th>
+                  <th className="py-1.5 px-2 text-right font-medium">{t("configurator.qty")}</th>
+                  {distributor.pricedCount > 0 && (
+                    <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.distributorPrice")}</th>
+                  )}
+                  {dealer.pricedCount > 0 && (
+                    <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.dealerPrice")}</th>
+                  )}
+                  {msrp.pricedCount > 0 && (
+                    <th className="py-1.5 pl-2 text-right font-medium">{t("configuratorExtra.msrp")}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {parts.map((p) => {
+                  const priceIn = (tier: string) =>
+                    bySku.get(p.sku)?.find((r) => r.tier === tier && r.currency === currency) ?? null;
+                  const distRow = priceIn("distributor");
+                  const dealerRow = priceIn("dealer");
+                  const msrpRow = priceIn("msrp");
+                  const cell = (row: PricingRow | null) =>
+                    row ? (
+                      <span>
+                        {formatCents(row.price_cents * p.qty, row.currency)}
+                        <span className="ml-1 text-muted">({formatCents(row.price_cents, row.currency)} ea)</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    );
+                  return (
+                    <tr key={p.sku} className="border-t border-border/60">
+                      <td className="py-1.5 pr-2">
+                        <span className="font-medium text-foreground">{p.sku}</span>
+                        <span className="block text-muted">{p.description}</span>
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-foreground">{p.qty}</td>
+                      {distributor.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(distRow)}</td>}
+                      {dealer.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(dealerRow)}</td>}
+                      {msrp.pricedCount > 0 && <td className="py-1.5 pl-2 text-right text-foreground">{cell(msrpRow)}</td>}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pricing per zone — an opt-in breakdown (same tier columns as the
+          per-product table above, just grouped by zone instead of by SKU)
+          for a customer who wants to see what Base Cabinets vs.
+          Undercabinet vs. Drawer Lights costs on its own, not just the
+          project total. */}
+      {(distributor.pricedCount > 0 || dealer.pricedCount > 0 || msrp.pricedCount > 0) && (
+        <div className="mt-6 border-t border-border pt-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={showZonePricing}
+              onChange={(e) => setShowZonePricing(e.target.checked)}
+              className="h-4 w-4 rounded border-border accent-accent"
+            />
+            {t("configuratorExtra.zonePricingQuestion")}
+          </label>
+
+          {showZonePricing && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-xs">
+                <thead>
+                  <tr className="text-muted">
+                    <th className="py-1.5 pr-2 font-medium">{t("configuratorExtra.zoneColumn")}</th>
+                    {distributor.pricedCount > 0 && (
+                      <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.distributorPrice")}</th>
+                    )}
+                    {dealer.pricedCount > 0 && (
+                      <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.dealerPrice")}</th>
+                    )}
+                    {msrp.pricedCount > 0 && (
+                      <th className="py-1.5 pl-2 text-right font-medium">{t("configuratorExtra.msrp")}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {zoneGroups.map((group) => {
+                    const zDist = zoneTotalFor(group.parts, "distributor");
+                    const zDealer = zoneTotalFor(group.parts, "dealer");
+                    const zMsrp = zoneTotalFor(group.parts, "msrp");
+                    const cell = (zoneTotal: { total: number; pricedCount: number }) =>
+                      zoneTotal.pricedCount > 0 ? formatCents(zoneTotal.total, currency) : <span className="text-muted">—</span>;
+                    return (
+                      <tr key={group.zone} className="border-t border-border/60">
+                        <td className="py-1.5 pr-2 font-medium text-foreground">{group.zone}</td>
+                        {distributor.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(zDist)}</td>}
+                        {dealer.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(zDealer)}</td>}
+                        {msrp.pricedCount > 0 && <td className="py-1.5 pl-2 text-right text-foreground">{cell(zMsrp)}</td>}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Estimated total job price for the lighting portion of the job —
+          Dealer-tier cost (what every approved account pays AMBLUX)
+          marked up by a range appropriate to the account's own business
+          type, saved once on their profile so this doesn't have to be
+          re-asked on every project. */}
+      <div className="mt-6 border-t border-border pt-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <input
+            type="checkbox"
+            checked={showEstimate}
+            onChange={(e) => setShowEstimate(e.target.checked)}
+            className="h-4 w-4 rounded border-border accent-accent"
+          />
+          {t("configuratorExtra.estimateQuestion")}
+        </label>
+
+        {showEstimate && (
+          <div className="mt-3 rounded-lg bg-background p-4 text-sm">
+            {!user ? (
+              <p className="text-muted">{t("configuratorExtra.signInForEstimate")}</p>
+            ) : dealer.pricedCount === 0 ? (
+              <p className="text-muted">{t("configuratorExtra.estimateNeedsDealerPricing")}</p>
+            ) : businessType === undefined ? (
+              <p className="text-muted">{t("configuratorExtra.checkingPricing")}</p>
+            ) : businessType === null ? (
+              <div>
+                <p className="text-foreground">{t("configuratorExtra.chooseBusinessType")}</p>
+                <p className="mt-1 text-xs text-muted">{t("configuratorExtra.businessTypeSaveNote")}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => chooseBusinessType("manufacturer")}
+                    className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-accent-strong"
+                  >
+                    {t("configuratorExtra.kitchenManufacturer")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => chooseBusinessType("dealer")}
+                    className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-accent-strong"
+                  >
+                    {t("configuratorExtra.kitchenDealer")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              (() => {
+                const [lowMult, highMult] = BUSINESS_TYPE_MULTIPLIERS[businessType];
+                const low = dealer.total * lowMult;
+                const high = dealer.total * highMult;
+                const typeLabel = t(
+                  businessType === "manufacturer" ? "configuratorExtra.kitchenManufacturer" : "configuratorExtra.kitchenDealer"
+                );
+                return (
+                  <div>
+                    <p className="text-xs text-muted">{t("configuratorExtra.estimateIntro")}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      {t("configuratorExtra.estimatedJobTotal")}: {formatCents(low, dealer.currency)} – {formatCents(high, dealer.currency)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {t("configuratorExtra.estimateBasedOn")
+                        .replace("{cost}", formatCents(dealer.total, dealer.currency))
+                        .replace("{type}", typeLabel)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setBusinessType(null)}
+                      disabled={savingBusinessType}
+                      className="mt-2 text-xs font-medium text-accent-strong hover:underline disabled:opacity-50"
+                    >
+                      {t("configuratorExtra.changeBusinessType")}
+                    </button>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
