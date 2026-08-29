@@ -373,6 +373,8 @@ const en = {
     noZonesForApplication: "More zones for this project type are coming soon — check back after AMBLUX adds them.",
     numberOfRuns: "Number of runs",
     shelfControlGrouping: "Shelf driver & control",
+    hangingCompartments: "Number of hanging compartments",
+    hangingCompartmentsHint: "Whether this cabinet has one continuous hanging section or is split into two — each compartment gets its own shelf-mounted light fixture, and the driver is sized for that count.",
   },
 };
 
@@ -720,6 +722,8 @@ const fr: Messages = {
     noZonesForApplication: "D'autres zones pour ce type de projet arrivent bientôt — revenez après qu'AMBLUX les ajoute.",
     numberOfRuns: "Nombre de sections",
     shelfControlGrouping: "Alimentation et contrôle des tablettes",
+    hangingCompartments: "Nombre de compartiments suspendus",
+    hangingCompartmentsHint: "Si ce meuble a une seule section de suspension continue ou est divisé en deux — chaque compartiment reçoit son propre luminaire monté sur tablette, et le driver est dimensionné en conséquence.",
   },
 };
 
@@ -1061,6 +1065,8 @@ const es: Messages = {
     noZonesForApplication: "Más zonas para este tipo de proyecto llegarán pronto — vuelva a revisar cuando AMBLUX las agregue.",
     numberOfRuns: "Número de tramos",
     shelfControlGrouping: "Alimentación y control de las repisas",
+    hangingCompartments: "Número de compartimentos colgantes",
+    hangingCompartmentsHint: "Si este gabinete tiene una sola sección colgante continua o está dividido en dos — cada compartimento recibe su propia luminaria montada en repisa, y el driver se dimensiona según esa cantidad.",
   },
 };
 
