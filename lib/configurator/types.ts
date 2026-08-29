@@ -4,6 +4,7 @@
 // take this state as input, independent of any UI framework.
 
 import type { ApplicationType, ZoneKey } from "./catalog";
+import { VANITY_MAX_UNITS } from "./catalog";
 
 export type Unit = "in" | "ft" | "cm" | "m";
 export type WattUnit = "W/m" | "W/ft";
@@ -28,6 +29,7 @@ export interface SelectedZones {
   closetHangers: boolean;
   shoeRack: boolean;
   floatingCabinet: boolean;
+  vanity: boolean;
 }
 
 export interface ProjectInfo {
@@ -151,6 +153,57 @@ export interface DrawersState {
   blocks: DrawerBlock[];
 }
 
+// Vanity (Bathroom, Stage 4) — a real composite zone verified against
+// bathroomzoneslogic.md's live-tested spec: each of up to VANITY_MAX_UNITS
+// cabinet units independently turns on a Doors sub-fixture and/or a
+// Drawers sub-fixture, per unit — a vanity project can have Doors only,
+// Drawers only, or both, on any given unit. See catalog.ts's
+// CONTROL_OPTIONS.vanityDoors/VANITY_MAX_UNITS and engine.ts's addVanity().
+export interface VanityUnit {
+  included: boolean;
+
+  // Doors reuses the exact same Vertical Gable Lighting math every other
+  // "blocks" zone uses for mode:"vertical" — always linear, always both
+  // cabinet sides, restricted to the 3 real vertical-capable profiles (see
+  // catalog.ts's VERTICAL_LINEAR_FAMILY_IDS). Vertical/gable lighting is
+  // recess-mount only everywhere else it appears in the app (every one of
+  // those 3 profiles is a recess-mount product) — Doors is the same engine,
+  // so `doorsMounting` is likewise always "recess" in practice (forms.tsx
+  // shows it read-only, never a real choice), kept as a real field only so
+  // a future recess+surface vertical profile is a pure data change, not a
+  // type change.
+  doorsInclude: boolean;
+  doorsMounting: Mounting;
+  doorsHeight: number;
+  doorsLinearFamily: string;
+  doorsCct: "3000" | "4000";
+  // No Kinetic option at all for Doors (catalog.ts's CONTROL_OPTIONS.
+  // vanityDoors has an empty wallControl list) — a door-position sensor has
+  // no motion/touch/app equivalent.
+  doorsControlSystem: "wired" | "wireless";
+  doorsControl: string;
+  // Same optional-accessory opt-out as CabinetBlock/SimpleZoneState — see there.
+  doorsIncludeInstallBracket: boolean;
+
+  // Drawers mirrors the already-shipped Kitchen "Drawer Lights" zone's own
+  // field set/behavior exactly (DrawersState/DrawerBlock above) — a real
+  // linearFamily/mounting/cct picker tied to real SKUs, not the reference
+  // doc's single fully-fixed "Cuttable drawer LED light" description (see
+  // catalog.ts's VANITY_MAX_UNITS comment for why). No control/switch
+  // choice is offered at all for Drawers, matching the doc exactly.
+  drawersInclude: boolean;
+  drawersCount: number;
+  drawersLength: number;
+  drawersLinearFamily: string;
+  drawersMounting: Mounting;
+  drawersCct: "3000" | "4000";
+}
+
+export interface VanityState {
+  unit: Unit;
+  blocks: VanityUnit[];
+}
+
 export interface ConfiguratorState {
   selected: SelectedZones;
   project: ProjectInfo;
@@ -170,6 +223,8 @@ export interface ConfiguratorState {
   // linear-only (see catalog.ts's MAX_SHELVES_BY_ZONE/LINEAR_ONLY_ZONES).
   closetHangers: BlocksState;
   shoeRack: BlocksState;
+  // Vanity (Bathroom, Stage 4) — see VanityState's own comment above.
+  vanity: VanityState;
 }
 
 export interface BomRow {
@@ -267,6 +322,31 @@ function floatingShelfBlockDefault(): CabinetBlock {
   return { ...cappedBlockDefault(1), controlSystem: "wired", control: "motion" };
 }
 
+// A fresh Vanity cabinet unit starts with both Doors and Drawers off (the
+// customer turns on whichever sub-fixture(s) this unit actually has) — but
+// each sub-fixture's own fields already hold sane, real-SKU-backed starting
+// values the moment it's switched on, matching every other zone's pattern.
+// doorsMounting starts (and stays) "recess" — see VanityUnit's comment.
+function vanityUnitDefault(): VanityUnit {
+  return {
+    included: false,
+    doorsInclude: false,
+    doorsMounting: "recess",
+    doorsHeight: 30,
+    doorsLinearFamily: "silicone-6x6",
+    doorsCct: "3000",
+    doorsControlSystem: "wired",
+    doorsControl: "door",
+    doorsIncludeInstallBracket: true,
+    drawersInclude: false,
+    drawersCount: 1,
+    drawersLength: 24,
+    drawersLinearFamily: "rigid-10x15",
+    drawersMounting: "recess",
+    drawersCct: "3000",
+  };
+}
+
 export function defaultConfiguratorState(): ConfiguratorState {
   return {
     selected: {
@@ -283,6 +363,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       closetHangers: false,
       shoeRack: false,
       floatingCabinet: false,
+      vanity: false,
     },
     project: {
       name: "",
@@ -428,6 +509,10 @@ export function defaultConfiguratorState(): ConfiguratorState {
       control: "motion",
       blocks: Array.from({ length: 4 }, blockDefault),
     },
+    vanity: {
+      unit: "in",
+      blocks: Array.from({ length: VANITY_MAX_UNITS }, vanityUnitDefault),
+    },
   };
 }
 
@@ -541,6 +626,11 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
       ...base.shoeRack,
       ...(loaded.shoeRack ?? {}),
       blocks: mergeBlocks(base.shoeRack.blocks, loaded.shoeRack?.blocks, blockDefault),
+    },
+    vanity: {
+      ...base.vanity,
+      ...(loaded.vanity ?? {}),
+      blocks: mergeBlocks(base.vanity.blocks, loaded.vanity?.blocks, vanityUnitDefault),
     },
     drawers: {
       ...base.drawers,
