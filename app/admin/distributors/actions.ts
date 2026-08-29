@@ -50,3 +50,23 @@ export async function setRoleAction(formData: FormData) {
   await supabase.from("amblux_profiles").update({ role }).eq("id", id);
   revalidatePath("/admin/distributors");
 }
+
+// Kitchen Manufacturer vs Kitchen Dealer (migration 0030_business_type) —
+// a Client-account concept the configurator's pricing panel uses for its
+// resale-price estimate. A client can set this themselves from /account,
+// but an admin can also set or clear it here for them directly (e.g. when
+// onboarding an account on their behalf). Unlike role/approved, this
+// column isn't pinned by the amblux_profiles_pin_restricted_columns
+// trigger, so this only needs the admin-only gate requireAdmin() already
+// provides — no separate migration required.
+const VALID_BUSINESS_TYPES = ["manufacturer", "dealer"];
+
+export async function setBusinessTypeAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const id = String(formData.get("id") || "");
+  const raw = String(formData.get("businessType") || "");
+  const businessType = VALID_BUSINESS_TYPES.includes(raw) ? raw : null;
+
+  await supabase.from("amblux_profiles").update({ business_type: businessType }).eq("id", id);
+  revalidatePath("/admin/distributors");
+}
