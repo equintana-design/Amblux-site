@@ -376,11 +376,12 @@ const en = {
     shelfControlGrouping: "Shelf driver & control",
     hangingCompartments: "Number of hanging compartments",
     hangingCompartmentsHint: "Whether this cabinet has one continuous hanging section or is split into two — each compartment gets its own shelf-mounted light fixture, and the driver is sized for that count.",
-    sectionVanityDesc: "Each cabinet unit can have Doors (vertical gable lighting) and/or Drawers (fixed drawer light), independently. Up to 6 cabinet units.",
+    sectionVanityDesc: "Each cabinet unit can have Doors (vertical gable lighting) and/or Drawers (fixed drawer light), independently. Up to 10 cabinet units.",
     vanityDoors: "Doors",
     vanityDrawers: "Drawers",
     ultraLocked: "Ultra-thin power supply (plug & play)",
     vanityUnitNote: "Doors and Drawers each get their own independent driver when turned on for this cabinet.",
+    addAnother: "+ Add another {unit}",
   },
 };
 
@@ -731,11 +732,12 @@ const fr: Messages = {
     shelfControlGrouping: "Alimentation et contrôle des tablettes",
     hangingCompartments: "Nombre de compartiments suspendus",
     hangingCompartmentsHint: "Si ce meuble a une seule section de suspension continue ou est divisé en deux — chaque compartiment reçoit son propre luminaire monté sur tablette, et le driver est dimensionné en conséquence.",
-    sectionVanityDesc: "Chaque meuble peut avoir des Portes (éclairage vertical des façades) et/ou des Tiroirs (éclairage de tiroir fixe), indépendamment. Jusqu’à 6 meubles.",
+    sectionVanityDesc: "Chaque meuble peut avoir des Portes (éclairage vertical des façades) et/ou des Tiroirs (éclairage de tiroir fixe), indépendamment. Jusqu’à 10 meubles.",
     vanityDoors: "Portes",
     vanityDrawers: "Tiroirs",
     ultraLocked: "Bloc d’alimentation ultra-mince (prêt-à-brancher)",
     vanityUnitNote: "Les Portes et les Tiroirs obtiennent chacun leur propre driver indépendant lorsqu’ils sont activés pour ce meuble.",
+    addAnother: "+ Ajouter un autre — {unit}",
   },
 };
 
@@ -1080,11 +1082,12 @@ const es: Messages = {
     shelfControlGrouping: "Alimentación y control de las repisas",
     hangingCompartments: "Número de compartimentos colgantes",
     hangingCompartmentsHint: "Si este gabinete tiene una sola sección colgante continua o está dividido en dos — cada compartimento recibe su propia luminaria montada en repisa, y el driver se dimensiona según esa cantidad.",
-    sectionVanityDesc: "Cada mueble puede tener Puertas (iluminación vertical de gabinete) y/o Cajones (luz de cajón fija), de forma independiente. Hasta 6 muebles.",
+    sectionVanityDesc: "Cada mueble puede tener Puertas (iluminación vertical de gabinete) y/o Cajones (luz de cajón fija), de forma independiente. Hasta 10 muebles.",
     vanityDoors: "Puertas",
     vanityDrawers: "Cajones",
     ultraLocked: "Fuente ultradelgada (enchufar y usar)",
     vanityUnitNote: "Las Puertas y los Cajones obtienen cada uno su propio driver independiente cuando están activados para este mueble.",
+    addAnother: "+ Agregar otro — {unit}",
   },
 };
 
