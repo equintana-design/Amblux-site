@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { BomRow } from "@/lib/configurator/types";
 
 export function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
@@ -40,36 +40,77 @@ export function NumberInput({
   onChange,
   min = 0,
   max,
-  step = 1,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   // Optional hard cap — e.g. Closet Hangers/Shoe Rack's shelf count (see
-  // catalog.ts's MAX_SHELVES_BY_ZONE). Clamped in the change handler, not
-  // just the native min/max attributes, so a typed-in out-of-range value
-  // can't slip through the way it can with the browser's spinner-only
-  // enforcement.
+  // catalog.ts's MAX_SHELVES_BY_ZONE). Clamped when the field is committed
+  // (see below), not on every keystroke, so a value can actually be typed.
   max?: number;
-  step?: number;
 }) {
+  // A plain, always-typable text field rather than the browser's native
+  // type="number" spinner. Confirmed directly by the user that the
+  // spinner-style input (with its up/down arrow buttons) wasn't usable for
+  // typing a value in — with a fully-controlled type="number" input that
+  // clamps to min/max on every keystroke, typing a two-digit number like
+  // "10" against e.g. a max of 4 would snap back to "4" the instant the "1"
+  // made the field temporarily read a value over the cap, before the "0"
+  // could even be typed — effectively making the field untypeable for
+  // anything but single digits. This keeps its own local text buffer while
+  // the customer is typing (so an in-progress keystroke — an empty field, a
+  // value that's momentarily out of range — is never immediately
+  // overwritten) and only clamps to min/max when the field loses focus.
+  const [raw, setRaw] = useState(String(value));
+  // Tracks the last `value` this input has already reconciled against, so
+  // the buffer can be re-synced during render (React's recommended pattern
+  // for "adjust state when a prop changes") instead of in a useEffect —
+  // avoids an extra post-commit render and the cascading-render lint rule.
+  const [lastSeenValue, setLastSeenValue] = useState(value);
+  if (value !== lastSeenValue) {
+    setLastSeenValue(value);
+    // Only actually overwrite the buffer when it doesn't already match —
+    // e.g. `value` just changed because typing "10" itself pushed a new
+    // value up to the parent; the buffer already reads "10" and shouldn't
+    // be clobbered back to a stale rendering of that same number.
+    if (Number(raw) !== value) setRaw(String(value));
+  }
+
+  const clamp = (n: number) => {
+    let next = Math.round(n);
+    if (max !== undefined && next > max) next = max;
+    if (next < min) next = min;
+    return next;
+  };
+
   return (
     <input
-      type="number"
+      type="text"
+      inputMode="numeric"
       className={controlClass}
-      value={value}
-      min={min}
-      max={max}
-      step={step}
+      value={raw}
       onChange={(e) => {
-        if (e.target.value === "") {
-          onChange(0);
-          return;
+        const text = e.target.value;
+        // Only digits are ever kept in the buffer — this is a count/length
+        // field, never negative, in this app. Anything else typed is simply
+        // ignored (the field just doesn't change) rather than surfacing an
+        // error, matching how a plain number field behaves.
+        if (!/^\d*$/.test(text)) return;
+        setRaw(text);
+        if (text !== "") {
+          const parsed = Number(text);
+          // Deliberately NOT clamped here — see the comment above. A value
+          // that's momentarily over/under range while still being typed is
+          // passed straight through so the rest of the app stays live and
+          // in sync as the customer types; clamping only happens on blur.
+          if (Number.isFinite(parsed)) onChange(parsed);
         }
-        let next = Number(e.target.value);
-        if (max !== undefined && next > max) next = max;
-        if (next < min) next = min;
+      }}
+      onBlur={() => {
+        const parsed = Number(raw);
+        const next = raw.trim() === "" || !Number.isFinite(parsed) ? min : clamp(parsed);
         onChange(next);
+        setRaw(String(next));
       }}
     />
   );
