@@ -789,6 +789,33 @@ export function consolidateParts(bom: BomResult): PartListLine[] {
   return Array.from(bySku.values()).sort((a, b) => a.sku.localeCompare(b.sku));
 }
 
+export interface ZonePartsGroup {
+  zone: string;
+  parts: PartListLine[];
+}
+
+/**
+ * Same one-line-per-SKU consolidation as consolidateParts(), but kept
+ * separate per zone rather than rolled up across the whole project — used
+ * by the "pricing per zone" breakdown in PricingPanel.tsx so a customer
+ * can see what each zone (Base Cabinets, Undercabinet, etc.) costs on its
+ * own, not just the project grand total.
+ */
+export function consolidatePartsByZone(bom: BomResult): ZonePartsGroup[] {
+  return groupBom(bom).map((group) => {
+    const bySku = new Map<string, PartListLine>();
+    group.rows.forEach((row) => {
+      const existing = bySku.get(row.sku);
+      if (existing) {
+        existing.qty += row.qty;
+      } else {
+        bySku.set(row.sku, { sku: row.sku, description: row.description, qty: row.qty });
+      }
+    });
+    return { zone: group.zone, parts: Array.from(bySku.values()).sort((a, b) => a.sku.localeCompare(b.sku)) };
+  });
+}
+
 /**
  * Deterministic, human-readable job/quote number so a parts list can be
  * referenced later (by AMBLUX, a distributor, or the end customer) without
