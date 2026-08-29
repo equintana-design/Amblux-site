@@ -47,6 +47,7 @@ import {
   familyLengthsM,
   familyPieceSku,
   getLinearFamily,
+  hasVerticalOption,
   isLinearOnlyZone,
   normalizedPuckFinish,
   puckFaceplateSku,
@@ -511,7 +512,12 @@ export function computeBom(state: ConfiguratorState): BomResult {
         !isFloatingShelf &&
         (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library" || key === "closetHangers" || key === "shoeRack") &&
         b.topLight;
-      const effectiveMode = isFloatingShelf ? "shelf" : b.mode;
+      // Closet Hangers has no shelf-vs-vertical choice at all (verified
+      // against the live reference wizard — a hanging-rod cabinet has
+      // nothing to mount vertical strip lighting to), so it defensively
+      // forces shelf-mode the same way Floating Shelves does, in case a
+      // block somehow still has stale mode:"vertical" data.
+      const effectiveMode = isFloatingShelf || !hasVerticalOption(key) ? "shelf" : b.mode;
       // Vertical Gable Lighting is always installed on both sides of the
       // cabinet (matches Cabinet Light Builder exactly) — length, wattage,
       // fixture count, and purchase-piece counts all double. A floating
