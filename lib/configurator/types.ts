@@ -3,7 +3,6 @@
 // the calculation engine (engine.ts) can be ported as pure functions that
 // take this state as input, independent of any UI framework.
 
-import { maxShelvesFor } from "./catalog";
 import type { ApplicationType, ZoneKey } from "./catalog";
 
 export type Unit = "in" | "ft" | "cm" | "m";
@@ -241,14 +240,22 @@ export function blockDefault(): CabinetBlock {
   };
 }
 
-// Closet Hangers / Shoe Rack start pre-capped at their real max shelf count
-// (see catalog.ts's MAX_SHELVES_BY_ZONE) — blockDefault()'s shelves: 3
-// would already violate that cap before the customer touches anything.
-// lightType is already "linear" from blockDefault(), matching their
-// linear-only restriction (catalog.ts's LINEAR_ONLY_ZONES), so nothing else
-// needs overriding here.
+// Pre-caps a block's starting shelf count at a real max (see catalog.ts's
+// MAX_SHELVES_BY_ZONE) — used where blockDefault()'s shelves: 3 would
+// already violate a lower real cap before the customer touches anything.
 function cappedBlockDefault(maxShelves: number): CabinetBlock {
-  return { ...blockDefault(), shelves: maxShelves };
+  return { ...blockDefault(), shelves: Math.min(3, maxShelves) };
+}
+
+// Closet Hangers' "shelves" field is really "hanging compartments" — a
+// 1-or-2 dropdown, not a free-typed number (see catalog.ts's
+// CLOSET_HANGER_COMPARTMENT_COUNTS) — so a fresh block starts at 1 (a
+// single continuous hanging section), not pre-set to the 2-compartment max
+// the way a generic capped default would. lightType is already "linear"
+// from blockDefault(), matching this zone's linear-only restriction
+// (catalog.ts's LINEAR_ONLY_ZONES), so nothing else needs overriding here.
+function closetHangerBlockDefault(): CabinetBlock {
+  return { ...blockDefault(), shelves: 1 };
 }
 
 // Floating Shelves' own block default: shelves is pre-capped at 1 (see
@@ -395,8 +402,14 @@ export function defaultConfiguratorState(): ConfiguratorState {
     // Open shelving, not cabinets with doors — same reasoning as Floating
     // Shelves' defaults (no sensorInstall, "motion" control since "door"
     // isn't a real option here — see catalog.ts CONTROL_OPTIONS.
-    // closetHangers/.shoeRack). Blocks start pre-capped at the real max
-    // shelf count for each (see catalog.ts's MAX_SHELVES_BY_ZONE).
+    // closetHangers/.shoeRack). Closet Hangers' "shelves" field is really a
+    // 1-or-2 "hanging compartments" dropdown (see catalog.ts's
+    // CLOSET_HANGER_COMPARTMENT_COUNTS), so its blocks use
+    // closetHangerBlockDefault() (starts at 1, not the 2-compartment max).
+    // Shoe Rack's shelf count is a plain free number like Base/Pantry/etc.
+    // (verified against the live reference wizard — it was incorrectly
+    // capped at 2 in an earlier pass before that doc existed), so it uses
+    // the same plain blockDefault() everyone else does.
     closetHangers: {
       unit: "in",
       mounting: "recess",
@@ -404,7 +417,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       group: true,
       powerType: "ultra",
       control: "motion",
-      blocks: Array.from({ length: 4 }, () => cappedBlockDefault(maxShelvesFor("closetHangers")!)),
+      blocks: Array.from({ length: 4 }, closetHangerBlockDefault),
     },
     shoeRack: {
       unit: "in",
@@ -413,7 +426,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       group: true,
       powerType: "ultra",
       control: "motion",
-      blocks: Array.from({ length: 4 }, () => cappedBlockDefault(maxShelvesFor("shoeRack")!)),
+      blocks: Array.from({ length: 4 }, blockDefault),
     },
   };
 }
@@ -522,12 +535,12 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     closetHangers: {
       ...base.closetHangers,
       ...(loaded.closetHangers ?? {}),
-      blocks: mergeBlocks(base.closetHangers.blocks, loaded.closetHangers?.blocks, () => cappedBlockDefault(maxShelvesFor("closetHangers")!)),
+      blocks: mergeBlocks(base.closetHangers.blocks, loaded.closetHangers?.blocks, closetHangerBlockDefault),
     },
     shoeRack: {
       ...base.shoeRack,
       ...(loaded.shoeRack ?? {}),
-      blocks: mergeBlocks(base.shoeRack.blocks, loaded.shoeRack?.blocks, () => cappedBlockDefault(maxShelvesFor("shoeRack")!)),
+      blocks: mergeBlocks(base.shoeRack.blocks, loaded.shoeRack?.blocks, blockDefault),
     },
     drawers: {
       ...base.drawers,
