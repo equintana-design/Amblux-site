@@ -17,7 +17,7 @@ import { PartsList } from "./PartsList";
 import { PricingPanel } from "./PricingPanel";
 import { ProjectInfoStep } from "./ProjectInfoStep";
 import { SaveProjectButton } from "./SaveProjectButton";
-import { BlocksZoneForm, DrawersForm, SimpleZoneForm } from "./forms";
+import { BlocksZoneForm, DrawersForm, SimpleZoneForm, VanityForm } from "./forms";
 import { StepTabs, ZoneSidebar, type WizardStep } from "./ui";
 
 type ZoneStepKey = keyof SelectedZones;
@@ -39,6 +39,7 @@ const ZONE_STEP_ORDER: ZoneStepKey[] = [
   "drawers",
   "highCabinet",
   "floatingCabinet",
+  "vanity",
   "library",
   "closetHangers",
   "shoeRack",
@@ -90,6 +91,7 @@ export function ConfiguratorClient() {
     drawers: { title: t("configurator.zoneNames.drawers") },
     highCabinet: { title: t("configurator.zoneNames.highCabinet") },
     floatingCabinet: { title: t("configurator.zoneNames.floatingCabinet"), allowPuck: false },
+    vanity: { title: t("configurator.zoneNames.vanity") },
     library: { title: t("configurator.zoneNames.library") },
     closetHangers: { title: t("configurator.zoneNames.closetHangers") },
     shoeRack: { title: t("configurator.zoneNames.shoeRack") },
@@ -98,11 +100,11 @@ export function ConfiguratorClient() {
   // The one list every zone-facing UI (step tabs, sidebar tracker, Project
   // Info's zone checklist) filters down to — this is what makes the
   // Application field a real project-type switch instead of descriptive
-  // metadata: Kitchen sees all built zones, Closet/Furniture/Bathroom see
-  // their subset (Bathroom's other 2 reference zones — Vanity, Floating
-  // Cabinet — aren't built yet). See catalog.ts's ZONES_BY_APPLICATION for
-  // the per-project-type list and its comment for how to extend it as more
-  // zones get built.
+  // metadata: Kitchen sees all built zones, Closet/Furniture see their
+  // subset, and Bathroom now has all 3 of its reference zones (High
+  // Cabinet, Floating Cabinet, Vanity — Stage 4, 2026-08-29). See
+  // catalog.ts's ZONES_BY_APPLICATION for the per-project-type list and its
+  // comment for how to extend it as more zones get built.
   const visibleZoneKeys = ZONE_STEP_ORDER.filter((key) => zonesForApplication(state.project.application).includes(key));
 
   const STEPS: WizardStep[] = [
@@ -128,6 +130,10 @@ export function ConfiguratorClient() {
 
   const patchDrawers = (patch: Partial<ConfiguratorState["drawers"]>) => {
     setState((s) => ({ ...s, drawers: { ...s.drawers, ...patch } }));
+  };
+
+  const patchVanity = (patch: Partial<ConfiguratorState["vanity"]>) => {
+    setState((s) => ({ ...s, vanity: { ...s.vanity, ...patch } }));
   };
 
   const patchProject = (patch: Partial<ConfiguratorState["project"]>) => {
@@ -245,6 +251,16 @@ export function ConfiguratorClient() {
             onChange={patchDrawers}
             included={state.selected.drawers}
             onToggleIncluded={(v) => toggleZone("drawers", v)}
+            bom={bom}
+          />
+        );
+      case "vanity":
+        return (
+          <VanityForm
+            state={state.vanity}
+            onChange={patchVanity}
+            included={state.selected.vanity}
+            onToggleIncluded={(v) => toggleZone("vanity", v)}
             bom={bom}
           />
         );
