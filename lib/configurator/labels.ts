@@ -26,6 +26,7 @@ export const LABELS = {
     closetHangers: "Closet Hangers",
     shoeRack: "Shoe Rack",
     floatingCabinet: "Floating Cabinet",
+    vanity: "Vanity",
   },
   selectableWhite: "Selectable White",
   puck: "Puck light",
@@ -50,6 +51,13 @@ export const LABELS = {
   topLightZone: "Top of cabinet",
   placement: "Puck placement",
   placementEachRun: "Puck placement on each shelf/run",
+  // Vanity's two independent per-unit sub-fixtures — see engine.ts's
+  // addVanity() and forms.tsx's VanityForm, both of which build the BOM
+  // zone-row string as `${zone name} · Cabinet N · Doors`/`· Drawers` and
+  // must stay byte-for-byte in sync with each other, hence the shared
+  // constant instead of each file inlining its own literal.
+  vanityDoors: "Doors",
+  vanityDrawers: "Drawers",
 } as const;
 
 export function finishLabel(finish: string): string {
