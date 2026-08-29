@@ -52,6 +52,11 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
   const [error, setError] = useState(false);
   const [showZonePricing, setShowZonePricing] = useState(false);
   const [showEstimate, setShowEstimate] = useState(false);
+  // undefined = not fetched yet, null = signed out or unknown. Business
+  // type is a Client-only concept (Distributor/Admin accounts already buy
+  // at their own tier, not a "Dealer cost to mark up") — this is what the
+  // estimate section below checks before showing the picker or range.
+  const [role, setRole] = useState<string | null | undefined>(undefined);
   // undefined = not fetched yet, null = fetched but never set on the
   // account, "manufacturer"/"dealer" = the account's saved choice.
   const [businessType, setBusinessType] = useState<"manufacturer" | "dealer" | null | undefined>(undefined);
@@ -101,27 +106,30 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skuKey]);
 
-  // Only bothers loading the account's saved business type once the
-  // customer actually opens the "help me estimate" section — most quotes
-  // will never touch this, so there's no reason to query it up front.
+  // Loads role + business type together as soon as a signed-in account is
+  // known — role has to be known before the estimate section can even
+  // decide whether to show the picker or a "Client accounts only" note,
+  // so this can't wait on the customer opening that section first the way
+  // the old business-type-only fetch did.
   useEffect(() => {
-    if (!showEstimate || !user || businessType !== undefined) return;
+    if (!user || role !== undefined) return;
     let cancelled = false;
     const supabase = createClient();
     supabase
       .from("amblux_profiles")
-      .select("business_type")
+      .select("role, business_type")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
         if (cancelled) return;
+        setRole(data?.role ?? null);
         const value = data?.business_type;
         setBusinessType(value === "manufacturer" || value === "dealer" ? value : null);
       });
     return () => {
       cancelled = true;
     };
-  }, [showEstimate, user, businessType]);
+  }, [user, role]);
 
   // Saves straight to amblux_profiles from the client — RLS ("amblux_profiles
   // are updatable by their owner or by admins") already restricts this to
@@ -415,6 +423,10 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
           <div className="mt-3 rounded-lg bg-background p-4 text-sm">
             {!user ? (
               <p className="text-muted">{t("configuratorExtra.signInForEstimate")}</p>
+            ) : role === undefined ? (
+              <p className="text-muted">{t("configuratorExtra.checkingPricing")}</p>
+            ) : role !== "client" ? (
+              <p className="text-muted">{t("configuratorExtra.estimateClientOnly")}</p>
             ) : dealer.pricedCount === 0 ? (
               <p className="text-muted">{t("configuratorExtra.estimateNeedsDealerPricing")}</p>
             ) : businessType === undefined ? (
@@ -459,14 +471,27 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
                         .replace("{cost}", formatCents(dealer.total, dealer.currency))
                         .replace("{type}", typeLabel)}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setBusinessType(null)}
-                      disabled={savingBusinessType}
-                      className="mt-2 text-xs font-medium text-accent-strong hover:underline disabled:opacity-50"
-                    >
-                      {t("configuratorExtra.changeBusinessType")}
-                    </button>
+                    {/* Both types are always shown, the active one visually
+                        marked — clicking the other one switches (and saves)
+                        directly, instead of a generic "Change" link that had
+                        to reset back to the two-button picker above first. */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(["manufacturer", "dealer"] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => chooseBusinessType(type)}
+                          disabled={savingBusinessType || type === businessType}
+                          className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-default ${
+                            type === businessType
+                              ? "border-accent bg-accent/10 text-accent-strong"
+                              : "border-border text-muted hover:border-accent hover:text-accent-strong"
+                          }`}
+                        >
+                          {t(type === "manufacturer" ? "configuratorExtra.kitchenManufacturer" : "configuratorExtra.kitchenDealer")}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 );
               })()
