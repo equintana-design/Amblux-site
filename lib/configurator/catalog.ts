@@ -71,7 +71,7 @@ export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
   kitchen: ["undercabinet", "floating", "wall", "base", "pantry", "toeKick", "crown", "drawers"],
   closets: ["floating", "pantry", "closetHangers", "shoeRack", "toeKick", "crown", "drawers"],
   // Vanity (Stage 4, 2026-08-29) completes Bathroom's 3 reference zones — see
-  // VANITY_MAX_UNITS/CONTROL_OPTIONS.vanityDoors below and engine.ts's
+  // DEFAULT_COUNT_CAP/CONTROL_OPTIONS.vanityDoors below and engine.ts's
   // addVanity() for its own composite Doors+Drawers engine.
   bathroom: ["highCabinet", "floatingCabinet", "vanity"],
   furniture: ["library", "toeKick", "crown"],
@@ -100,8 +100,11 @@ export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
 //     No control/switch choice is offered at all (matches the doc exactly),
 //     and its power supply is also permanently locked to Ultra-thin.
 // Doors and Drawers get their own separate driver when both are turned on
-// for the same cabinet unit (engine.ts prices them independently).
-export const VANITY_MAX_UNITS = 6;
+// for the same cabinet unit (engine.ts prices them independently). Vanity's
+// own "how many units can I add" cap used to be a distinct hardcoded 6 —
+// as of 2026-08-29 it's the same system-wide DEFAULT_COUNT_CAP (10) every
+// other zone's "+ Add another" button uses (see that constant's own
+// comment below), so there's no separate constant here anymore.
 
 // ---------------------------------------------------------------------
 // Per-zone "storage cabinet" engine overrides
@@ -123,6 +126,21 @@ export const VANITY_MAX_UNITS = 6;
 // for Drawer Lights' "number of drawers" field (forms.tsx's DrawersForm) —
 // a generic sane cap for any free-typed "how many of this fixture" count in
 // the wizard, not something specific to shelves.
+//
+// 2026-08-29: also promoted to the single cap for "how many cabinet/shelf/
+// run units can this zone have," replacing what used to be a hardcoded 4
+// (Base/Wall/Pantry/High Cabinet/Library/Closet Hangers/Shoe Rack/Floating
+// Shelves/Drawer Lights all pre-allocated exactly 4 fixed slots with no way
+// to add a 5th) and a separately-hardcoded 6 for Vanity. Every one of those
+// zones now starts a fresh project with just 1 unit and grows its own
+// `blocks` array one at a time via a real "+ Add another ___" button
+// (forms.tsx's BlocksZoneForm/DrawersForm/VanityForm) up to this same cap —
+// one number for every "how many can I add" limit in the wizard, matching
+// the identical cap the shelf/drawer-count fields already used. Toe Kick/
+// Crown Moulding/Floating Cabinet/Undercabinet's "number of runs" field
+// (SimpleZoneState.zoneCount, a typed count rather than an add-button list)
+// was raised to this same cap too, for the same reason — see forms.tsx's
+// SimpleZoneForm and types.ts's simpleDefault()'s zoneLengths sizing.
 export const DEFAULT_COUNT_CAP = 10;
 
 export const MAX_SHELVES_BY_ZONE: Partial<Record<ZoneKey, number>> = {
