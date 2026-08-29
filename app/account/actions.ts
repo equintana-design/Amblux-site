@@ -130,7 +130,13 @@ export async function updateCompanyNameAction(formData: FormData) {
 // used by the configurator's pricing panel to recommend a resale price
 // range for the lighting portion of a job. Saved once here (or inline the
 // first time the account opens that section in the pricing panel) so it
-// doesn't need to be re-asked on every project.
+// doesn't need to be re-asked on every project. Client-account concept
+// only — the /account page already hides this form for Distributor/Admin
+// accounts; this check is defense in depth against a direct form submit,
+// same reasoning as requireAdmin() elsewhere. An admin who wants to set a
+// *client's* business type uses the dedicated control on
+// /admin/distributors instead (setBusinessTypeAction), which isn't
+// restricted to self.
 export async function updateBusinessTypeAction(formData: FormData) {
   const businessType = String(formData.get("businessType") || "");
   const supabase = await createClient();
@@ -139,6 +145,9 @@ export async function updateBusinessTypeAction(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
+
+  const { data: profile } = await supabase.from("amblux_profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "client") redirect("/account");
 
   const value = businessType === "manufacturer" || businessType === "dealer" ? businessType : null;
 
