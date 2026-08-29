@@ -285,67 +285,6 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
         ) : null}
       </div>
 
-      {/* Per-product breakdown — the overall totals above answer "what does
-          the whole job cost", but a distributor building a quote also
-          wants "what does each line item cost" without doing the math
-          themselves. One column per tier the viewer can actually see
-          (RLS-gated, same as the totals above), each cell showing unit
-          price and the extended (qty × unit) price. */}
-      {(distributor.pricedCount > 0 || dealer.pricedCount > 0 || msrp.pricedCount > 0) && (
-        <div className="mt-6 border-t border-border pt-4">
-          <h4 className="text-sm font-semibold text-foreground">{t("configuratorExtra.priceBreakdown")}</h4>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[420px] text-left text-xs">
-              <thead>
-                <tr className="text-muted">
-                  <th className="py-1.5 pr-2 font-medium">{t("configurator.part")}</th>
-                  <th className="py-1.5 px-2 text-right font-medium">{t("configurator.qty")}</th>
-                  {distributor.pricedCount > 0 && (
-                    <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.distributorPrice")}</th>
-                  )}
-                  {dealer.pricedCount > 0 && (
-                    <th className="py-1.5 px-2 text-right font-medium">{t("configuratorExtra.dealerPrice")}</th>
-                  )}
-                  {msrp.pricedCount > 0 && (
-                    <th className="py-1.5 pl-2 text-right font-medium">{t("configuratorExtra.msrp")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {parts.map((p) => {
-                  const priceIn = (tier: string) =>
-                    bySku.get(p.sku)?.find((r) => r.tier === tier && r.currency === currency) ?? null;
-                  const distRow = priceIn("distributor");
-                  const dealerRow = priceIn("dealer");
-                  const msrpRow = priceIn("msrp");
-                  const cell = (row: PricingRow | null) =>
-                    row ? (
-                      <span>
-                        {formatCents(row.price_cents * p.qty, row.currency)}
-                        <span className="ml-1 text-muted">({formatCents(row.price_cents, row.currency)} ea)</span>
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    );
-                  return (
-                    <tr key={p.sku} className="border-t border-border/60">
-                      <td className="py-1.5 pr-2">
-                        <span className="font-medium text-foreground">{p.sku}</span>
-                        <span className="block text-muted">{p.description}</span>
-                      </td>
-                      <td className="py-1.5 px-2 text-right text-foreground">{p.qty}</td>
-                      {distributor.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(distRow)}</td>}
-                      {dealer.pricedCount > 0 && <td className="py-1.5 px-2 text-right text-foreground">{cell(dealerRow)}</td>}
-                      {msrp.pricedCount > 0 && <td className="py-1.5 pl-2 text-right text-foreground">{cell(msrpRow)}</td>}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Pricing per zone — an opt-in breakdown (same tier columns as the
           per-product table above, just grouped by zone instead of by SKU)
           for a customer who wants to see what Base Cabinets vs.
