@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/app/components/SiteHeader";
 import { createClient } from "@/lib/supabase/server";
-import { signOutAction, updateCompanyNameAction } from "./actions";
+import { signOutAction, updateBusinessTypeAction, updateCompanyNameAction } from "./actions";
 
 const ROLE_LABEL: Record<string, string> = {
   client: "Client",
@@ -28,7 +28,7 @@ export default async function AccountPage({
   // this safe, though .eq below keeps the query's intent explicit.
   const { data: profile } = await supabase
     .from("amblux_profiles")
-    .select("role, company_name, approved")
+    .select("role, company_name, approved, business_type")
     .eq("id", user.id)
     .single();
 
@@ -104,6 +104,39 @@ export default async function AccountPage({
                 Save
               </button>
             </div>
+          </form>
+
+          <form action={updateBusinessTypeAction} className="mt-6 flex flex-col gap-2 border-t border-border pt-6 text-sm">
+            <span className="font-medium text-muted">Business type</span>
+            <p className="text-xs text-muted">
+              Used in the configurator&apos;s pricing panel to suggest a resale price range for the lighting portion of a job.
+            </p>
+            <div className="mt-1 flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="businessType"
+                  value="manufacturer"
+                  defaultChecked={profile?.business_type === "manufacturer"}
+                />
+                Kitchen Manufacturer
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="businessType"
+                  value="dealer"
+                  defaultChecked={profile?.business_type === "dealer"}
+                />
+                Kitchen Dealer
+              </label>
+            </div>
+            <button
+              type="submit"
+              className="mt-2 w-fit rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+            >
+              Save
+            </button>
           </form>
 
           <div className="mt-6 border-t border-border pt-6">
