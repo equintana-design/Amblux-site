@@ -27,6 +27,8 @@ import type {
   DrawersState,
   SimpleZoneState,
   Unit,
+  VanityState,
+  VanityUnit,
 } from "@/lib/configurator/types";
 import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
 import { CalculatedSolution, Field, NumberInput, ReadOnly, Section, Select, Toggle } from "./ui";
@@ -881,5 +883,231 @@ export function DrawersForm({
       )}
       <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={sharedRows} />
     </Section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Vanity (Bathroom, Stage 4) — a real composite zone: each of up to
+// VANITY_MAX_UNITS cabinet units independently turns on a Doors sub-fixture
+// (Vertical Gable Lighting engine, always recess/linear, door-sensor-only
+// control, permanently locked Ultra-thin power) and/or a Drawers
+// sub-fixture (same real linearFamily/mounting/cct picker as the
+// already-shipped Kitchen Drawer Lights zone, no control offered,
+// permanently locked Ultra-thin power) — see catalog.ts's
+// CONTROL_OPTIONS.vanityDoors/VANITY_MAX_UNITS and engine.ts's addVanity().
+// ---------------------------------------------------------------------
+
+export function VanityForm({
+  state,
+  onChange,
+  included,
+  onToggleIncluded,
+  bom,
+}: {
+  state: VanityState;
+  onChange: (patch: Partial<VanityState>) => void;
+  included: boolean;
+  onToggleIncluded: (v: boolean) => void;
+  bom: BomResult;
+}) {
+  const t = useTranslations();
+  const zoneLabel = LABELS.zoneNames.vanity;
+  const sharedRows = bom.rows.filter((r) => r.zone === zoneLabel);
+  const updateUnit = (index: number, patch: Partial<VanityUnit>) => {
+    const blocks = state.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b));
+    onChange({ blocks });
+  };
+
+  return (
+    <Section
+      title={t("configurator.zoneNames.vanity")}
+      description={t("configuratorExtra.sectionVanityDesc")}
+      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+    >
+      <Field label={t("configurator.units")}>
+        <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
+      </Field>
+
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        {state.blocks.map((b, i) => (
+          <VanityUnitRow key={i} index={i} unit={state.unit} block={b} onChange={(patch) => updateUnit(i, patch)} />
+        ))}
+      </div>
+
+      {state.blocks.map((b, i) => (
+        <div key={`sol-${i}`} className="sm:col-span-2 flex flex-col gap-4">
+          {b.doorsInclude && (
+            <CalculatedSolution
+              heading={t("configurator.calculate")}
+              title={`${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityDoors}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityDoors}`)}
+            />
+          )}
+          {b.drawersInclude && (
+            <CalculatedSolution
+              heading={t("configurator.calculate")}
+              title={`${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityDrawers}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityDrawers}`)}
+            />
+          )}
+        </div>
+      ))}
+      <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={sharedRows} />
+    </Section>
+  );
+}
+
+function VanityUnitRow({
+  index,
+  unit,
+  block,
+  onChange,
+}: {
+  index: number;
+  unit: Unit;
+  block: VanityUnit;
+  onChange: (patch: Partial<VanityUnit>) => void;
+}) {
+  const t = useTranslations();
+  return (
+    <div className="rounded-xl border border-border p-4">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-foreground">
+          {t("configurator.cabinet")} {index + 1}
+        </span>
+        <Toggle label={t("configurator.includeBlock")} checked={block.included} onChange={(v) => onChange({ included: v })} />
+      </div>
+      {block.included && (
+        <div className="mt-4 flex flex-col gap-6">
+          <p className="text-xs text-muted">{t("configuratorExtra.vanityUnitNote")}</p>
+
+          <div className="rounded-lg bg-background p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">{t("configuratorExtra.vanityDoors")}</span>
+              <Toggle label={t("configurator.includeBlock")} checked={block.doorsInclude} onChange={(v) => onChange({ doorsInclude: v })} />
+            </div>
+            {block.doorsInclude && (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label={`${t("configurator.height")} (${unit})`}>
+                  <NumberInput value={block.doorsHeight} onChange={(v) => onChange({ doorsHeight: v })} />
+                </Field>
+                {/* Vertical/gable lighting is recess-mount only everywhere
+                    it appears in the app (see linearFamilyOptions' "vertical"
+                    mode) — Doors is the same engine, so mounting is
+                    read-only here too, never a real choice (see VanityUnit's
+                    doorsMounting comment in types.ts). */}
+                <Field label={t("configurator.mounting")}>
+                  <ReadOnly value={t("configurator.recess")} />
+                </Field>
+                <Field label={t("configurator.linearSolution")}>
+                  <Select
+                    value={block.doorsLinearFamily}
+                    onChange={(v) => {
+                      const cct = familyCcts(getLinearFamily(v))[0] || "3000";
+                      onChange({ doorsLinearFamily: v, doorsCct: cct as VanityUnit["doorsCct"] });
+                    }}
+                    options={linearFamilyOptions("recess", "vertical")}
+                  />
+                </Field>
+                <Field label={t("product.cct")}>
+                  <Select
+                    value={block.doorsCct}
+                    onChange={(v) => onChange({ doorsCct: v as VanityUnit["doorsCct"] })}
+                    options={cctOptionsForFamily(block.doorsLinearFamily)}
+                  />
+                </Field>
+                <Field label={t("configurator.linearWatts")}>
+                  <ReadOnly value={linearWattsLabel(getLinearFamily(block.doorsLinearFamily).wattsPerMetre, unit)} />
+                </Field>
+                {getLinearFamily(block.doorsLinearFamily).installAccessoryOptional && (
+                  <Field label={getLinearFamily(block.doorsLinearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
+                    <Toggle
+                      label={t("configuratorExtra.addToBom")}
+                      checked={block.doorsIncludeInstallBracket}
+                      onChange={(v) => onChange({ doorsIncludeInstallBracket: v })}
+                    />
+                  </Field>
+                )}
+                <Field label={t("configurator.controlSystem")}>
+                  <Select
+                    value={block.doorsControlSystem}
+                    onChange={(v) => {
+                      const system = v as VanityUnit["doorsControlSystem"];
+                      const opts = CONTROL_OPTIONS.vanityDoors?.[system] || [];
+                      onChange({ doorsControlSystem: system, doorsControl: opts[0] || block.doorsControl });
+                    }}
+                    options={controlSystemOptions("vanityDoors", t)}
+                  />
+                </Field>
+                <Field label={t("configurator.switches")}>
+                  <Select
+                    value={block.doorsControl}
+                    onChange={(v) => onChange({ doorsControl: v })}
+                    options={controlOptionsFor("vanityDoors", block.doorsControlSystem)}
+                  />
+                </Field>
+                <Field label={t("configurator.power")}>
+                  <ReadOnly value={t("configuratorExtra.ultraLocked")} />
+                </Field>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg bg-background p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">{t("configuratorExtra.vanityDrawers")}</span>
+              <Toggle label={t("configurator.includeBlock")} checked={block.drawersInclude} onChange={(v) => onChange({ drawersInclude: v })} />
+            </div>
+            {block.drawersInclude && (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label={t("configurator.drawerCount")}>
+                  <NumberInput value={block.drawersCount} min={1} max={DEFAULT_COUNT_CAP} onChange={(v) => onChange({ drawersCount: v })} />
+                </Field>
+                <Field label={`${t("configurator.drawerLength")} (${unit})`}>
+                  <NumberInput value={block.drawersLength} onChange={(v) => onChange({ drawersLength: v })} />
+                </Field>
+                <Field label={t("configurator.mounting")}>
+                  <Select
+                    value={block.drawersMounting}
+                    onChange={(v) => {
+                      const mounting = v as VanityUnit["drawersMounting"];
+                      const patch = defaultLinearPatch(mounting);
+                      onChange({ drawersMounting: mounting, drawersLinearFamily: patch.linearFamily, drawersCct: patch.cct });
+                    }}
+                    options={[
+                      { value: "recess", label: t("configurator.recess") },
+                      { value: "surface", label: t("configurator.surface") },
+                    ]}
+                  />
+                </Field>
+                <Field label={t("configurator.linearSolution")}>
+                  <Select
+                    value={block.drawersLinearFamily}
+                    onChange={(v) => {
+                      const cct = familyCcts(getLinearFamily(v))[0] || "3000";
+                      onChange({ drawersLinearFamily: v, drawersCct: cct as VanityUnit["drawersCct"] });
+                    }}
+                    options={linearFamilyOptions(block.drawersMounting)}
+                  />
+                </Field>
+                <Field label={t("product.cct")}>
+                  <Select
+                    value={block.drawersCct}
+                    onChange={(v) => onChange({ drawersCct: v as VanityUnit["drawersCct"] })}
+                    options={cctOptionsForFamily(block.drawersLinearFamily)}
+                  />
+                </Field>
+                <Field label={t("configurator.linearWatts")}>
+                  <ReadOnly value={linearWattsLabel(getLinearFamily(block.drawersLinearFamily).wattsPerMetre, unit)} />
+                </Field>
+                <Field label={t("configurator.power")}>
+                  <ReadOnly value={t("configuratorExtra.ultraLocked")} />
+                </Field>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
