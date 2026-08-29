@@ -303,7 +303,7 @@ export function ConfiguratorClient() {
       </header>
 
       <div className="bg-foreground text-white print:hidden">
-        <div className="mx-auto w-full max-w-6xl px-6 py-10">
+        <div className="mx-auto w-full max-w-7xl px-6 py-10">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent-soft">{t("configurator.kicker")}</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">{t("configurator.title")}</h1>
           <p className="mt-3 max-w-2xl text-white/70">{t("configurator.intro")}</p>
@@ -325,7 +325,7 @@ export function ConfiguratorClient() {
         <StepTabs steps={STEPS} activeKey={activeStep} onSelect={(key) => setActiveStep(key as StepKey)} />
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-6 py-10">
+      <div className="mx-auto w-full max-w-7xl px-6 py-10">
         {activeStep === "summary" ? (
           renderStepContent()
         ) : (
