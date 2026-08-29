@@ -3,6 +3,12 @@
 import { consolidateParts, generateJobNumber, hashBom } from "@/lib/configurator/engine";
 import type { BomResult, ProjectInfo } from "@/lib/configurator/types";
 import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
+import { bestTierPrice, usePricingRows } from "./usePricingRows";
+
+// CSV export always prices in CAD — the business's primary pricing
+// currency (see PricingPanel.tsx) — independent of any currency toggle a
+// viewer might have set elsewhere in the page.
+const CSV_CURRENCY = "CAD" as const;
 
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
@@ -23,18 +29,47 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
   const parts = consolidateParts(bom);
   const jobNumber = generateJobNumber(project.name, hashBom(bom));
   const t: TFunction = useTranslations();
+  const { rows: pricingRows } = usePricingRows(parts.map((p) => p.sku));
 
   if (parts.length === 0) return null;
 
   const handleExport = () => {
-    downloadCsv(`${jobNumber}-parts-list.csv`, [
+    // Only attach price columns if at least one line actually priced —
+    // still-loading (rows === null), an RLS-empty result (signed out, or
+    // an account with no visible tier), and a fetch error all fall back to
+    // the plain SKU/description/qty CSV rather than a column of dashes.
+    const priced = parts.map((p) => bestTierPrice(pricingRows, p.sku, CSV_CURRENCY));
+    const hasPricing = priced.some((p) => p !== null);
+
+    const header = hasPricing
+      ? ["SKU", t("configuratorExtra.description"), t("configurator.qty"), t("configuratorExtra.unitPrice"), t("configuratorExtra.totalPrice")]
+      : ["SKU", t("configuratorExtra.description"), t("configurator.qty")];
+
+    let grandTotal = 0;
+    const partRows = parts.map((p, i) => {
+      if (!hasPricing) return [p.sku, p.description, String(p.qty)];
+      const price = priced[i];
+      if (!price) return [p.sku, p.description, String(p.qty), "—", "—"];
+      const unit = price.price_cents / 100;
+      const lineTotal = unit * p.qty;
+      grandTotal += lineTotal;
+      return [p.sku, p.description, String(p.qty), unit.toFixed(2), lineTotal.toFixed(2)];
+    });
+
+    const csvRows: string[][] = [
       [t("configuratorExtra.jobNumber"), jobNumber],
       [t("configurator.projectName"), project.name || "—"],
       [t("configurator.client"), project.client || "—"],
+      ...(hasPricing ? [[t("configuratorExtra.currencyLabel"), CSV_CURRENCY]] : []),
       [],
-      ["SKU", t("configuratorExtra.description"), t("configurator.qty")],
-      ...parts.map((p) => [p.sku, p.description, String(p.qty)]),
-    ]);
+      header,
+      ...partRows,
+    ];
+    if (hasPricing) {
+      csvRows.push([], ["", "", "", t("configuratorExtra.grandTotal"), grandTotal.toFixed(2)]);
+    }
+
+    downloadCsv(`${jobNumber}-parts-list.csv`, csvRows);
   };
 
   return (
@@ -74,6 +109,7 @@ export function PartsList({ bom, project }: { bom: BomResult; project: ProjectIn
       </div>
 
       <p className="mt-4 text-xs text-muted">{t("configuratorExtra.oneLinePerPart")}</p>
+      <p className="mt-1 text-xs text-muted">{t("configuratorExtra.csvIncludesPricing")}</p>
     </div>
   );
 }
