@@ -76,20 +76,51 @@ export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
 // ---------------------------------------------------------------------
 // Per-zone "storage cabinet" engine overrides
 // ---------------------------------------------------------------------
-// Both tables default to "no restriction" for any zone not listed — Base/
-// Wall/Pantry/Floating/High Cabinet/Library keep their existing unlimited
-// shelf count and full puck-or-linear choice; only Closet Hangers/Shoe Rack
-// opt into the caps, matching what those fixtures are physically like in
-// the reference doc. Add a zone to either table (or adjust its number) the
-// moment a real AMBLUX product fact requires it — nothing else about
-// engine.ts/forms.tsx needs to change.
+// "Number of shelves" is a real, physically-bounded count everywhere it's a
+// free-typed number (Base, Wall, Pantry, High Cabinet, Library, Shoe Rack)
+// — 2026-08-28: capped at a system-wide 10 (previously unbounded, which let
+// someone type an unrealistic value) per direct request. Closet Hangers is
+// the one confirmed real exception (verified against the live reference
+// wizard, see closetzoneslogic.md): it isn't a free number at all — it's a
+// 2-option dropdown ("1" or "2" hanging compartments), so its cap of 2 stays
+// a distinct, deliberately-lower value here. Shoe Rack was incorrectly
+// capped at 2 in an earlier pass (before the verified doc was available,
+// this session had guessed both closet zones shared the same low cap) —
+// the live wizard confirms Shoe Rack's shelf count is a plain free number
+// like every other zone, so it now falls through to the same 10 as
+// everyone else. See forms.tsx's CabinetBlockRow for Closet Hangers'
+// dropdown UI and CLOSET_HANGER_COMPARTMENT_COUNTS below. Also reused as-is
+// for Drawer Lights' "number of drawers" field (forms.tsx's DrawersForm) —
+// a generic sane cap for any free-typed "how many of this fixture" count in
+// the wizard, not something specific to shelves.
+export const DEFAULT_COUNT_CAP = 10;
+
 export const MAX_SHELVES_BY_ZONE: Partial<Record<ZoneKey, number>> = {
   closetHangers: 2,
-  shoeRack: 2,
 };
 
-export function maxShelvesFor(zone: ZoneKey): number | undefined {
-  return MAX_SHELVES_BY_ZONE[zone];
+export function maxShelvesFor(zone: ZoneKey): number {
+  return MAX_SHELVES_BY_ZONE[zone] ?? DEFAULT_COUNT_CAP;
+}
+
+// Closet Hangers' shelf-count field is a real 2-option dropdown, not a
+// free-typed number — see catalog.ts's MAX_SHELVES_BY_ZONE comment above and
+// forms.tsx's CabinetBlockRow, which renders this as a <Select> instead of
+// a <NumberInput> specifically for this zone.
+export const CLOSET_HANGER_COMPARTMENT_COUNTS = [1, 2] as const;
+
+// Closet Hangers' main light offers a real shelf-vs-vertical choice on
+// every other "storage cabinet" zone (Shelving Cabinet, Shoe Rack, Pantry,
+// High Cabinet, Library) — verified live to be absent specifically for
+// Closet Hangers ("a hanging-rod cabinet has nothing to mount vertical
+// strip lighting to inside it"). See forms.tsx's CabinetBlockRow, which
+// hides the Layout field for this zone the same way it already does for
+// Floating Shelves, and engine.ts's addBlocks(), which defensively forces
+// shelf-mode for this zone too regardless of any stale stored mode.
+export const NO_VERTICAL_OPTION_ZONES: ZoneKey[] = ["closetHangers"];
+
+export function hasVerticalOption(zone: ZoneKey): boolean {
+  return !(NO_VERTICAL_OPTION_ZONES as ZoneKey[]).includes(zone);
 }
 
 export const LINEAR_ONLY_ZONES: ZoneKey[] = ["closetHangers", "shoeRack"];
