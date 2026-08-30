@@ -40,18 +40,26 @@ export function ProjectInfoStep({
   return (
     <div className="flex flex-col gap-6">
       <Section title={t("configurator.project")}>
-        <Field label={t("configurator.projectName")}>
-          <input className={textClass} value={project.name} onChange={(e) => onChange({ name: e.target.value })} />
+        <Field label={t("configurator.projectName")} required>
+          <input
+            className={`${textClass} ${!project.name.trim() ? "border-red-300" : ""}`}
+            value={project.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+          />
         </Field>
-        <Field label={t("configurator.client")}>
-          <input className={textClass} value={project.client} onChange={(e) => onChange({ client: e.target.value })} />
+        <Field label={t("configurator.client")} required>
+          <input
+            className={`${textClass} ${!project.client.trim() ? "border-red-300" : ""}`}
+            value={project.client}
+            onChange={(e) => onChange({ client: e.target.value })}
+          />
         </Field>
         <Field label={t("configurator.location")}>
           <input className={textClass} value={project.location} onChange={(e) => onChange({ location: e.target.value })} />
         </Field>
-        <Field label={t("configurator.providerName")}>
+        <Field label={t("configurator.providerName")} required>
           <input
-            className={textClass}
+            className={`${textClass} ${!project.providerName.trim() ? "border-red-300" : ""}`}
             value={project.providerName}
             onChange={(e) => onChange({ providerName: e.target.value })}
           />
