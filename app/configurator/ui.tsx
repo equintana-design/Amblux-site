@@ -3,10 +3,18 @@
 import { useState, type ReactNode } from "react";
 import type { BomRow } from "@/lib/configurator/types";
 
-export function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+// `required` just renders a red asterisk after the label — a visual cue,
+// not a native HTML `required` attribute (this wizard has no single
+// <form> to submit, so browser-native required validation has nothing to
+// hook into). The actual enforcement is the Save-time check in
+// useSaveQuote.ts, which reuses the exact same three fields.
+export function Field({ label, children, wide, required }: { label: string; children: ReactNode; wide?: boolean; required?: boolean }) {
   return (
     <label className={`flex flex-col gap-1.5 text-sm ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="font-medium text-muted">{label}</span>
+      <span className="font-medium text-muted">
+        {label}
+        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+      </span>
       {children}
     </label>
   );
