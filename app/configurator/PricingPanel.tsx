@@ -53,9 +53,13 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
   const [showZonePricing, setShowZonePricing] = useState(false);
   const [showEstimate, setShowEstimate] = useState(false);
   // undefined = not fetched yet, null = signed out or unknown. Business
-  // type is a Client-only concept (Distributor/Admin accounts already buy
-  // at their own tier, not a "Dealer cost to mark up") — this is what the
-  // estimate section below checks before showing the picker or range.
+  // type started as a Client-only concept (a Distributor already buys at
+  // their own tier, not a "Dealer cost to mark up") — Admin was added to
+  // the allowed roles per the user's explicit request ("I have to be able
+  // to see all and have full access"), so an Admin account can now open
+  // this section too and pick/save its own business type just like a
+  // Client would. This is what the estimate section below checks before
+  // showing the picker or range.
   const [role, setRole] = useState<string | null | undefined>(undefined);
   // undefined = not fetched yet, null = fetched but never set on the
   // account, "manufacturer"/"dealer" = the account's saved choice.
@@ -364,7 +368,7 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
               <p className="text-muted">{t("configuratorExtra.signInForEstimate")}</p>
             ) : role === undefined ? (
               <p className="text-muted">{t("configuratorExtra.checkingPricing")}</p>
-            ) : role !== "client" ? (
+            ) : role !== "client" && role !== "admin" ? (
               <p className="text-muted">{t("configuratorExtra.estimateClientOnly")}</p>
             ) : dealer.pricedCount === 0 ? (
               <p className="text-muted">{t("configuratorExtra.estimateNeedsDealerPricing")}</p>
