@@ -96,6 +96,17 @@ export function ConfiguratorClient() {
     setIsDirty(false);
   }
 
+  // Shared "a save just completed" handler — used by every Save entry
+  // point (the header's compact button, Project Info's full Saved
+  // Projects panel, and now the per-zone Save button rendered right under
+  // each zone's "Include this zone" toggle — see zoneSaveSlot below) so
+  // there's exactly one place that reacts to a successful save instead of
+  // three copies of the same two-line lambda.
+  function handleQuoteSaved(id: string) {
+    setQuoteId(id);
+    markSaved();
+  }
+
   // Used for loading a saved project or starting a fresh one — both
   // replace `state` wholesale, and the replacement itself should count as
   // already "in sync" rather than dirty (nothing has actually diverged
@@ -120,6 +131,18 @@ export function ConfiguratorClient() {
   }, []);
 
   const bom = useMemo(() => computeBom(state), [state]);
+
+  // Rendered inside every zone form (SimpleZoneForm/BlocksZoneForm/
+  // DrawersForm/VanityForm — see forms.tsx's `saveSlot` prop), stacked
+  // right under that zone's "Include this zone" toggle. Per the user's
+  // explicit request: the header's Save button was there all along, but
+  // it wasn't obvious enough while working through an individual zone —
+  // this puts a real Save button in the same spot on every single zone
+  // step, not just Project Info. It's the exact same SaveProjectButton
+  // component the header uses (same save-in-progress/error/missing-fields
+  // states), just rendered a second time in a more visible spot; saving
+  // from here or from the header updates the same one saved project.
+  const zoneSaveSlot = <SaveProjectButton state={state} bom={bom} quoteId={quoteId} onSaved={handleQuoteSaved} />;
 
   // The sidebar used to hardcode "Kitchen only" here since that was the
   // only project type the wizard actually supported — now that Application
@@ -229,10 +252,7 @@ export function ConfiguratorClient() {
           state={state}
           bom={bom}
           quoteId={quoteId}
-          onSaved={(id) => {
-            setQuoteId(id);
-            markSaved();
-          }}
+          onSaved={handleQuoteSaved}
           onLoad={(id, loaded) => {
             loadState(loaded, id);
             // Jump straight to the summary so loading a saved project
@@ -277,6 +297,7 @@ export function ConfiguratorClient() {
             included={state.selected[activeStep]}
             onToggleIncluded={(v) => toggleZone(activeStep, v)}
             bom={bom}
+            saveSlot={zoneSaveSlot}
           />
         );
       case "base":
@@ -296,6 +317,7 @@ export function ConfiguratorClient() {
             included={state.selected[activeStep]}
             onToggleIncluded={(v) => toggleZone(activeStep, v)}
             bom={bom}
+            saveSlot={zoneSaveSlot}
           />
         );
       case "drawers":
@@ -306,6 +328,7 @@ export function ConfiguratorClient() {
             included={state.selected.drawers}
             onToggleIncluded={(v) => toggleZone("drawers", v)}
             bom={bom}
+            saveSlot={zoneSaveSlot}
           />
         );
       case "vanity":
@@ -316,6 +339,7 @@ export function ConfiguratorClient() {
             included={state.selected.vanity}
             onToggleIncluded={(v) => toggleZone("vanity", v)}
             bom={bom}
+            saveSlot={zoneSaveSlot}
           />
         );
       default:
@@ -349,15 +373,7 @@ export function ConfiguratorClient() {
               ))}
             </div>
             <div className="print:hidden">
-              <SaveProjectButton
-                state={state}
-                bom={bom}
-                quoteId={quoteId}
-                onSaved={(id) => {
-                  setQuoteId(id);
-                  markSaved();
-                }}
-              />
+              <SaveProjectButton state={state} bom={bom} quoteId={quoteId} onSaved={handleQuoteSaved} />
             </div>
             {isDirty ? (
               <span className="hidden shrink-0 text-xs font-medium text-accent-strong sm:inline">

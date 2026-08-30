@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   CLOSET_HANGER_COMPARTMENT_COUNTS,
   CONTROL_LABEL,
@@ -152,6 +153,7 @@ export function SimpleZoneForm({
   included,
   onToggleIncluded,
   bom,
+  saveSlot,
 }: {
   zoneKey: "undercabinet" | "toeKick" | "crown" | "floatingCabinet";
   title: string;
@@ -161,6 +163,11 @@ export function SimpleZoneForm({
   included: boolean;
   onToggleIncluded: (v: boolean) => void;
   bom: BomResult;
+  // A ready-to-render Save button, passed down from ConfiguratorClient
+  // (see its zoneSaveSlot) and shown right under this zone's "Include
+  // this zone" toggle — per the user's request to make Save visible on
+  // every zone step, not only in the header or on Project Info.
+  saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
   // Toe Kick / Crown Moulding / Floating Cabinet now support 1-4 runs
@@ -185,7 +192,12 @@ export function SimpleZoneForm({
     <Section
       title={title}
       description={t("configuratorExtra.sectionSimpleDesc")}
-      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+      headerRight={
+        <div className="flex flex-col items-end gap-2">
+          <Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />
+          {saveSlot}
+        </div>
+      }
     >
       {allowPuck && (
         <Field label={t("configurator.lightType")}>
@@ -368,6 +380,7 @@ export function BlocksZoneForm({
   included,
   onToggleIncluded,
   bom,
+  saveSlot,
 }: {
   zoneKey: "base" | "wall" | "floating" | "pantry" | "highCabinet" | "library" | "closetHangers" | "shoeRack";
   title: string;
@@ -376,6 +389,7 @@ export function BlocksZoneForm({
   included: boolean;
   onToggleIncluded: (v: boolean) => void;
   bom: BomResult;
+  saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
   // Floating Shelves is its own zone/step now (previously a mode switch
@@ -424,7 +438,12 @@ export function BlocksZoneForm({
     <Section
       title={title}
       description={t("configuratorExtra.sectionBlocksDesc")}
-      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+      headerRight={
+        <div className="flex flex-col items-end gap-2">
+          <Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />
+          {saveSlot}
+        </div>
+      }
     >
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
@@ -828,12 +847,14 @@ export function DrawersForm({
   included,
   onToggleIncluded,
   bom,
+  saveSlot,
 }: {
   state: DrawersState;
   onChange: (patch: Partial<DrawersState>) => void;
   included: boolean;
   onToggleIncluded: (v: boolean) => void;
   bom: BomResult;
+  saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
   const zoneLabel = LABELS.zoneNames.drawers;
@@ -847,7 +868,12 @@ export function DrawersForm({
     <Section
       title={t("configurator.zoneNames.drawers")}
       description={t("configuratorExtra.sectionDrawersDesc")}
-      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+      headerRight={
+        <div className="flex flex-col items-end gap-2">
+          <Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />
+          {saveSlot}
+        </div>
+      }
     >
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
@@ -954,12 +980,14 @@ export function VanityForm({
   included,
   onToggleIncluded,
   bom,
+  saveSlot,
 }: {
   state: VanityState;
   onChange: (patch: Partial<VanityState>) => void;
   included: boolean;
   onToggleIncluded: (v: boolean) => void;
   bom: BomResult;
+  saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
   const zoneLabel = LABELS.zoneNames.vanity;
@@ -973,7 +1001,12 @@ export function VanityForm({
     <Section
       title={t("configurator.zoneNames.vanity")}
       description={t("configuratorExtra.sectionVanityDesc")}
-      headerRight={<Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />}
+      headerRight={
+        <div className="flex flex-col items-end gap-2">
+          <Toggle label={t("configurator.include")} checked={included} onChange={onToggleIncluded} />
+          {saveSlot}
+        </div>
+      }
     >
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
