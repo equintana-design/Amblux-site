@@ -21,7 +21,7 @@ export function SaveProjectButton({
   onSaved: (id: string, jobNumber: string) => void;
 }) {
   const t = useTranslations();
-  const { user, saving, error, lastSavedJob, save } = useSaveQuote({ state, bom, quoteId, onSaved });
+  const { user, saving, error, missingRequiredFields, lastSavedJob, save } = useSaveQuote({ state, bom, quoteId, onSaved });
 
   if (!user) return null;
 
@@ -37,6 +37,9 @@ export function SaveProjectButton({
       </button>
       {lastSavedJob ? <span className="hidden text-xs text-muted sm:inline">{t("configuratorExtra.savedAs").replace("{job}", lastSavedJob)}</span> : null}
       {error ? <span className="hidden text-xs text-red-600 sm:inline">{t("configuratorExtra.saveError")}</span> : null}
+      {missingRequiredFields ? (
+        <span className="hidden text-xs text-red-600 sm:inline">{t("configuratorExtra.requiredFieldsMissing")}</span>
+      ) : null}
     </div>
   );
 }
