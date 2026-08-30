@@ -47,7 +47,7 @@ export function SavedProjectsPanel({
   onLoad: (id: string, state: ConfiguratorState) => void;
 }) {
   const t = useTranslations();
-  const { user, saving, error, lastSavedJob, save } = useSaveQuote({ state, bom, quoteId, onSaved });
+  const { user, saving, error, missingRequiredFields, lastSavedJob, save } = useSaveQuote({ state, bom, quoteId, onSaved });
   const [quotes, setQuotes] = useState<QuoteSummary[] | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -118,6 +118,9 @@ export function SavedProjectsPanel({
         </p>
       ) : null}
       {error ? <p className="mt-3 text-xs text-red-600">{t("configuratorExtra.saveError")}</p> : null}
+      {missingRequiredFields ? (
+        <p className="mt-3 text-xs text-red-600">{t("configuratorExtra.requiredFieldsMissing")}</p>
+      ) : null}
       {deleteError ? <p className="mt-3 text-xs text-red-600">{t("configuratorExtra.deleteError")}</p> : null}
 
       <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
