@@ -58,18 +58,29 @@ export function ProductHero({ page }: { page: ProductPage }) {
   const applications = localize((page.applications ?? []) as string[], page.translations, locale, "applications");
 
   // Wireless Sensor Switches and Wireless Dimming — Kinetic RF & Bluetooth
-  // App each ship a receiver that's always required alongside whichever
-  // controller is picked (see migration 0017) — never an alternative
-  // "Control type" choice. Variants tagged variant_options.role ===
-  // "receiver" are pulled out of the selectable button group entirely and
-  // shown as a fixed, always-included part instead — a "double selection":
-  // one fixed receiver + one picked controller.
+  // App each ship a receiver variant (variant_options.role === "receiver")
+  // alongside their switch/remote variants on the same page. Until 2026-09
+  // this page pulled the receiver out of the selectable button group
+  // entirely and force-added it to the project alongside whatever switch
+  // was picked (see migration 0017) — modeling the real requirement that a
+  // wireless/Kinetic switch needs its own receiver, the same pairing the
+  // Configurator's engine still always applies for a complete zone spec.
+  // But on this page — the no-account, pick-exact-SKUs "Project" flow — the
+  // user explicitly asked to be able to add just one of the two: ordering a
+  // single replacement receiver, or a single replacement switch, without
+  // the other one tagging along and inflating the count. So the receiver is
+  // now a normal, independently selectable variant like every other option
+  // on this axis (it already had its own `type: "Receiver"` value here),
+  // and "Add to project" adds only whichever one variant is currently
+  // selected — same as every other product page. `receiverVariant` is kept
+  // only to power the informational reminder below, not to change what
+  // gets added.
   const receiverVariant = variants.find((v) => (v.variant_options as Record<string, string> | null)?.role === "receiver");
-  const controllerVariants = receiverVariant ? variants.filter((v) => v.sku !== receiverVariant.sku) : variants;
+  const isReceiverSelected = receiverVariant?.sku === selected.sku;
 
   function pickAxisValue(axisKey: string, value: string) {
     const nextValues = { ...currentOptions, [axisKey]: value };
-    const exact = findVariantForAxisValues(controllerVariants, axes, nextValues);
+    const exact = findVariantForAxisValues(variants, axes, nextValues);
     if (exact) {
       setSelectedSku(exact.sku);
       return;
@@ -77,20 +88,12 @@ export function ProductHero({ page }: { page: ProductPage }) {
     // No exact combo (e.g. a length only offered at one colour temperature) —
     // fall back to the first variant that at least matches the axis just
     // clicked, so the click always does something rather than going dead.
-    const fallback = controllerVariants.find((v) => (v.variant_options as Record<string, string> | null)?.[axisKey] === value);
+    const fallback = variants.find((v) => (v.variant_options as Record<string, string> | null)?.[axisKey] === value);
     if (fallback) setSelectedSku(fallback.sku);
   }
 
   function handleAddToProject() {
     addItem({ sku: selected.sku, label: selected.label, pageSlug: page.slug, imageUrl: heroImage ?? null });
-    if (receiverVariant) {
-      addItem({
-        sku: receiverVariant.sku,
-        label: receiverVariant.label,
-        pageSlug: page.slug,
-        imageUrl: receiverVariant.image_url ?? page.hero_image_url ?? null,
-      });
-    }
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1800);
   }
@@ -105,9 +108,9 @@ export function ProductHero({ page }: { page: ProductPage }) {
       `${t("product.emailIntro")} ${name}.`,
       "",
       `${t("product.emailVariant")}: ${selectedSku}`,
+      "",
+      t("product.emailAttach"),
     ];
-    if (receiverVariant) lines.push(`${t("wireless.receiverAlwaysRequired")}: ${receiverVariant.sku}`);
-    lines.push("", t("product.emailAttach"));
     const body = encodeURIComponent(lines.join("\n"));
     if (typeof window !== "undefined") window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
@@ -164,7 +167,7 @@ export function ProductHero({ page }: { page: ProductPage }) {
                   <div key={axis.key} className="grid grid-cols-[minmax(0,110px)_1fr] items-center gap-3">
                     <span className="text-sm text-muted">{axis.label}</span>
                     <div className="flex flex-wrap gap-2">
-                      {axisValues(controllerVariants, axis.key).map((value) => {
+                      {axisValues(variants, axis.key).map((value) => {
                         const active = currentOptions[axis.key] === value;
                         return (
                           <button
@@ -188,17 +191,16 @@ export function ProductHero({ page }: { page: ProductPage }) {
               </div>
             </div>
             <p className="mt-4 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-4 text-sm print:mt-0 print:border-0 print:pt-0">
-              <span className="text-muted">{receiverVariant ? t("wireless.selectedController") : t("product.selected")}</span>
+              <span className="text-muted">{t("product.selected")}</span>
               <code className="break-all font-medium text-foreground">{selectedSku}</code>
             </p>
-            {receiverVariant ? (
-              <p className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-2 text-sm print:border-0 print:pt-0">
-                <span className="text-muted">{t("wireless.receiverAlwaysRequired")}</span>
-                <code className="break-all font-medium text-foreground">{receiverVariant.sku}</code>
-              </p>
-            ) : null}
             <p className="mt-2 text-xs text-muted">
-              {receiverVariant ? t("wireless.receiverNote") : t("product.availability")}
+              {/* A wireless/Kinetic switch still genuinely needs its own
+                  receiver to work — this is just a reminder, not a forced
+                  add. Only shown while a switch (not the receiver itself)
+                  is selected, and only adds it to the project if the
+                  customer clicks "Receiver" above and adds it themselves. */}
+              {receiverVariant && !isReceiverSelected ? t("wireless.receiverNote") : t("product.availability")}
             </p>
           </div>
         ) : null}
@@ -229,11 +231,11 @@ export function ProductHero({ page }: { page: ProductPage }) {
         >
           {justAdded ? (
             <>
-              {receiverVariant ? t("wireless.controllerReceiverAdded") : t("product.added")} <span aria-hidden="true">✓</span>
+              {t("product.added")} <span aria-hidden="true">✓</span>
             </>
           ) : (
             <>
-              {receiverVariant ? t("wireless.addControllerReceiver") : t("product.add")} <span aria-hidden="true">+</span>
+              {t("product.add")} <span aria-hidden="true">+</span>
             </>
           )}
         </button>

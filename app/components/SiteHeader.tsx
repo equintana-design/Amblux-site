@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AccountStatus } from "@/app/components/AccountStatus";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
+import { useTestProject } from "@/app/providers/TestProjectProvider";
 import { LOCALES } from "@/lib/i18n/dictionaries";
 
 // Shared header for public marketing pages (home, /products, /products/[slug]).
@@ -14,18 +15,26 @@ import { LOCALES } from "@/lib/i18n/dictionaries";
 //
 // Reordered 2026-09 per the user's explicit spec: logo, Start a project,
 // Distributor Partners, language switcher, sign-in, Contact us, Products,
-// Configurator. Two things changed along with the reorder:
+// Parts List, Configurator. Two things changed along with the reorder:
 //  - "Start a project" used to link to /#partners (a leftover from before
 //    the /start fork existed) — fixed to point at /start, the actual
 //    "how would you like to begin?" page.
-//  - The "Project" badge/link (running quick-project item count) that used
-//    to live in this header was dropped per the user's explicit choice —
-//    it's still reachable from the homepage and the /start page.
+//  - The running quick-project item-count badge/link, dropped from an
+//    earlier version of this header, is back — as "Parts List," not
+//    "Project," per the user's explicit follow-up: with a header nav that
+//    also has "Configurator" right next to it, reusing the word "Project"
+//    for this link read as confusing ("my project" vs. "my configurator").
+//    "Parts List" describes what the page actually is (a running bill of
+//    materials) without implying it's the same thing as a Configurator
+//    project. Placed between Products and Configurator, matching where the
+//    user asked for it — right after browsing products is exactly when you
+//    need a way back to the list you're building.
 // "Contact us" is rendered here as its own permanent link (not only for
 // signed-out visitors) — AccountStatus is told showContact={false} so its
 // own built-in "Contact us" pill (still used as-is on the configurator's
 // separate header) doesn't duplicate this one.
 export function SiteHeader() {
+  const { count } = useTestProject();
   const { locale, setLocale } = useLocale();
   const t = useTranslations();
 
@@ -68,6 +77,17 @@ export function SiteHeader() {
           </Link>
           <Link href="/products" className="text-sm font-medium text-muted hover:text-foreground">
             {t("nav.products")}
+          </Link>
+          <Link
+            href="/project"
+            className="relative inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+          >
+            {t("nav.partsList")}
+            {count > 0 ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold text-white">
+                {count}
+              </span>
+            ) : null}
           </Link>
           <Link href="/configurator" className="text-sm font-medium text-muted hover:text-foreground">
             {t("nav.configurator")}

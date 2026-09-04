@@ -14,20 +14,26 @@ import type { TestProjectItem } from "@/app/providers/TestProjectProvider";
 import { createClient } from "@/lib/supabase/client";
 import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
 
-// Same tier/currency priority the totals in PricingPanel show (Distributor
-// beats Dealer beats MSRP) — RLS already only returns the tiers this
-// signed-in account is allowed to see, so picking the first match here just
-// surfaces whichever one is most specific to them. CAD to match
-// PricingPanel's own default currency.
-const ITEM_TIER_PRIORITY = ["distributor", "dealer", "msrp"] as const;
+// Same tier order the totals in PricingPanel show them in (Distributor,
+// then Dealer, then MSRP). Originally this page only surfaced the single
+// most-specific tier per item — the user pointed out that an Admin or
+// Distributor account, which can see more than one tier at once, ended up
+// with one unlabeled number and no way to tell which tier it was ("I have
+// the dealer price, but... I don't know which one's which"). Fixed by
+// showing every tier this account can see for that SKU, each with its own
+// label — RLS already only returns the tiers they're allowed to see, so
+// this never shows a tier they shouldn't have access to.
+const ITEM_TIER_ORDER = ["distributor", "dealer", "msrp"] as const;
 
-function bestItemPrice(rows: PricingRow[] | null, sku: string): { tierKey: (typeof ITEM_TIER_PRIORITY)[number]; price_cents: number; currency: string } | null {
-  if (!rows) return null;
-  for (const tierKey of ITEM_TIER_PRIORITY) {
+function itemPricesForSku(
+  rows: PricingRow[] | null,
+  sku: string
+): { tierKey: (typeof ITEM_TIER_ORDER)[number]; price_cents: number; currency: string }[] {
+  if (!rows) return [];
+  return ITEM_TIER_ORDER.map((tierKey) => {
     const row = rows.find((r) => r.product_sku === sku && r.tier === tierKey && r.currency === "CAD");
-    if (row) return { tierKey, price_cents: row.price_cents, currency: row.currency };
-  }
-  return null;
+    return row ? { tierKey, price_cents: row.price_cents, currency: row.currency } : null;
+  }).filter((price): price is { tierKey: (typeof ITEM_TIER_ORDER)[number]; price_cents: number; currency: string } => price !== null);
 }
 
 // The no-account, no-configurator path to a BOM: everything added via
@@ -101,7 +107,7 @@ export default function TestProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, itemSkuKey]);
 
-  const itemTierLabel = (tierKey: (typeof ITEM_TIER_PRIORITY)[number]) =>
+  const itemTierLabel = (tierKey: (typeof ITEM_TIER_ORDER)[number]) =>
     tierKey === "distributor"
       ? t("configuratorExtra.distributorPrice")
       : tierKey === "dealer"
@@ -171,7 +177,7 @@ export default function TestProjectPage() {
           <>
             <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-surface print:rounded-none print:border-0 print:divide-y-0">
               {items.map((item) => {
-                const price = user ? bestItemPrice(itemPriceRows, item.sku) : null;
+                const prices = user ? itemPricesForSku(itemPriceRows, item.sku) : [];
                 return (
                   <div key={item.sku} className="flex items-center gap-4 p-4 print:border-b print:border-border print:py-3">
                     <div className="relative hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-background sm:block print:block">
@@ -189,12 +195,19 @@ export default function TestProjectPage() {
                       )}
                       <code className="mt-1 block break-all text-xs text-muted">{item.sku}</code>
                     </div>
-                    {price ? (
-                      <div className="hidden shrink-0 flex-col items-end text-right sm:flex">
-                        <p className="text-sm font-semibold text-foreground">{formatCents(price.price_cents * item.qty, price.currency)}</p>
-                        <p className="text-xs text-muted">
-                          {formatCents(price.price_cents, price.currency)} {t("testProject.each")} · {itemTierLabel(price.tierKey)}
-                        </p>
+                    {prices.length > 0 ? (
+                      <div className="hidden shrink-0 flex-col items-end gap-1 text-right sm:flex">
+                        {prices.map((price) => (
+                          <div key={price.tierKey}>
+                            <p className="text-sm font-semibold text-foreground">
+                              {formatCents(price.price_cents * item.qty, price.currency)}{" "}
+                              <span className="font-normal text-muted">{itemTierLabel(price.tierKey)}</span>
+                            </p>
+                            <p className="text-xs text-muted">
+                              {formatCents(price.price_cents, price.currency)} {t("testProject.each")}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                     <div className="flex items-center gap-2 print:gap-1">
