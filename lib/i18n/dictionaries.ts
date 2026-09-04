@@ -47,7 +47,7 @@ const en = {
   },
   nav: {
     products: "Products",
-    distributors: "For Distributors",
+    distributors: "Distributor Partners",
     configurator: "Configurator",
     testProject: "Project",
     contactUs: "Contact us",
@@ -294,6 +294,7 @@ const en = {
     quantity: "Quantity",
     remove: "Remove",
     items: "items",
+    each: "each",
   },
   start: {
     kicker: "Start a project",
@@ -444,7 +445,7 @@ const fr: Messages = {
   },
   nav: {
     products: "Produits",
-    distributors: "Pour les distributeurs",
+    distributors: "Partenaires distributeurs",
     configurator: "Configurateur",
     testProject: "Projet",
     contactUs: "Nous contacter",
@@ -691,6 +692,7 @@ const fr: Messages = {
     quantity: "Quantité",
     remove: "Retirer",
     items: "articles",
+    each: "chacun",
   },
   start: {
     kicker: "Démarrer un projet",
@@ -836,7 +838,7 @@ const es: Messages = {
   },
   nav: {
     products: "Productos",
-    distributors: "Para distribuidores",
+    distributors: "Distribuidores socios",
     configurator: "Configurador",
     testProject: "Proyecto",
     contactUs: "Contáctanos",
@@ -1083,6 +1085,7 @@ const es: Messages = {
     quantity: "Cantidad",
     remove: "Eliminar",
     items: "artículos",
+    each: "cada uno",
   },
   start: {
     kicker: "Iniciar un proyecto",

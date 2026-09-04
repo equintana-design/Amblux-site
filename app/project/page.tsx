@@ -2,14 +2,33 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SiteHeader } from "@/app/components/SiteHeader";
 import { useTranslations } from "@/app/providers/LocaleProvider";
 import { useTestProject } from "@/app/providers/TestProjectProvider";
-import { PricingPanel } from "@/app/configurator/PricingPanel";
+import { PricingPanel, formatCents } from "@/app/configurator/PricingPanel";
+import type { PricingRow } from "@/app/configurator/PricingPanel";
 import { bomFromQuickProject } from "@/lib/configurator/quickProject";
 import { SavedQuickProjectsPanel } from "./SavedQuickProjectsPanel";
 import type { TestProjectItem } from "@/app/providers/TestProjectProvider";
+import { createClient } from "@/lib/supabase/client";
+import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
+
+// Same tier/currency priority the totals in PricingPanel show (Distributor
+// beats Dealer beats MSRP) — RLS already only returns the tiers this
+// signed-in account is allowed to see, so picking the first match here just
+// surfaces whichever one is most specific to them. CAD to match
+// PricingPanel's own default currency.
+const ITEM_TIER_PRIORITY = ["distributor", "dealer", "msrp"] as const;
+
+function bestItemPrice(rows: PricingRow[] | null, sku: string): { tierKey: (typeof ITEM_TIER_PRIORITY)[number]; price_cents: number; currency: string } | null {
+  if (!rows) return null;
+  for (const tierKey of ITEM_TIER_PRIORITY) {
+    const row = rows.find((r) => r.product_sku === sku && r.tier === tierKey && r.currency === "CAD");
+    if (row) return { tierKey, price_cents: row.price_cents, currency: row.currency };
+  }
+  return null;
+}
 
 // The no-account, no-configurator path to a BOM: everything added via
 // "Add to project" on a product page lands here. Not connected to the
@@ -41,8 +60,53 @@ import type { TestProjectItem } from "@/app/providers/TestProjectProvider";
 export default function TestProjectPage() {
   const { items, name, setName, removeItem, setQty, clear, replaceAll } = useTestProject();
   const t = useTranslations();
+  const { user } = useSupabaseUser();
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const bom = useMemo(() => bomFromQuickProject({ name, items }), [name, items]);
+
+  // Per-item pricing, shown right on each row (see below) — a plain fetch
+  // straight from amblux_pricing, same table/columns PricingPanel already
+  // reads for the totals section further down this page. Kept separate
+  // from PricingPanel on purpose: that component only knows about
+  // consolidated totals, not per-line prices, and per the user's explicit
+  // request the bill-of-materials list itself should show a price next to
+  // each item, not just the aggregate panel below it.
+  const [itemPriceRows, setItemPriceRows] = useState<PricingRow[] | null>(null);
+  const itemSkuKey = items.map((item) => item.sku).join(",");
+
+  useEffect(() => {
+    // No setState here for the signed-out/empty case, matching
+    // PricingPanel's own reasoning: the render below already gates the
+    // price display on `user` directly (not just on itemPriceRows being
+    // non-null), so stale rows left over from a previous sign-in never
+    // actually get shown to a signed-out visitor — nothing to synchronize.
+    if (!user || items.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("amblux_pricing")
+      .select("product_sku, tier, price_cents, currency")
+      .in(
+        "product_sku",
+        items.map((item) => item.sku)
+      )
+      .then(({ data }) => {
+        if (!cancelled) setItemPriceRows(data ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, itemSkuKey]);
+
+  const itemTierLabel = (tierKey: (typeof ITEM_TIER_PRIORITY)[number]) =>
+    tierKey === "distributor"
+      ? t("configuratorExtra.distributorPrice")
+      : tierKey === "dealer"
+        ? t("configuratorExtra.dealerPrice")
+        : t("configuratorExtra.msrp");
 
   function handlePrint() {
     if (typeof window !== "undefined") window.print();
@@ -106,45 +170,56 @@ export default function TestProjectPage() {
         ) : (
           <>
             <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-surface print:rounded-none print:border-0 print:divide-y-0">
-              {items.map((item) => (
-                <div key={item.sku} className="flex items-center gap-4 p-4 print:border-b print:border-border print:py-3">
-                  <div className="relative hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-background sm:block print:block">
-                    {item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.label} fill className="object-contain p-2" sizes="64px" />
+              {items.map((item) => {
+                const price = user ? bestItemPrice(itemPriceRows, item.sku) : null;
+                return (
+                  <div key={item.sku} className="flex items-center gap-4 p-4 print:border-b print:border-border print:py-3">
+                    <div className="relative hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-background sm:block print:block">
+                      {item.imageUrl ? (
+                        <Image src={item.imageUrl} alt={item.label} fill className="object-contain p-2" sizes="64px" />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {item.pageSlug ? (
+                        <Link href={`/products/${item.pageSlug}`} className="font-medium text-foreground hover:text-accent-strong print:text-foreground">
+                          {item.label}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-foreground">{item.label}</p>
+                      )}
+                      <code className="mt-1 block break-all text-xs text-muted">{item.sku}</code>
+                    </div>
+                    {price ? (
+                      <div className="hidden shrink-0 flex-col items-end text-right sm:flex">
+                        <p className="text-sm font-semibold text-foreground">{formatCents(price.price_cents * item.qty, price.currency)}</p>
+                        <p className="text-xs text-muted">
+                          {formatCents(price.price_cents, price.currency)} {t("testProject.each")} · {itemTierLabel(price.tierKey)}
+                        </p>
+                      </div>
                     ) : null}
+                    <div className="flex items-center gap-2 print:gap-1">
+                      <label className="sr-only" htmlFor={`qty-${item.sku}`}>
+                        {t("testProject.quantity")}
+                      </label>
+                      <input
+                        id={`qty-${item.sku}`}
+                        type="number"
+                        min={1}
+                        value={item.qty}
+                        onChange={(e) => setQty(item.sku, Number(e.target.value) || 0)}
+                        className="w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-center text-sm print:border-0 print:bg-transparent print:font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.sku)}
+                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong print:hidden"
+                      >
+                        {t("testProject.remove")}
+                      </button>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    {item.pageSlug ? (
-                      <Link href={`/products/${item.pageSlug}`} className="font-medium text-foreground hover:text-accent-strong print:text-foreground">
-                        {item.label}
-                      </Link>
-                    ) : (
-                      <p className="font-medium text-foreground">{item.label}</p>
-                    )}
-                    <code className="mt-1 block break-all text-xs text-muted">{item.sku}</code>
-                  </div>
-                  <div className="flex items-center gap-2 print:gap-1">
-                    <label className="sr-only" htmlFor={`qty-${item.sku}`}>
-                      {t("testProject.quantity")}
-                    </label>
-                    <input
-                      id={`qty-${item.sku}`}
-                      type="number"
-                      min={1}
-                      value={item.qty}
-                      onChange={(e) => setQty(item.sku, Number(e.target.value) || 0)}
-                      className="w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-center text-sm print:border-0 print:bg-transparent print:font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.sku)}
-                      className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong print:hidden"
-                    >
-                      {t("testProject.remove")}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-4 print:hidden">

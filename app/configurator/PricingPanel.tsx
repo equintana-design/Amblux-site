@@ -25,14 +25,17 @@ import type { PartListLine } from "@/lib/configurator/engine";
 import type { BomResult } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
 
-interface PricingRow {
+// Exported so other pages that need raw per-SKU pricing (e.g. the Project
+// page's per-item price column) can share this exact shape instead of
+// redefining it — see app/project/page.tsx.
+export interface PricingRow {
   product_sku: string;
   tier: string;
   price_cents: number;
   currency: string;
 }
 
-function formatCents(cents: number, currency: string): string {
+export function formatCents(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 

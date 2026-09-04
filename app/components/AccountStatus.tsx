@@ -14,7 +14,13 @@ import { useTranslations } from "@/app/providers/LocaleProvider";
 // talking to sales first) and a clearly-marked "Sign in" for existing
 // accounts (distributors, dealers, admins) to reach /sign-in directly from
 // anywhere on the site, not just the configurator.
-export function AccountStatus() {
+//
+// `showContact` (default true) lets a caller that already renders its own
+// standalone "Contact us" link elsewhere — see SiteHeader's 2026-09 reorder
+// — suppress the one built in here, so the two don't both show up. The
+// configurator's own header doesn't have a separate Contact us link, so it
+// keeps the default (both pills together) unchanged.
+export function AccountStatus({ showContact = true }: { showContact?: boolean } = {}) {
   const { user, loading } = useSupabaseUser();
   const t = useTranslations();
 
@@ -33,12 +39,14 @@ export function AccountStatus() {
 
   return (
     <div className="flex items-center gap-2">
-      <Link
-        href="/contact"
-        className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
-      >
-        {t("nav.contactUs")}
-      </Link>
+      {showContact ? (
+        <Link
+          href="/contact"
+          className="rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
+        >
+          {t("nav.contactUs")}
+        </Link>
+      ) : null}
       <Link
         href="/sign-in"
         className="rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent-strong hover:bg-accent hover:text-white"
