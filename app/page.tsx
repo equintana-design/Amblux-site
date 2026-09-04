@@ -41,7 +41,7 @@ export default function Home() {
             <p className="mt-6 max-w-lg text-lg leading-8 text-muted">{t("home.hero")}</p>
             <div className="mt-10 flex flex-wrap items-center gap-6">
               <Link
-                href="/configurator"
+                href="/start"
                 className="rounded-full bg-foreground px-7 py-3 text-base font-semibold text-white transition-colors hover:bg-foreground/90"
               >
                 {t("home.startYours")} →
@@ -71,7 +71,7 @@ export default function Home() {
                 ))}
               </ol>
               <Link
-                href="/configurator"
+                href="/start"
                 className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent-strong hover:text-white"
               >
                 {t("home.begin")} →
@@ -169,7 +169,7 @@ export default function Home() {
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-6 text-center">
           <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={34} className="h-8 w-auto" />
           <p className="text-sm text-muted">{t("home.footer")}</p>
-          <Link href="/configurator" className="text-sm font-semibold text-accent-strong hover:underline">
+          <Link href="/start" className="text-sm font-semibold text-accent-strong hover:underline">
             {t("home.start")} →
           </Link>
           <p className="mt-4 text-xs text-muted">© {new Date().getFullYear()} AMBLUX. All rights reserved.</p>

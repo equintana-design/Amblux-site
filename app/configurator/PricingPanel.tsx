@@ -4,11 +4,14 @@
 // reads from Supabase at runtime instead of catalog.ts. Everything else
 // (SKU resolution, BOM math) stays exactly as it was: framework-agnostic,
 // client-side, unchanged. Pricing is different on purpose, because it's
-// the one place role-based access actually matters (see migration
-// fix_pricing_tier_role_mapping) — MSRP is public; the 'distributor' tier
-// only comes back for a signed-in, approved Distributor/Admin account; the
-// 'dealer' tier comes back for Client/Distributor/Admin accounts. Each
-// tier that comes back over the wire gets its own total row below.
+// the one place role-based access actually matters (see migrations
+// 0027_fix_pricing_tier_role_mapping and, as of 2026-09,
+// 0033_pricing_requires_auth) — every tier, MSRP included, now requires a
+// signed-in account (no approval needed just to see MSRP); the
+// 'distributor' tier is further restricted to Distributor/Admin, 'dealer'
+// to Client/Distributor/Admin. Each tier that comes back over the wire
+// gets its own total row below; a signed-out visitor sees a sign-in
+// prompt instead of any of this.
 //
 // Static fallback: if the fetch fails outright (network/config issue),
 // this renders a plain "temporarily unavailable" note rather than
@@ -154,6 +157,19 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
 
   if (parts.length === 0) return null;
 
+  // Checked before the loading/error states below, so a signed-out
+  // visitor sees one clear message immediately instead of a "Checking
+  // pricing…" flash resolving into it once RLS returns nothing at all
+  // (see the header comment — MSRP no longer comes back for a signed-out
+  // request either, as of migration 0033).
+  if (!user) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
+        {t("configuratorExtra.signInToSeePrice")}
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-sm text-muted">
@@ -280,13 +296,8 @@ export function PricingPanel({ bom }: { bom: BomResult }) {
           </div>
         )}
 
-        {!sawAnyPaidPricing ? (
-          <p className="text-xs text-muted">
-            {user
-              ? t("configuratorExtra.distributorPricingUnavailable")
-              : t("configuratorExtra.signInToSeePrice")}
-          </p>
-        ) : null}
+        {/* user is guaranteed truthy here — the !user case returns early above */}
+        {!sawAnyPaidPricing ? <p className="text-xs text-muted">{t("configuratorExtra.distributorPricingUnavailable")}</p> : null}
       </div>
 
       {/* Pricing per zone — an opt-in breakdown (same tier columns as the

@@ -18,14 +18,18 @@ function formatCents(cents: number, currency: string): string {
 
 // Mirrors the configurator's PricingPanel (see its own header comment for
 // the full RLS story) but for a single product page's currently-selected
-// SKU variant. RLS (migration fix_pricing_tier_role_mapping) decides which
-// tier rows actually come back over the wire — MSRP is always public;
-// 'distributor' only for Distributor/Admin accounts; 'dealer' for
-// Client/Distributor/Admin accounts. So an Admin or Distributor account
-// sees all three (Distributor, Dealer, MSRP), a Client account sees two
-// (Dealer, MSRP), and a signed-out visitor or an account still pending
-// admin approval only ever sees MSRP. This component just renders
-// whichever rows are present — it doesn't decide entitlement itself.
+// SKU variant. RLS (migration 0027_fix_pricing_tier_role_mapping, then
+// 0033_pricing_requires_auth) decides which tier rows actually come back
+// over the wire — as of 2026-09, every tier (MSRP included) requires a
+// signed-in account, per the user's explicit "if you're not signed in,
+// you can't see any pricing" request; 'distributor' is further restricted
+// to Distributor/Admin accounts, 'dealer' to Client/Distributor/Admin.
+// So an Admin or Distributor account sees all three (Distributor, Dealer,
+// MSRP), a Client account sees two (Dealer, MSRP), and any signed-in
+// account not yet in either of those groups (or still pending approval)
+// sees MSRP only — a signed-out visitor now sees nothing at all rather
+// than falling back to MSRP. This component just renders whichever rows
+// are present — it doesn't decide entitlement itself.
 export function ProductPricing() {
   const { selectedSku } = useVariant();
   const { user } = useSupabaseUser();
@@ -55,6 +59,20 @@ export function ProductPricing() {
       cancelled = true;
     };
   }, [selectedSku]);
+
+  // Checked first, before the loading/error states below, so a signed-out
+  // visitor sees one clear message immediately rather than a "Checking
+  // pricing…" flash that resolves into it a moment later. No approval
+  // requirement here — just being signed in is enough to clear this gate,
+  // exactly as before this change for MSRP; only the Distributor/Dealer
+  // tiers still depend on role/approval, via RLS, unchanged.
+  if (!user) {
+    return (
+      <div className="mt-6 rounded-2xl border border-border bg-background p-5 text-sm text-muted">
+        {t("configuratorExtra.signInToSeePrice")}
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -134,11 +152,8 @@ export function ProductPricing() {
           </div>
         ) : null}
 
-        {!anyPaidTier ? (
-          <p className="text-xs text-muted">
-            {user ? t("configuratorExtra.distributorPricingUnavailable") : t("configuratorExtra.signInToSeePrice")}
-          </p>
-        ) : null}
+        {/* user is guaranteed truthy here — the !user case returns early above */}
+        {!anyPaidTier ? <p className="text-xs text-muted">{t("configuratorExtra.distributorPricingUnavailable")}</p> : null}
       </div>
     </div>
   );

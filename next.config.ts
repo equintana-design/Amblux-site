@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // "Test Project" (the no-account, pick-SKUs-directly bill of materials)
+  // was renamed to plain "Project" 2026-09 — anyone who bookmarked or
+  // shared the old /test-project link still lands on the same page.
+  async redirects() {
+    return [{ source: "/test-project", destination: "/project", permanent: true }];
+  },
   images: {
     // Most existing product photos (see migration 0010) live in AMBLUX's
     // Google Drive library rather than Supabase Storage, linked directly

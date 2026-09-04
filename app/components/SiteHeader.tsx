@@ -58,7 +58,7 @@ export function SiteHeader() {
           </div>
           <AccountStatus />
           <Link
-            href="/test-project"
+            href="/project"
             className="relative inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent-strong"
           >
             {t("nav.testProject")}

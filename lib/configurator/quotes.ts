@@ -10,6 +10,8 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { BomResult, ConfiguratorState } from "./types";
 import { mergeConfiguratorState } from "./types";
 import { generateJobNumber, hashBom } from "./engine";
+import type { QuickProjectState } from "./quickProject";
+import { bomFromQuickProject } from "./quickProject";
 
 export interface QuoteSummary {
   id: string;
@@ -37,6 +39,7 @@ export async function saveQuote(
   const payload = {
     job_number: jobNumber,
     account_id: args.accountId,
+    kind: "configurator" as const,
     state: toJson(args.state),
     bom: toJson(args.bom),
     total_watts: args.bom.total,
@@ -58,6 +61,11 @@ export async function listMyQuotes(supabase: Client, accountId: string): Promise
     .from("amblux_quotes")
     .select("id, job_number, state, total_watts, status, updated_at")
     .eq("account_id", accountId)
+    // Since migration 0032, this table also holds Project (kind='quick')
+    // saves — filtered out here so they never show up mixed into the
+    // Configurator's own Saved Projects list. See listMyQuickProjects()
+    // below for the Project-page equivalent of this function.
+    .eq("kind", "configurator")
     .order("updated_at", { ascending: false })
     .limit(25);
   if (error) throw error;
@@ -94,4 +102,89 @@ export async function loadQuoteState(supabase: Client, id: string): Promise<Conf
 export async function deleteQuote(supabase: Client, id: string): Promise<void> {
   const { error } = await supabase.from("amblux_quotes").delete().eq("id", id);
   if (error) throw error;
+}
+
+// ---- Project (formerly "Test Project") saves — see migration 0032 ----
+//
+// Same table, same RLS, same 12-month retention job, same delete flow
+// (deleteQuote above works unchanged for either kind, since it only ever
+// takes an id) as the Configurator's saves above — the only real
+// difference is what's stored under `state`/`bom` and the `kind` column
+// used to tell the two apart when listing. See lib/configurator/
+// quickProject.ts for why the BOM is synthesized rather than real.
+
+export interface QuickProjectSummary {
+  id: string;
+  jobNumber: string;
+  projectName: string;
+  itemCount: number;
+  status: string;
+  updatedAt: string;
+}
+
+export async function saveQuickProject(
+  supabase: Client,
+  args: { id: string | null; accountId: string; state: QuickProjectState }
+): Promise<{ id: string; jobNumber: string }> {
+  const bom = bomFromQuickProject(args.state);
+  const jobNumber = generateJobNumber(args.state.name, hashBom(bom));
+  const payload = {
+    job_number: jobNumber,
+    account_id: args.accountId,
+    kind: "quick" as const,
+    state: toJson(args.state),
+    bom: toJson(bom),
+    // Unlike a Configurator save, a Project has no real per-zone wattage
+    // behind it (see bomFromQuickProject) — null rather than 0 so the
+    // saved-projects list (which already handles a null total_watts,
+    // see SavedProjectsPanel.tsx) correctly shows nothing instead of a
+    // misleading "0 W".
+    total_watts: null,
+  };
+
+  if (args.id) {
+    const { error } = await supabase.from("amblux_quotes").update(payload).eq("id", args.id);
+    if (error) throw error;
+    return { id: args.id, jobNumber };
+  }
+
+  const { data, error } = await supabase.from("amblux_quotes").insert(payload).select("id").single();
+  if (error) throw error;
+  return { id: data.id, jobNumber };
+}
+
+export async function listMyQuickProjects(supabase: Client, accountId: string): Promise<QuickProjectSummary[]> {
+  const { data, error } = await supabase
+    .from("amblux_quotes")
+    .select("id, job_number, state, status, updated_at")
+    .eq("account_id", accountId)
+    .eq("kind", "quick")
+    .order("updated_at", { ascending: false })
+    .limit(25);
+  if (error) throw error;
+
+  return (data ?? []).map((row) => {
+    const state = row.state as unknown as QuickProjectState | null;
+    return {
+      id: row.id,
+      jobNumber: row.job_number,
+      projectName: state?.name?.trim() || "Untitled project",
+      itemCount: Array.isArray(state?.items) ? state.items.length : 0,
+      status: row.status,
+      updatedAt: row.updated_at,
+    };
+  });
+}
+
+export async function loadQuickProjectState(supabase: Client, id: string): Promise<QuickProjectState | null> {
+  const { data, error } = await supabase.from("amblux_quotes").select("state").eq("id", id).eq("kind", "quick").single();
+  if (error || !data) return null;
+  const state = data.state as unknown as Partial<QuickProjectState> | null;
+  // Reconstitute onto clean defaults rather than trusting the saved JSON
+  // blob verbatim, same reasoning as mergeConfiguratorState — an older or
+  // partially-written row shouldn't be able to crash the page.
+  return {
+    name: typeof state?.name === "string" ? state.name : "",
+    items: Array.isArray(state?.items) ? state.items : [],
+  };
 }

@@ -41,7 +41,7 @@ export function TestProjectSidebar() {
       ) : null}
 
       <div className="mt-5 flex flex-col gap-2">
-        <Link href="/test-project" className="text-sm font-semibold text-accent-strong hover:underline">
+        <Link href="/project" className="text-sm font-semibold text-accent-strong hover:underline">
           {t("testProject.viewFull")}
         </Link>
         {items.length > 0 ? (
