@@ -28,9 +28,11 @@ export default async function AdminPricingPage({
     import_error?: string;
     import_skipped?: string;
     override_sku?: string;
+    param_error?: string;
   }>;
 }) {
-  const { recalc_ok, recalc_error, import_ok, import_error, import_skipped, override_sku } = await searchParams;
+  const { recalc_ok, recalc_error, import_ok, import_error, import_skipped, override_sku, param_error } =
+    await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -88,6 +90,12 @@ export default async function AdminPricingPage({
         live price until you click <strong>Recalculate &amp; publish</strong> — edits to cost or parameters are
         saved immediately but only take effect on the site once recalculated.
       </p>
+
+      {param_error && (
+        <p className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700">
+          Save failed: {param_error}
+        </p>
+      )}
 
       {/* --- Recalculate --- */}
       <section className="mt-8 rounded-2xl border border-border bg-surface p-6">

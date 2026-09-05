@@ -45,12 +45,23 @@ function parametersFromForm(formData: FormData) {
   };
 }
 
+// Every mutating action below now checks the Supabase client's `error`
+// result and redirects with `param_error` on failure instead of silently
+// continuing. Before 2026-09-05 none of them did — which is exactly how
+// the SKU-override save bug (see migration 0034) went undetected: the
+// override upsert was failing on every single save (a Postgres
+// ON-CONFLICT/partial-index error), but because `error` was never
+// inspected, the server action still "succeeded" from the browser's
+// point of view (panel closes, no error shown) while quietly leaving the
+// row unchanged. `param_error` is rendered as a banner on the page next
+// to the existing recalc_error/import_error ones.
 export async function updateGlobalParametersAction(formData: FormData) {
   const supabase = await requireAdmin();
-  await supabase
+  const { error } = await supabase
     .from("amblux_pricing_parameters")
     .update({ ...parametersFromForm(formData), updated_at: new Date().toISOString() })
     .eq("scope", "global");
+  if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }
 
@@ -59,23 +70,24 @@ export async function upsertScopedParametersAction(formData: FormData) {
   const scope = String(formData.get("scope") || "");
   const scopeKey = String(formData.get("scope_key") || "").trim();
   if ((scope !== "category" && scope !== "sku") || !scopeKey) {
-    revalidatePath("/admin/pricing");
-    return;
+    redirect(`/admin/pricing?param_error=${encodeURIComponent("Scope must be category or sku, with a scope key")}`);
   }
 
-  await supabase
+  const { error } = await supabase
     .from("amblux_pricing_parameters")
     .upsert(
       { scope, scope_key: scopeKey, ...parametersFromForm(formData), updated_at: new Date().toISOString() },
       { onConflict: "scope,scope_key" },
     );
+  if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }
 
 export async function deleteScopedParametersAction(formData: FormData) {
   const supabase = await requireAdmin();
   const id = String(formData.get("id") || "");
-  await supabase.from("amblux_pricing_parameters").delete().eq("id", id).neq("scope", "global");
+  const { error } = await supabase.from("amblux_pricing_parameters").delete().eq("id", id).neq("scope", "global");
+  if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }
 
@@ -86,10 +98,11 @@ export async function updateProductCostAction(formData: FormData) {
   const isEstimated = formData.get("is_estimated") === "on";
   const notes = String(formData.get("notes") || "").trim() || null;
 
-  await supabase
+  const { error } = await supabase
     .from("amblux_product_cost")
     .update({ fob_usd: fobUsd, is_estimated: isEstimated, notes, updated_at: new Date().toISOString() })
     .eq("sku", sku);
+  if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }
 
@@ -98,11 +111,13 @@ export async function addProductCostAction(formData: FormData) {
   const sku = String(formData.get("sku") || "").trim();
   const fobUsd = numberField(formData, "fob_usd");
   if (!sku || Number.isNaN(fobUsd)) {
-    revalidatePath("/admin/pricing");
-    return;
+    redirect(`/admin/pricing?param_error=${encodeURIComponent("SKU and a valid FOB cost are required")}`);
   }
 
-  await supabase.from("amblux_product_cost").upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null });
+  const { error } = await supabase
+    .from("amblux_product_cost")
+    .upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null });
+  if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }
 
