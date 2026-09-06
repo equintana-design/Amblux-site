@@ -19,9 +19,11 @@
 // Distributor/Admin, 'dealer' for Client/Distributor/Admin.
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isOverridableAccessorySku } from "@/lib/configurator/catalog";
 import { consolidateParts, groupBom } from "@/lib/configurator/engine";
 import type { BomResult, ProjectInfo } from "@/lib/configurator/types";
 import { useTranslations } from "@/app/providers/LocaleProvider";
+import { QtyStepper } from "./ui";
 
 interface PricingRow {
   product_sku: string;
@@ -36,12 +38,37 @@ function formatCents(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 
-export function BomSummaryStep({ bom, project }: { bom: BomResult; project: ProjectInfo }) {
+export function BomSummaryStep({
+  bom,
+  computedBom,
+  onQuantityChange,
+  onResetQuantity,
+  ccts,
+  project,
+}: {
+  bom: BomResult;
+  /** The fully-computed BOM before any manual quantity override — used only to know the "suggested" value for the reset link. */
+  computedBom: BomResult;
+  onQuantityChange: (zone: string, sku: string, qty: number) => void;
+  onResetQuantity: (zone: string, sku: string) => void;
+  /** Distinct colour-temperature values in play across the whole job (see engine.ts's activeCcts()) — more than one means a mismatch worth flagging. */
+  ccts: string[];
+  project: ProjectInfo;
+}) {
   const t = useTranslations();
   const groups = groupBom(bom);
   const parts = useMemo(() => consolidateParts(bom), [bom]);
   const skuKey = parts.map((p) => p.sku).join(",");
   const title = project.name || t("configuratorExtra.defaultProjectTitle");
+
+  // Suggested (pre-override) quantity for each row, keyed the same way
+  // applyQuantityOverrides()/manualQuantityOverrides are — used only to
+  // decide when the stepper's "reset to suggested" link should appear.
+  const suggestedByKey = useMemo(() => {
+    const map = new Map<string, number>();
+    computedBom.rows.forEach((row) => map.set(`${row.zone}:${row.sku}`, row.qty));
+    return map;
+  }, [computedBom]);
 
   const [rows, setRows] = useState<PricingRow[] | null>(null);
   const [pricingError, setPricingError] = useState(false);
@@ -138,6 +165,17 @@ export function BomSummaryStep({ bom, project }: { bom: BomResult; project: Proj
               <span className="font-semibold text-white">{Math.round(bom.total * 10) / 10} W</span>
             </div>
 
+            {/* Non-blocking cross-zone CCT advisory — more than one distinct
+                colour temperature across every *included* zone/block that
+                has a real CCT concept at all (puck-lit zones/blocks are
+                excluded, see engine.ts's activeCcts()). Informational only:
+                doesn't prevent Save/Print/proceeding. */}
+            {ccts.length > 1 && (
+              <div className="mt-2 rounded-lg border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                {t("configuratorExtra.cctMismatchWarning").replace("{values}", ccts.map((c) => `${c}K`).join(" / "))}
+              </div>
+            )}
+
             {showAnyPricing && (
               <div className="mt-2 flex flex-col gap-2">
                 {showDistributor && (
@@ -211,9 +249,22 @@ export function BomSummaryStep({ bom, project }: { bom: BomResult; project: Proj
                           ) : (
                             <span className="text-white/40">—</span>
                           );
+                        const overridable = isOverridableAccessorySku(row.sku);
                         return (
                           <tr key={i} className="border-t border-white/10 align-top">
-                            <td className="py-2 pr-3 font-medium text-white">{row.qty}</td>
+                            <td className="py-2 pr-3 font-medium text-white">
+                              {overridable ? (
+                                <QtyStepper
+                                  value={row.qty}
+                                  suggested={suggestedByKey.get(`${row.zone}:${row.sku}`) ?? row.qty}
+                                  onChange={(v) => onQuantityChange(row.zone, row.sku, v)}
+                                  onReset={() => onResetQuantity(row.zone, row.sku)}
+                                  resetLabel={t("configuratorExtra.resetToSuggested")}
+                                />
+                              ) : (
+                                row.qty
+                              )}
+                            </td>
                             <td className="py-2">
                               <div className="font-mono text-xs text-accent-soft">{row.sku}</div>
                               <div className="text-white/80">{row.description}</div>

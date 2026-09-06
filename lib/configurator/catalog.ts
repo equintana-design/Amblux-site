@@ -177,8 +177,16 @@ export function isLinearOnlyZone(zone: ZoneKey): boolean {
   return (LINEAR_ONLY_ZONES as ZoneKey[]).includes(zone);
 }
 
-export function zonesForApplication(app: ApplicationType): ZoneKey[] {
-  return ZONES_BY_APPLICATION[app] ?? ZONES_BY_APPLICATION.kitchen;
+// Widened to accept "" (Task: Application Type required field) — Project
+// Info's Application select now starts unset (see types.ts's
+// ProjectInfo.application/defaultConfiguratorState()) so a customer can't
+// silently save a project under a never-chosen "kitchen" default; "" falls
+// back to the Kitchen zone list here, same as any other unrecognized value,
+// so the wizard still shows a sane zone set before a deliberate choice is
+// made — only Save is actually blocked on the missing choice (see
+// useSaveQuote.ts's hasRequiredFields()).
+export function zonesForApplication(app: ApplicationType | ""): ZoneKey[] {
+  return ZONES_BY_APPLICATION[app as ApplicationType] ?? ZONES_BY_APPLICATION.kitchen;
 }
 
 export const PSU = [24, 36, 60, 96] as const;
@@ -253,6 +261,26 @@ export const WIRELESS_DIMMING_RECEIVER = "AMB-DMG-WRLSS-RCVR";
 export const RIGID_CORD_SKU = "AMB-FCRGL-RC0608TR-PC-1.5M";
 export const DEFAULT_FLEXIBLE_LINEAR_SKU = "AMB-FCST-RC0606-24V-30-24-90-3M-27W";
 export const DEFAULT_RIGID_LINEAR_SKU = "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W";
+
+// Real AMBLUX SKU, confirmed to exist in the live product/pricing tables
+// (amblux_products, amblux_product_cost, amblux_pricing — checked directly
+// against the amblux-production Supabase project rather than assumed from
+// local migration files, since 0015/0018's comments call this a "phantom"
+// SKU with no cost row as of those migrations). Sold 5 kits per bag — the
+// product description agrees ("...5 per bag"). ASSUMPTION (flagged, not
+// verifiable from any local file or the live schema): the live
+// amblux_pricing distributor row for this SKU (CA$27.86) is treated here as
+// the price of one orderable bag of 5 kits, matching how every other real
+// AMBLUX accessory SKU that ships in a pack (the two "-BRKT" SKUs, the
+// silicone-45deg "-CLIPS" SKU) is modeled — one catalog SKU = one physical
+// pack, cost/price already for the whole pack, and the BOM row's qty is a
+// pack/bag count, not an individual-piece count (see calcClipBags() below).
+// If AMBLUX actually intends CA$27.86 per individual kit instead, the fix
+// is a one-line change to how the final row is priced downstream — nothing
+// in this counting logic itself would need to change.
+export const HARDWARE_KIT_SKU = "AMB-HRW-CBLKT";
+export const HARDWARE_KIT_LABEL = "Hardwire connection kit";
+export const HARDWARE_KIT_PER_BAG = 5;
 
 // Real AMBLUX install-hardware SKUs — recovered from the real product list
 // (af15ab79-linearsolutions.json's "Required Accessories" column), not
@@ -541,13 +569,51 @@ export function controlSku(control: string): string {
   return sku;
 }
 
-const DIMMING_RECEIVER_CONTROLS = ["bluetoothApp", "remote1Zone", "remote2Zone", "remoteButton"];
+// Exported (was module-private) so the editable-BOM-quantity feature can
+// identify exactly the "Kinetic" switch ids — see
+// overridableAccessorySkus() below.
+export const DIMMING_RECEIVER_CONTROLS = ["bluetoothApp", "remote1Zone", "remote2Zone", "remoteButton"];
 const SENSOR_RECEIVER_CONTROLS = ["wirelessTouch", "wirelessDoor", "wirelessMotion"];
 
 export function receiverSku(control: string): string | null {
   if (DIMMING_RECEIVER_CONTROLS.includes(control)) return WIRELESS_DIMMING_RECEIVER;
   if (SENSOR_RECEIVER_CONTROLS.includes(control)) return WIRELESS_SENSOR_RECEIVER;
   return null;
+}
+
+// ---------------------------------------------------------------------
+// Manually-editable BOM row kinds
+// ---------------------------------------------------------------------
+// A customer-facing quantity override (see engine.ts's
+// applyQuantityOverrides() and BomSummaryStep.tsx's per-row stepper) is
+// only offered for accessory-class rows whose physical count is a real,
+// independent customer choice — never for a row whose quantity is a
+// computed hardware requirement:
+//   - Kinetic RF switches / the Bluetooth App (NOT their wireless receiver
+//     — a receiver's count is a real 1:1 pairing with driver/fixture count,
+//     see receiverSku()/supplyCount() in engine.ts, so it must keep
+//     following that computation automatically).
+//   - Install clips/brackets (LinearFamily.installAccessorySku).
+//   - The 2 m extension cord (EXTENSION_SKU).
+//   - The Hardwire connection kit (HARDWARE_KIT_SKU).
+// Fixtures, drivers/PSUs, puck placement, and receivers are deliberately
+// excluded — those stay fully computed.
+export function overridableAccessorySkus(): Set<string> {
+  const skus = new Set<string>();
+  DIMMING_RECEIVER_CONTROLS.forEach((id) => {
+    const sku = CONTROL_SKU[id];
+    if (sku) skus.add(sku);
+  });
+  skus.add(EXTENSION_SKU);
+  skus.add(HARDWARE_KIT_SKU);
+  LINEAR_FAMILIES.forEach((family) => {
+    if (family.installAccessorySku) skus.add(family.installAccessorySku);
+  });
+  return skus;
+}
+
+export function isOverridableAccessorySku(sku: string): boolean {
+  return overridableAccessorySkus().has(sku);
 }
 
 // Verbatim from CONTROL_DESCRIPTIONS[id].en in the recovered source.

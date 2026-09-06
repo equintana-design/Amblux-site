@@ -41,6 +41,9 @@
 import {
   CONTROL_OPTIONS,
   EXTENSION_SKU,
+  HARDWARE_KIT_LABEL,
+  HARDWARE_KIT_PER_BAG,
+  HARDWARE_KIT_SKU,
   UNDERCABINET_REMOTE_CONTROLS,
   controlSku,
   driverLineFor,
@@ -356,6 +359,12 @@ function pushLinearRows(
   }
 }
 
+// Synthetic zone bucket for the job-wide Hardwire connection kit row (see
+// computeBom() below) — not a real wizard zone/step, just a label for where
+// this line shows up in the grouped BOM/summary (it has no single owning
+// zone by design — see hardwareKitsNeeded's comment inside computeBom()).
+const HARDWARE_KIT_ZONE = "Hardware & Accessories";
+
 /**
  * Computes the full bill of materials + total connected wattage for a
  * configurator state. Pure function — same input always produces the same
@@ -366,6 +375,13 @@ export function computeBom(state: ConfiguratorState): BomResult {
   const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library, closetHangers, shoeRack, vanity } = state;
   const rows: BomRow[] = [];
   let total = 0;
+  // Hardwire connection kit (catalog.ts HARDWARE_KIT_SKU) — a job-wide
+  // count, not a per-zone one (per the confirmed counting rule: 1 kit per
+  // cabinet for Base/Wall, 1 per shelf for Floating Shelves, 1 per zone for
+  // Toe Kick/Crown Moulding), accumulated here as each qualifying
+  // zone/block is processed below and resolved into a single recommended
+  // BOM row at the very end of this function.
+  let hardwareKitsNeeded = 0;
 
   // ---- undercabinet / toeKick / crown / floatingCabinet ("simple" zones) ----
   const addSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet") => {
@@ -426,6 +442,14 @@ export function computeBom(state: ConfiguratorState): BomResult {
         return { zone, watts };
       })
       .filter((result) => result.watts > 0);
+
+    // Hardwire connection kit — 1 per zone for Toe Kick/Crown Moulding
+    // (confirmed counting rule), regardless of how many runs the zone has.
+    // Gated on results.length so an included-but-still-all-zero zone
+    // doesn't recommend hardware it has no real run to attach to yet.
+    if ((key === "toeKick" || key === "crown") && results.length > 0 && z.includeHardwareKit !== false) {
+      hardwareKitsNeeded += 1;
+    }
 
     if (z.zoneCount > 1 && z.zoneControl === "separate") {
       results.forEach(({ zone, watts }) => {
@@ -508,6 +532,15 @@ export function computeBom(state: ConfiguratorState): BomResult {
 
     zoneState.blocks.forEach((b, i) => {
       if (!b.included) return;
+
+      // Hardwire connection kit — 1 per cabinet for Base/Wall Cabinets, 1
+      // per shelf for Floating Shelves (each block IS one shelf — see
+      // isFloatingShelf's comment above); not applicable to Pantry/High
+      // Cabinet/Library/Closet Hangers/Shoe Rack (confirmed counting rule).
+      if ((key === "base" || key === "wall" || isFloatingShelf) && b.includeHardwareKit !== false) {
+        hardwareKitsNeeded += 1;
+      }
+
       const hasTopLight =
         !isFloatingShelf &&
         (key === "pantry" || key === "wall" || key === "highCabinet" || key === "library" || key === "closetHangers" || key === "shoeRack") &&
@@ -750,7 +783,102 @@ export function computeBom(state: ConfiguratorState): BomResult {
     });
   }
 
+  // Resolve the accumulated hardware-kit count (see hardwareKitsNeeded's
+  // declaration above) into a single job-wide recommended BOM row — matches
+  // the install-clips accessory's own "raw count -> pack/bag count" shape
+  // (calcClipBags()), just aggregated across the whole job instead of one
+  // linear run, per the confirmed counting rule. Its own opt-out checkboxes
+  // (CabinetBlock.includeHardwareKit/SimpleZoneState.includeHardwareKit)
+  // already kept any excluded cabinet/shelf/zone out of this count, so
+  // nothing further to check here — only whether anything at all still
+  // needs one.
+  if (hardwareKitsNeeded > 0) {
+    const bags = Math.ceil(hardwareKitsNeeded / HARDWARE_KIT_PER_BAG);
+    rows.push({
+      zone: HARDWARE_KIT_ZONE,
+      qty: bags,
+      sku: HARDWARE_KIT_SKU,
+      description: `${HARDWARE_KIT_LABEL} · ${HARDWARE_KIT_PER_BAG}-pack`,
+      notes: `${hardwareKitsNeeded} kit${hardwareKitsNeeded === 1 ? "" : "s"} needed across the job`,
+    });
+  }
+
   return { rows, total: round2(total) };
+}
+
+// ---------------------------------------------------------------------
+// Manual BOM-quantity overrides (accessory-class rows only)
+// ---------------------------------------------------------------------
+// Pure post-processing step applied right after computeBom() — see
+// ConfiguratorClient.tsx, which applies this once so every consumer
+// (BomSummaryStep, PartsList, PricingPanel, the per-zone "AMBLUX calculated
+// solution" cards) sees the same already-overridden BomResult, and pricing
+// automatically reflects an edited quantity with no special-casing.
+// Only ever replaces a matching row's `qty` — `total` (connected wattage)
+// is intentionally left untouched, since editing a switch/clip/cord/kit
+// count never changes how many watts the job's fixtures actually draw.
+export function applyQuantityOverrides(bom: BomResult, overrides: Record<string, number> | undefined): BomResult {
+  if (!overrides || Object.keys(overrides).length === 0) return bom;
+  const rows = bom.rows.map((row) => {
+    const override = overrides[`${row.zone}:${row.sku}`];
+    return typeof override === "number" && Number.isFinite(override) ? { ...row, qty: override } : row;
+  });
+  return { rows, total: bom.total };
+}
+
+// ---------------------------------------------------------------------
+// Cross-zone CCT advisory
+// ---------------------------------------------------------------------
+// Every distinct colour-temperature value actually in play across every
+// *included* zone/block that has a real CCT concept at all — a puck
+// fixture is tri-colour-selectable in one SKU (see its "3000 K / 4000 K /
+// 5000 K" BOM description above) and has no discrete CCT field the
+// customer picks, so puck-lit zones/blocks are excluded entirely rather
+// than counted as a value or a "mismatch." More than one distinct value
+// here means the job mixes colour temperatures across zones — see
+// BomSummaryStep.tsx's non-blocking advisory note.
+const SIMPLE_CCT_ZONE_KEYS = ["undercabinet", "toeKick", "crown", "floatingCabinet"] as const;
+const BLOCKS_CCT_ZONE_KEYS = ["base", "wall", "floating", "pantry", "highCabinet", "library", "closetHangers", "shoeRack"] as const;
+
+export function activeCcts(state: ConfiguratorState): ("3000" | "4000")[] {
+  const { selected, simple, drawers, vanity } = state;
+  const found = new Set<"3000" | "4000">();
+
+  SIMPLE_CCT_ZONE_KEYS.forEach((key) => {
+    if (!selected[key]) return;
+    const z = simple[key];
+    const isPuck = key === "undercabinet" && z.lightType === "puck";
+    if (!isPuck) found.add(z.cct);
+  });
+
+  BLOCKS_CCT_ZONE_KEYS.forEach((key) => {
+    if (!selected[key]) return;
+    const zoneState = state[key];
+    const linearOnly = isLinearOnlyZone(key);
+    const isFloatingShelf = key === "floating";
+    zoneState.blocks.forEach((b) => {
+      if (!b.included) return;
+      const effectiveMode = isFloatingShelf || !hasVerticalOption(key) ? "shelf" : b.mode;
+      const isPuck = !linearOnly && b.lightType === "puck" && effectiveMode !== "vertical";
+      if (!isPuck) found.add(b.cct);
+    });
+  });
+
+  if (selected.drawers) {
+    drawers.blocks.forEach((b) => {
+      if (b.included) found.add(b.cct);
+    });
+  }
+
+  if (selected.vanity) {
+    vanity.blocks.forEach((u) => {
+      if (!u.included) return;
+      if (u.doorsInclude) found.add(u.doorsCct);
+      if (u.drawersInclude) found.add(u.drawersCct);
+    });
+  }
+
+  return Array.from(found);
 }
 
 export function groupBom(bom: BomResult): BomGroup[] {

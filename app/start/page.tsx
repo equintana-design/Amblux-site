@@ -21,6 +21,20 @@ import { useTranslations } from "@/app/providers/LocaleProvider";
 // "Configurator" and "Project" links are untouched, since those are
 // explicit destination links for someone who already knows which one they
 // want, not the generic "start a project" entry point this fork replaces.
+// Start flow -> Configurator application-type handoff: picking one of
+// these before "Open the configurator" carries the choice straight into
+// Project Info's Application field via a `?application=` query param (see
+// ConfiguratorClient.tsx's initialConfiguratorState()) instead of landing
+// on an unset Application that has to be chosen all over again. Reuses the
+// Configurator's own already-translated application-name strings rather
+// than adding a new set just for these four links.
+const APPLICATION_LINKS: { value: string; labelKey: string }[] = [
+  { value: "kitchen", labelKey: "configurator.applicationKitchen" },
+  { value: "closets", labelKey: "configurator.applicationClosets" },
+  { value: "bathroom", labelKey: "configurator.applicationBathroom" },
+  { value: "furniture", labelKey: "configurator.applicationFurniture" },
+];
+
 export default function StartPage() {
   const t = useTranslations();
 
@@ -42,14 +56,27 @@ export default function StartPage() {
             <span className="mt-4 text-sm font-semibold text-accent-strong">{t("start.knowCta")} →</span>
           </Link>
 
-          <Link
-            href="/configurator"
-            className="flex flex-col rounded-2xl border border-border bg-surface p-6 transition-colors hover:border-accent"
-          >
-            <h2 className="text-lg font-semibold text-foreground">{t("start.guideTitle")}</h2>
-            <p className="mt-2 flex-1 text-sm text-muted">{t("start.guideText")}</p>
-            <span className="mt-4 text-sm font-semibold text-accent-strong">{t("start.guideCta")} →</span>
-          </Link>
+          {/* A plain div, not a Link, wraps this card — it holds its own
+              inner Link (the CTA) plus a row of per-application Links below,
+              and nested <a> elements aren't valid HTML/DOM. */}
+          <div className="flex flex-col rounded-2xl border border-border bg-surface p-6 transition-colors hover:border-accent">
+            <Link href="/configurator" className="flex flex-1 flex-col">
+              <h2 className="text-lg font-semibold text-foreground">{t("start.guideTitle")}</h2>
+              <p className="mt-2 flex-1 text-sm text-muted">{t("start.guideText")}</p>
+              <span className="mt-4 text-sm font-semibold text-accent-strong">{t("start.guideCta")} →</span>
+            </Link>
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+              {APPLICATION_LINKS.map((app) => (
+                <Link
+                  key={app.value}
+                  href={`/configurator?application=${app.value}`}
+                  className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent-strong"
+                >
+                  {t(app.labelKey)}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </main>
     </div>

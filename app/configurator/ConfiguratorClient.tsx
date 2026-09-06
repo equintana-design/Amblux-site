@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountStatus } from "@/app/components/AccountStatus";
+import type { ApplicationType } from "@/lib/configurator/catalog";
 import { zonesForApplication } from "@/lib/configurator/catalog";
-import { computeBom } from "@/lib/configurator/engine";
+import { activeCcts, applyQuantityOverrides, computeBom } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
@@ -45,8 +46,29 @@ const ZONE_STEP_ORDER: ZoneStepKey[] = [
   "shoeRack",
 ];
 
+const APPLICATION_TYPES: ApplicationType[] = ["kitchen", "closets", "bathroom", "furniture"];
+
+// Start flow -> Configurator application-type handoff: a `?application=`
+// query param on the Configurator's own URL (e.g. from /start's per-type
+// quick links — see app/start/page.tsx) pre-selects Project Info's
+// Application field on initial load instead of leaving it unset and
+// requiring the customer to choose it again. Consumed once, here, as the
+// useState initializer (not a useEffect) so it's part of the very first
+// render rather than a state update after mount; a `?quote=` deep link's
+// own loadQuoteState() effect below still replaces this wholesale, so a
+// saved project's own Application always wins over a bare query-param hint.
+function initialConfiguratorState(): ConfiguratorState {
+  const base = defaultConfiguratorState();
+  if (typeof window === "undefined") return base;
+  const application = new URLSearchParams(window.location.search).get("application");
+  if (application && (APPLICATION_TYPES as string[]).includes(application)) {
+    return { ...base, project: { ...base.project, application: application as ApplicationType } };
+  }
+  return base;
+}
+
 export function ConfiguratorClient() {
-  const [state, setState] = useState<ConfiguratorState>(() => defaultConfiguratorState());
+  const [state, setState] = useState<ConfiguratorState>(initialConfiguratorState);
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<StepKey>("project");
   const t = useTranslations();
@@ -130,7 +152,32 @@ export function ConfiguratorClient() {
     });
   }, []);
 
-  const bom = useMemo(() => computeBom(state), [state]);
+  // computedBom is the fully-derived, un-edited BOM; `bom` (below) is what
+  // every consumer actually renders/prices — computedBom with any manual
+  // accessory-quantity overrides applied on top (see engine.ts's
+  // applyQuantityOverrides() and BomSummaryStep.tsx's per-row stepper).
+  // Applying it once here, rather than in each consumer, is what makes
+  // pricing/estimate totals automatically reflect an edited quantity too.
+  const computedBom = useMemo(() => computeBom(state), [state]);
+  const bom = useMemo(
+    () => applyQuantityOverrides(computedBom, state.manualQuantityOverrides),
+    [computedBom, state.manualQuantityOverrides]
+  );
+  const ccts = useMemo(() => activeCcts(state), [state]);
+
+  // Writes (or clears, when qty is null) one row's quantity override —
+  // keyed by `${zone}:${sku}` exactly like applyQuantityOverrides() reads
+  // it. Passed down to BomSummaryStep's per-row stepper/"reset to
+  // suggested" link.
+  function setQuantityOverride(zone: string, sku: string, qty: number | null) {
+    setState((s) => {
+      const overrides = { ...(s.manualQuantityOverrides ?? {}) };
+      const key = `${zone}:${sku}`;
+      if (qty === null) delete overrides[key];
+      else overrides[key] = qty;
+      return { ...s, manualQuantityOverrides: overrides };
+    });
+  }
 
   // Rendered inside every zone form (SimpleZoneForm/BlocksZoneForm/
   // DrawersForm/VanityForm — see forms.tsx's `saveSlot` prop), stacked
@@ -148,11 +195,15 @@ export function ConfiguratorClient() {
   // only project type the wizard actually supported — now that Application
   // is a real switch, the sidebar kicker should say whichever project type
   // is actually selected instead of always claiming Kitchen.
+  // "" (Application not yet deliberately chosen — see ProjectInfo.
+  // application's comment) shows the same Kitchen-fallback kicker text
+  // zonesForApplication() already falls back to for its zone list.
   const APPLICATION_KICKER: Record<ConfiguratorState["project"]["application"], string> = {
     kitchen: t("configurator.applicationKitchen"),
     closets: t("configurator.applicationClosets"),
     bathroom: t("configurator.applicationBathroom"),
     furniture: t("configurator.applicationFurniture"),
+    "": t("configurator.applicationKitchen"),
   };
 
   const ZONE_META: Record<ZoneStepKey, { title: string; allowPuck?: boolean }> = {
@@ -273,7 +324,14 @@ export function ConfiguratorClient() {
     if (activeStep === "summary") {
       return (
         <div className="flex flex-col gap-6">
-          <BomSummaryStep bom={bom} project={state.project} />
+          <BomSummaryStep
+            bom={bom}
+            computedBom={computedBom}
+            onQuantityChange={(zone, sku, qty) => setQuantityOverride(zone, sku, qty)}
+            onResetQuantity={(zone, sku) => setQuantityOverride(zone, sku, null)}
+            ccts={ccts}
+            project={state.project}
+          />
           <div className="grid gap-6 print:hidden lg:grid-cols-2">
             <PartsList bom={bom} project={state.project} />
             <PricingPanel bom={bom} />

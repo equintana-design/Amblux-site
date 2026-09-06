@@ -120,11 +120,13 @@ export function ProjectInfoStep({
             ]}
           />
         </Field>
-        <Field label={t("configurator.application")}>
+        <Field label={t("configurator.application")} required>
           <Select
             value={project.application}
-            onChange={(v) => onChange({ application: v as ApplicationType })}
+            onChange={(v) => onChange({ application: v as ApplicationType | "" })}
+            invalid={!project.application}
             options={[
+              { value: "", label: t("configuratorExtra.selectApplication") },
               { value: "kitchen", label: t("configurator.applicationKitchen") },
               { value: "closets", label: t("configurator.applicationClosets") },
               { value: "bathroom", label: t("configurator.applicationBathroom") },

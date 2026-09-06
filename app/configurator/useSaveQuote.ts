@@ -29,13 +29,19 @@ export function useSaveQuote({
   const [missingRequiredFields, setMissingRequiredFields] = useState(false);
   const [lastSavedJob, setLastSavedJob] = useState<string | null>(null);
 
-  // Project name, Client / Company, and Lighting provider name are
-  // mandatory (per the user's explicit request) — ProjectInfoStep.tsx
-  // shows a red asterisk + red border on these three fields, but the real
-  // enforcement is here: Save is refused outright, from either the header
-  // button or the Saved Projects panel, until all three are filled in.
+  // Project name, Client / Company, Lighting provider name, and (as of the
+  // Application-required fix) Application type are mandatory —
+  // ProjectInfoStep.tsx shows a red asterisk + red border on all four
+  // fields, but the real enforcement is here: Save is refused outright,
+  // from either the header button or the Saved Projects panel, until every
+  // one of them is filled in / deliberately chosen.
   function hasRequiredFields(): boolean {
-    return Boolean(state.project.name.trim() && state.project.client.trim() && state.project.providerName.trim());
+    return Boolean(
+      state.project.name.trim() &&
+        state.project.client.trim() &&
+        state.project.providerName.trim() &&
+        state.project.application
+    );
   }
 
   async function save() {

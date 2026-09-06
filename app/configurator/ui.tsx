@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { BomRow } from "@/lib/configurator/types";
+import type { BomRow, Unit } from "@/lib/configurator/types";
 
 // `required` just renders a red asterisk after the label — a visual cue,
 // not a native HTML `required` attribute (this wizard has no single
@@ -27,13 +27,22 @@ export function Select({
   value,
   onChange,
   options,
+  invalid,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  // Same red-border validation cue the required text inputs on
+  // ProjectInfoStep.tsx already use — e.g. the Application select, which is
+  // now a required field (see ProjectInfoStep.tsx).
+  invalid?: boolean;
 }) {
   return (
-    <select className={controlClass} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      className={`${controlClass} ${invalid ? "border-red-300" : ""}`}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -43,11 +52,59 @@ export function Select({
   );
 }
 
+// Parses a length-style text value that may be a whole number, a decimal
+// (e.g. "1.2"), a simple fraction (e.g. "3/4", "1/2"), or a mixed number
+// ("1 1/2" or "1-1/2" — both separators are real-world conventions for
+// inches/feet). Returns null for anything that doesn't (yet) parse to a
+// usable number, including a still-in-progress fragment like "1 " or
+// "1/" — the caller leaves the field's live value alone in that case
+// rather than guessing, same anti-clamp-while-typing reasoning as the
+// digits-only mode below.
+function parseLengthText(text: string): number | null {
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+
+  const mixed = trimmed.match(/^(\d+)[\s-]+(\d+)\/(\d+)$/);
+  if (mixed) {
+    const denominator = Number(mixed[3]);
+    if (denominator === 0) return null;
+    return Number(mixed[1]) + Number(mixed[2]) / denominator;
+  }
+
+  const fraction = trimmed.match(/^(\d+)\/(\d+)$/);
+  if (fraction) {
+    const denominator = Number(fraction[2]);
+    if (denominator === 0) return null;
+    return Number(fraction[1]) / denominator;
+  }
+
+  if (/^\d*\.?\d*$/.test(trimmed) && trimmed !== ".") {
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  return null;
+}
+
+// Every character an in-progress decimal, fraction, or mixed-number
+// fragment can legitimately contain (e.g. "1", "1.", "1 1/", "1-1/2") —
+// permissive on purpose, since parseLengthText() above is what actually
+// validates the result; this just decides what's allowed into the buffer
+// at all while typing.
+const LENGTH_TEXT_PATTERN = /^[0-9\s./-]*$/;
+
+// Rounded before redisplaying so a repeating fraction (e.g. 1/3) doesn't
+// come back from a commit as "0.3333333333333333".
+function formatLengthValue(n: number): string {
+  return String(Math.round(n * 1000) / 1000);
+}
+
 export function NumberInput({
   value,
   onChange,
   min = 0,
   max,
+  unit,
 }: {
   value: number;
   onChange: (value: number) => void;
@@ -56,7 +113,21 @@ export function NumberInput({
   // catalog.ts's MAX_SHELVES_BY_ZONE). Clamped when the field is committed
   // (see below), not on every keystroke, so a value can actually be typed.
   max?: number;
+  // Pass the field's current display unit to accept more than whole
+  // numbers: "m"/"cm" accept plain decimals ("1.2"); "in"/"ft" additionally
+  // accept real fraction notation ("1/2", "3/4") and mixed numbers
+  // ("1 1/2", "1-1/2") — the notations people actually use for those two
+  // units. Fractions/decimals are parsed to plain decimal internally
+  // (parseLengthText above) and redisplayed as decimal on blur; nothing
+  // about the app's internal unit representation changes. Omit entirely
+  // for a plain whole-number count field (shelves, drawer count, zone
+  // count, puck spacing step, etc.) to keep the original digits-only
+  // behaviour exactly as it was.
+  unit?: Unit;
 }) {
+  const allowsFraction = unit === "in" || unit === "ft";
+  const allowsDecimal = allowsFraction || unit === "m" || unit === "cm";
+
   // A plain, always-typable text field rather than the browser's native
   // type="number" spinner. Confirmed directly by the user that the
   // spinner-style input (with its up/down arrow buttons) wasn't usable for
@@ -67,8 +138,9 @@ export function NumberInput({
   // could even be typed — effectively making the field untypeable for
   // anything but single digits. This keeps its own local text buffer while
   // the customer is typing (so an in-progress keystroke — an empty field, a
-  // value that's momentarily out of range — is never immediately
-  // overwritten) and only clamps to min/max when the field loses focus.
+  // value that's momentarily out of range or not yet a complete fraction —
+  // is never immediately overwritten) and only clamps to min/max when the
+  // field loses focus.
   const [raw, setRaw] = useState(String(value));
   // Tracks the last `value` this input has already reconciled against, so
   // the buffer can be re-synced during render (React's recommended pattern
@@ -78,14 +150,15 @@ export function NumberInput({
   if (value !== lastSeenValue) {
     setLastSeenValue(value);
     // Only actually overwrite the buffer when it doesn't already match —
-    // e.g. `value` just changed because typing "10" itself pushed a new
-    // value up to the parent; the buffer already reads "10" and shouldn't
-    // be clobbered back to a stale rendering of that same number.
-    if (Number(raw) !== value) setRaw(String(value));
+    // e.g. `value` just changed because typing "1/2" itself pushed a new
+    // value up to the parent; the buffer already reads "1/2" and shouldn't
+    // be clobbered back to a stale decimal rendering of that same number.
+    const currentParsed = allowsDecimal ? parseLengthText(raw) : Number(raw);
+    if (currentParsed !== value) setRaw(allowsDecimal ? formatLengthValue(value) : String(value));
   }
 
   const clamp = (n: number) => {
-    let next = Math.round(n);
+    let next = allowsDecimal ? n : Math.round(n);
     if (max !== undefined && next > max) next = max;
     if (next < min) next = min;
     return next;
@@ -94,15 +167,28 @@ export function NumberInput({
   return (
     <input
       type="text"
-      inputMode="numeric"
+      inputMode={allowsFraction ? "text" : allowsDecimal ? "decimal" : "numeric"}
       className={controlClass}
       value={raw}
       onChange={(e) => {
         const text = e.target.value;
-        // Only digits are ever kept in the buffer — this is a count/length
-        // field, never negative, in this app. Anything else typed is simply
-        // ignored (the field just doesn't change) rather than surfacing an
-        // error, matching how a plain number field behaves.
+        if (allowsDecimal) {
+          // Anything outside the permissive character set is simply
+          // ignored (the field just doesn't change), matching how the
+          // digits-only mode below already behaves.
+          if (!LENGTH_TEXT_PATTERN.test(text)) return;
+          setRaw(text);
+          const parsed = parseLengthText(text);
+          // Deliberately NOT clamped here, and left entirely uncommitted
+          // while `text` is still an incomplete fraction/decimal (parsed
+          // === null) — see the comment above.
+          if (parsed !== null) onChange(parsed);
+          return;
+        }
+        // Only digits are ever kept in the buffer — this is a count field,
+        // never negative or fractional, in this app. Anything else typed is
+        // simply ignored (the field just doesn't change) rather than
+        // surfacing an error, matching how a plain number field behaves.
         if (!/^\d*$/.test(text)) return;
         setRaw(text);
         if (text !== "") {
@@ -115,6 +201,13 @@ export function NumberInput({
         }
       }}
       onBlur={() => {
+        if (allowsDecimal) {
+          const parsed = parseLengthText(raw);
+          const next = parsed === null ? min : clamp(parsed);
+          onChange(next);
+          setRaw(formatLengthValue(next));
+          return;
+        }
         const parsed = Number(raw);
         const next = raw.trim() === "" || !Number.isFinite(parsed) ? min : clamp(parsed);
         onChange(next);
@@ -158,6 +251,59 @@ export function Toggle({ label, checked, onChange }: { label: string; checked: b
       />
       {label}
     </label>
+  );
+}
+
+// Small numeric up/down stepper for the editable-BOM-quantity feature
+// (BomSummaryStep.tsx) — deliberately buttons, not a free-text field, per
+// spec ("numeric, not free text"). Shows an inline "reset to suggested"
+// link whenever the current value has actually been overridden away from
+// the computed one, matching the existing includeInstallBracket-style
+// opt-out affordances elsewhere in the wizard.
+export function QtyStepper({
+  value,
+  suggested,
+  min = 0,
+  onChange,
+  onReset,
+  resetLabel,
+}: {
+  value: number;
+  /** The computed (non-overridden) quantity — shown only to decide whether to offer the reset link. */
+  suggested: number;
+  min?: number;
+  onChange: (value: number) => void;
+  onReset: () => void;
+  resetLabel: string;
+}) {
+  const isOverridden = value !== suggested;
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label="Decrease quantity"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          className="flex h-6 w-6 items-center justify-center rounded border border-white/30 text-white transition-colors hover:border-white hover:bg-white/10"
+        >
+          −
+        </button>
+        <span className="w-6 text-center font-medium text-white">{value}</span>
+        <button
+          type="button"
+          aria-label="Increase quantity"
+          onClick={() => onChange(value + 1)}
+          className="flex h-6 w-6 items-center justify-center rounded border border-white/30 text-white transition-colors hover:border-white hover:bg-white/10"
+        >
+          +
+        </button>
+      </div>
+      {isOverridden ? (
+        <button type="button" onClick={onReset} className="text-[10px] text-accent-soft underline-offset-2 hover:underline">
+          {resetLabel}
+        </button>
+      ) : null}
+    </div>
   );
 }
 

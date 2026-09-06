@@ -47,7 +47,13 @@ export interface ProjectInfo {
   // Now a real project-type switch (see catalog.ts's ZONES_BY_APPLICATION/
   // zonesForApplication) rather than descriptive-only metadata — it decides
   // which zones the wizard offers, not just what gets printed on the BOM.
-  application: ApplicationType;
+  // "" = not yet deliberately chosen (see defaultConfiguratorState() below
+  // and ProjectInfoStep.tsx's required-field treatment) — a project can no
+  // longer be saved while this is still "", per useSaveQuote.ts's
+  // hasRequiredFields(). zonesForApplication() falls back to Kitchen's zone
+  // list for "" so the wizard still shows a sane zone set before that
+  // deliberate choice is made.
+  application: ApplicationType | "";
   install: "plug" | "hardwire";
 }
 
@@ -76,6 +82,14 @@ export interface SimpleZoneState {
   // catalog.ts LinearFamily.installAccessoryOptional, e.g. rigid-10x15) —
   // ignored otherwise. Lets the customer drop that line from the BOM.
   includeInstallBracket: boolean;
+  // Hardwire connection kit (catalog.ts HARDWARE_KIT_SKU) opt-out — only
+  // meaningful for Toe Kick/Crown Moulding (1 kit per zone, see engine.ts's
+  // addSimple()); ignored on every other SimpleZoneState-shaped zone.
+  // Defaults to true (a strong recommendation, not a forced add-on),
+  // undefined treated the same as true so an older saved project without
+  // this field still gets the recommendation. Same opt-out shape as
+  // includeInstallBracket above.
+  includeHardwareKit?: boolean;
 }
 
 export interface SimpleState {
@@ -117,6 +131,13 @@ export interface CabinetBlock {
   // and forms.tsx's CabinetBlockRow for the two callers.
   controlSystem?: ControlSystem;
   control?: string;
+  // Hardwire connection kit (catalog.ts HARDWARE_KIT_SKU) opt-out — only
+  // meaningful for Base Cabinet, Wall Cabinet (1 kit per cabinet/block) and
+  // Floating Shelves (1 kit per shelf/block) zones, see engine.ts's
+  // addBlocks(); ignored on every other "blocks"-style zone (Pantry, High
+  // Cabinet, Library, Closet Hangers, Shoe Rack). Defaults to true — see
+  // SimpleZoneState.includeHardwareKit's comment above for the same shape.
+  includeHardwareKit?: boolean;
 }
 
 export interface BlocksState {
@@ -225,6 +246,17 @@ export interface ConfiguratorState {
   shoeRack: BlocksState;
   // Vanity (Bathroom, Stage 4) — see VanityState's own comment above.
   vanity: VanityState;
+  // Manual per-row BOM quantity overrides — accessory-class rows only (see
+  // catalog.ts's overridableAccessorySkus()/isOverridableAccessorySku() and
+  // engine.ts's applyQuantityOverrides()). Keyed by `${row.zone}:${row.sku}`
+  // since the same SKU legitimately repeats across zones/blocks. A plain
+  // field on ConfiguratorState rather than a separate structure so it
+  // round-trips through the existing save/load flow (lib/configurator/
+  // quotes.ts) with zero additional plumbing — that flow already does a
+  // whole-object JSON.stringify/parse of ConfiguratorState with no
+  // per-field allowlist. Optional so an older saved project without this
+  // field loads exactly as it did before (see mergeConfiguratorState()).
+  manualQuantityOverrides?: Record<string, number>;
 }
 
 export interface BomRow {
@@ -272,6 +304,7 @@ export function simpleDefault(linearOnly = false): SimpleZoneState {
     puckFinish: "white",
     controlSystem: "wired",
     includeInstallBracket: true,
+    includeHardwareKit: true,
   };
 }
 
@@ -298,6 +331,7 @@ export function blockDefault(): CabinetBlock {
     puckFinish: "white",
     cct: "3000",
     includeInstallBracket: true,
+    includeHardwareKit: true,
   };
 }
 
@@ -402,7 +436,11 @@ export function defaultConfiguratorState(): ConfiguratorState {
       cabinet: "frameless",
       installLocation: "factory",
       installer: "cabinet",
-      application: "kitchen",
+      // "" (not "kitchen") — Application is now a required field the
+      // customer must deliberately choose (see ProjectInfo.application's
+      // comment above); the wizard's zone list still falls back to Kitchen
+      // via zonesForApplication() until that choice is made.
+      application: "",
       install: "plug",
     },
     simple: {
@@ -539,6 +577,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       unit: "in",
       blocks: Array.from({ length: 1 }, vanityUnitDefault),
     },
+    manualQuantityOverrides: {},
   };
 }
 
@@ -678,6 +717,11 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
       ...(loaded.drawers ?? {}),
       blocks: mergeBlocks(base.drawers.blocks, loaded.drawers?.blocks, drawerBlockDefault),
     },
+    // Round-trips through save/load unchanged — see ConfiguratorState's own
+    // comment. A saved project from before this field existed simply has no
+    // `manualQuantityOverrides` key at all, so this falls back to `{}`
+    // rather than propagating `undefined`.
+    manualQuantityOverrides: { ...(loaded.manualQuantityOverrides ?? {}) },
   };
 }
 

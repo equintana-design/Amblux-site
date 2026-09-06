@@ -1,23 +1,26 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   CLOSET_HANGER_COMPARTMENT_COUNTS,
   CONTROL_LABEL,
   CONTROL_OPTIONS,
   DEFAULT_COUNT_CAP,
+  HARDWARE_KIT_LABEL,
   RECESSED_FACEPLATES,
   SURFACE_PUCKS,
   UNDERCABINET_REMOTE_CONTROLS,
   availablePowerTypes,
   controlSku,
   familyCcts,
+  familyLengthsM,
   getLinearFamily,
   hasVerticalOption,
   isLinearOnlyZone,
   linearFamiliesFor,
   maxShelvesFor,
   puckWattsFor,
+  type LinearFamily,
 } from "@/lib/configurator/catalog";
 import { blockUnitLabel, finishLabel, LABELS } from "@/lib/configurator/labels";
 import {
@@ -55,14 +58,18 @@ function controlOptionsFor(zone: string, system: string): { value: string; label
   return ids.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }));
 }
 
+// Display order is fixed, everywhere this renders (the "three-family
+// control model" — Kinetic RF switch/Bluetooth App, wired sensor, wireless
+// sensor): Kinetic/Bluetooth first when this zone offers it at all, then
+// wired, then wireless — confirmed order, not just whatever order the
+// options happened to be built in.
 function controlSystemOptions(zone: string, t: TFunction): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [
-    { value: "wired", label: t("configurator.wiredSensor") },
-    { value: "wireless", label: t("configurator.wirelessSensor") },
-  ];
+  const opts: { value: string; label: string }[] = [];
   if ((CONTROL_OPTIONS[zone]?.wallControl || []).length > 0) {
     opts.push({ value: "wallControl", label: t("configurator.wallControl") });
   }
+  opts.push({ value: "wired", label: t("configurator.wiredSensor") });
+  opts.push({ value: "wireless", label: t("configurator.wirelessSensor") });
   return opts;
 }
 
@@ -97,6 +104,25 @@ function cctOptionsForFamily(familyId: string): { value: string; label: string }
   return familyCcts(getLinearFamily(familyId)).map((c) => ({ value: c, label: `${c} K` }));
 }
 
+// A linear family's real stock piece length shows up here only when it's
+// sold in exactly one length for the selected CCT (e.g. the recess
+// silicone/rigid channel families that come in a single stock length) —
+// otherwise the purchase-length mix is bin-packed automatically at
+// calculation time (see engine.ts's selectPieces()) and never was a picker
+// here. Previously this single real value was omitted entirely rather than
+// shown as a fixed, non-editable spec; rendered directly above the Colour
+// temperature field in every panel that has one (Length before CCT,
+// consistently).
+function FixedStockLengthField({ family, cct, t }: { family: LinearFamily; cct: "3000" | "4000"; t: TFunction }) {
+  const lengths = familyLengthsM(family, cct);
+  if (lengths.length !== 1) return null;
+  return (
+    <Field label={t("configuratorExtra.stockLength")}>
+      <ReadOnly value={t("configuratorExtra.fixedLength").replace("{length}", String(lengths[0]))} />
+    </Field>
+  );
+}
+
 // AMBLUX's linear families store wattage as W/metre (catalog.ts's real
 // numbers) — this just re-expresses that in whichever unit the zone/block
 // is currently using, so an installer working in feet doesn't have to do
@@ -126,17 +152,48 @@ function defaultLinearPatch(mounting: "recess" | "surface", mode?: "shelf" | "ve
 // behavior). `count` is the zone's current live block-array length, not a
 // display index, so this reads correctly for a saved project that already
 // has more than 1 card.
-function AddAnotherRow({ count, onAdd, unitLabel }: { count: number; onAdd: () => void; unitLabel: string }) {
+// `onAdd` now takes whether "Copy from previous" was checked at the moment
+// of the click — each of the 3 call sites (BlocksZoneForm, DrawersForm,
+// VanityForm) decides what that means for its own block shape (spread the
+// last block in the zone's array instead of a blank factory default, or
+// fall back to the blank default when there's nothing yet to copy). The
+// checkbox itself is ordinary local UI state — it isn't part of
+// ConfiguratorState and doesn't need to persist between add-clicks.
+function AddAnotherRow({
+  count,
+  onAdd,
+  unitLabel,
+}: {
+  count: number;
+  onAdd: (copyFromPrevious: boolean) => void;
+  unitLabel: string;
+}) {
   const t = useTranslations();
+  const [copyFromPrevious, setCopyFromPrevious] = useState(false);
   if (count >= DEFAULT_COUNT_CAP) return null;
   return (
-    <button
-      type="button"
-      onClick={onAdd}
-      className="rounded-xl border border-dashed border-border p-3 text-sm font-medium text-accent-strong transition-colors hover:border-accent hover:bg-background"
-    >
-      {t("configuratorExtra.addAnother").replace("{unit}", unitLabel)}
-    </button>
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onAdd(copyFromPrevious)}
+        className="rounded-xl border border-dashed border-border p-3 text-sm font-medium text-accent-strong transition-colors hover:border-accent hover:bg-background"
+      >
+        {t("configuratorExtra.addAnother").replace("{unit}", unitLabel)}
+      </button>
+      {/* Nothing to copy from yet on an empty zone — hidden rather than
+          shown-but-inert. */}
+      {count > 0 && (
+        <label className="flex items-center gap-2 text-xs font-medium text-muted">
+          <input
+            type="checkbox"
+            checked={copyFromPrevious}
+            onChange={(e) => setCopyFromPrevious(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-border accent-[var(--accent)]"
+          />
+          {t("configuratorExtra.copyFromPrevious")}
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -242,6 +299,7 @@ export function SimpleZoneForm({
             <Field key={i} label={`${t("configurator.zoneLength")} ${i + 1} (${state.unit})`}>
               <NumberInput
                 value={state.zoneLengths[i] ?? 0}
+                unit={state.unit}
                 onChange={(v) => {
                   // Pad out to a full DEFAULT_COUNT_CAP-length array on every
                   // write, not just a copy of whatever length the backing
@@ -259,7 +317,7 @@ export function SimpleZoneForm({
         </>
       ) : (
         <Field label={`${t("configurator.run")} (${state.unit})`}>
-          <NumberInput value={state.length} onChange={(v) => onChange({ length: v })} />
+          <NumberInput value={state.length} unit={state.unit} onChange={(v) => onChange({ length: v })} />
         </Field>
       )}
 
@@ -292,7 +350,7 @@ export function SimpleZoneForm({
           </Field>
           <Field label={t("configurator.spacing")}>
             <div className="flex gap-2">
-              <NumberInput value={state.spacing} min={1} onChange={(v) => onChange({ spacing: v })} />
+              <NumberInput value={state.spacing} min={1} unit={state.spacingUnit} onChange={(v) => onChange({ spacing: v })} />
               <Select
                 value={state.spacingUnit}
                 onChange={(v) => onChange({ spacingUnit: v as Unit })}
@@ -316,6 +374,7 @@ export function SimpleZoneForm({
               options={linearFamilyOptions(state.mounting)}
             />
           </Field>
+          <FixedStockLengthField family={getLinearFamily(state.linearFamily)} cct={state.cct} t={t} />
           <Field label={t("product.cct")}>
             <Select
               value={state.cct}
@@ -362,6 +421,20 @@ export function SimpleZoneForm({
           options={powerTypeOptions(t)}
         />
       </Field>
+
+      {/* Hardwire connection kit — 1 per zone, Toe Kick/Crown Moulding only
+          (confirmed counting rule; see engine.ts's addSimple()). Same
+          opt-out toggle shape as the linear family's install-bracket
+          checkbox above. */}
+      {(zoneKey === "toeKick" || zoneKey === "crown") && (
+        <Field label={HARDWARE_KIT_LABEL}>
+          <Toggle
+            label={t("configuratorExtra.addToBom")}
+            checked={state.includeHardwareKit !== false}
+            onChange={(v) => onChange({ includeHardwareKit: v })}
+          />
+        </Field>
+      )}
 
       <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={calculatedRows} />
     </Section>
@@ -511,9 +584,11 @@ export function BlocksZoneForm({
         <AddAnotherRow
           count={state.blocks.length}
           unitLabel={isFloating ? t("configurator.shelfUnit") : t("configurator.cabinet")}
-          onAdd={() => {
+          onAdd={(copyFromPrevious) => {
             const factory = isFloating ? floatingShelfBlockDefault : zoneKey === "closetHangers" ? closetHangerBlockDefault : blockDefault;
-            onChange({ blocks: [...state.blocks, factory()] });
+            const last = state.blocks[state.blocks.length - 1];
+            const newBlock = copyFromPrevious && last ? { ...last } : factory();
+            onChange({ blocks: [...state.blocks, newBlock] });
           }}
         />
       </div>
@@ -637,12 +712,12 @@ function CabinetBlockRow({
           )}
           {effectiveMode === "vertical" ? (
             <Field label={`${t("configurator.height")} (${unit})`}>
-              <NumberInput value={block.height} onChange={(v) => onChange({ height: v })} />
+              <NumberInput value={block.height} unit={unit} onChange={(v) => onChange({ height: v })} />
             </Field>
           ) : (
             <>
               <Field label={`${t("configurator.shelfRun")} (${unit})`}>
-                <NumberInput value={block.length} onChange={(v) => onChange({ length: v })} />
+                <NumberInput value={block.length} unit={unit} onChange={(v) => onChange({ length: v })} />
               </Field>
               {!isFloatingShelf &&
                 (isClosetHangers ? (
@@ -714,7 +789,7 @@ function CabinetBlockRow({
                 />
               </Field>
               <Field label={`${t("configurator.spacing")} (in)`}>
-                <NumberInput value={block.spacing} min={1} onChange={(v) => onChange({ spacing: v })} />
+                <NumberInput value={block.spacing} min={1} unit="in" onChange={(v) => onChange({ spacing: v })} />
               </Field>
               <Field label={t("configurator.puckWatts")}>
                 <ReadOnly value={`${puckWattsFor(block.mounting)} W`} />
@@ -732,6 +807,7 @@ function CabinetBlockRow({
                   options={linearFamilyOptions(block.mounting, effectiveMode)}
                 />
               </Field>
+              <FixedStockLengthField family={getLinearFamily(block.linearFamily)} cct={block.cct} t={t} />
               <Field label={t("product.cct")}>
                 <Select
                   value={block.cct}
@@ -752,6 +828,22 @@ function CabinetBlockRow({
                 </Field>
               )}
             </>
+          )}
+
+          {/* Hardwire connection kit — 1 per cabinet for Base/Wall, 1 per
+              shelf for Floating Shelves (confirmed counting rule; see
+              engine.ts's addBlocks()). Not offered on Pantry/High
+              Cabinet/Library/Closet Hangers/Shoe Rack, which the counting
+              rule doesn't cover. Same opt-out toggle shape as the linear
+              family's install-bracket checkbox above. */}
+          {(zoneKey === "base" || zoneKey === "wall" || isFloatingShelf) && (
+            <Field label={HARDWARE_KIT_LABEL}>
+              <Toggle
+                label={t("configuratorExtra.addToBom")}
+                checked={block.includeHardwareKit !== false}
+                onChange={(v) => onChange({ includeHardwareKit: v })}
+              />
+            </Field>
           )}
 
           {supportsTopLight && (
@@ -901,7 +993,7 @@ export function DrawersForm({
                   <NumberInput value={b.count} min={1} max={DEFAULT_COUNT_CAP} onChange={(v) => updateBlock(i, { count: v })} />
                 </Field>
                 <Field label={`${t("configurator.drawerLength")} (${state.unit})`}>
-                  <NumberInput value={b.length} onChange={(v) => updateBlock(i, { length: v })} />
+                  <NumberInput value={b.length} unit={state.unit} onChange={(v) => updateBlock(i, { length: v })} />
                 </Field>
                 <Field label={t("configurator.mounting")}>
                   <Select
@@ -926,6 +1018,7 @@ export function DrawersForm({
                     options={linearFamilyOptions(b.mounting)}
                   />
                 </Field>
+                <FixedStockLengthField family={getLinearFamily(b.linearFamily)} cct={b.cct} t={t} />
                 <Field label={t("product.cct")}>
                   <Select
                     value={b.cct}
@@ -943,7 +1036,11 @@ export function DrawersForm({
         <AddAnotherRow
           count={state.blocks.length}
           unitLabel={t("configurator.drawer")}
-          onAdd={() => onChange({ blocks: [...state.blocks, drawerBlockDefault()] })}
+          onAdd={(copyFromPrevious) => {
+            const last = state.blocks[state.blocks.length - 1];
+            const newBlock = copyFromPrevious && last ? { ...last } : drawerBlockDefault();
+            onChange({ blocks: [...state.blocks, newBlock] });
+          }}
         />
       </div>
 
@@ -1019,7 +1116,11 @@ export function VanityForm({
         <AddAnotherRow
           count={state.blocks.length}
           unitLabel={t("configurator.cabinet")}
-          onAdd={() => onChange({ blocks: [...state.blocks, vanityUnitDefault()] })}
+          onAdd={(copyFromPrevious) => {
+            const last = state.blocks[state.blocks.length - 1];
+            const newBlock = copyFromPrevious && last ? { ...last } : vanityUnitDefault();
+            onChange({ blocks: [...state.blocks, newBlock] });
+          }}
         />
       </div>
 
@@ -1078,7 +1179,7 @@ function VanityUnitRow({
             {block.doorsInclude && (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label={`${t("configurator.height")} (${unit})`}>
-                  <NumberInput value={block.doorsHeight} onChange={(v) => onChange({ doorsHeight: v })} />
+                  <NumberInput value={block.doorsHeight} unit={unit} onChange={(v) => onChange({ doorsHeight: v })} />
                 </Field>
                 {/* Vertical/gable lighting is recess-mount only everywhere
                     it appears in the app (see linearFamilyOptions' "vertical"
@@ -1098,6 +1199,7 @@ function VanityUnitRow({
                     options={linearFamilyOptions("recess", "vertical")}
                   />
                 </Field>
+                <FixedStockLengthField family={getLinearFamily(block.doorsLinearFamily)} cct={block.doorsCct} t={t} />
                 <Field label={t("product.cct")}>
                   <Select
                     value={block.doorsCct}
@@ -1153,7 +1255,7 @@ function VanityUnitRow({
                   <NumberInput value={block.drawersCount} min={1} max={DEFAULT_COUNT_CAP} onChange={(v) => onChange({ drawersCount: v })} />
                 </Field>
                 <Field label={`${t("configurator.drawerLength")} (${unit})`}>
-                  <NumberInput value={block.drawersLength} onChange={(v) => onChange({ drawersLength: v })} />
+                  <NumberInput value={block.drawersLength} unit={unit} onChange={(v) => onChange({ drawersLength: v })} />
                 </Field>
                 <Field label={t("configurator.mounting")}>
                   <Select
@@ -1179,6 +1281,7 @@ function VanityUnitRow({
                     options={linearFamilyOptions(block.drawersMounting)}
                   />
                 </Field>
+                <FixedStockLengthField family={getLinearFamily(block.drawersLinearFamily)} cct={block.drawersCct} t={t} />
                 <Field label={t("product.cct")}>
                   <Select
                     value={block.drawersCct}
