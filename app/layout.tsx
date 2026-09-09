@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { LocaleProvider } from "./providers/LocaleProvider";
 import { TestProjectProvider } from "./providers/TestProjectProvider";
@@ -30,6 +31,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TestProjectProvider>{children}</TestProjectProvider>
         </LocaleProvider>
       </body>
+      {/* Google Analytics (GA4). The tracking ID lives in an environment
+          variable (NEXT_PUBLIC_GA_ID) rather than hardcoded here, so it's
+          set once in Vercel's project settings, never committed to the
+          repo, and the site still builds/runs fine with analytics simply
+          turned off (this component renders nothing) if that variable is
+          ever unset — e.g. a preview/local build with no GA ID configured. */}
+      {process.env.NEXT_PUBLIC_GA_ID && (
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+      )}
     </html>
   );
 }
