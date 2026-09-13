@@ -19,6 +19,33 @@ import { computeBom, consolidatePartsByZone } from "@/lib/configurator/engine";
 import { mergeConfiguratorState, type ConfiguratorState } from "@/lib/configurator/types";
 import { loadCatalogRules, usableLinearFamilies, puckOption } from "@/lib/chat/catalogRules";
 import { sendLeadHandoffEmail } from "@/lib/email";
+import { dictionaries, type Locale } from "@/lib/i18n/dictionaries";
+
+// 2026-09-13: get_zone_catalog used to always return catalog.ts's English
+// zoneNames, regardless of the site's own EN/FR/ES language switcher — so
+// even once the assistant's replies started following the site's selected
+// language, it kept inventing its own translation of zone/finish names
+// instead of using the configurator's own approved wording (e.g. "Éclairage
+// sous armoire" for under-cabinet in French — already translated in
+// lib/i18n/dictionaries.ts, just never read from here). These two helpers
+// look those exact strings up by locale so the chat and the graphical
+// configurator always say the same thing for the same zone/finish.
+function localizedZoneNames(locale: Locale): Record<string, string> {
+  return dictionaries[locale].configurator.zoneNames;
+}
+
+// Puck finish keys (white/satinNickel/black/chrome) are stored as flat
+// top-level keys under the configurator namespace (see dictionaries.ts,
+// same keys lib/configurator/labels.ts's LABELS.finish uses internally for
+// English-only BOM text) — this just looks each one up per locale, falling
+// back to the raw key if a key is ever added to catalog.ts before its
+// translation is.
+function localizedFinishLabels(locale: Locale, keys: string[]): Record<string, string> {
+  const table = dictionaries[locale].configurator as unknown as Record<string, string>;
+  const out: Record<string, string> = {};
+  for (const key of keys) out[key] = table[key] ?? key;
+  return out;
+}
 
 export interface AnthropicTool {
   name: string;
@@ -34,6 +61,11 @@ export interface ToolExecutionContext {
   // object" the chat-assistant spec requires, not a parallel copy of it.
   getState(): Record<string, unknown>;
   setState(next: Record<string, unknown>): void;
+  // The site's currently selected language (see systemPrompt.ts's
+  // buildSystemPrompt) — get_zone_catalog uses this to return zone/finish
+  // names in the same language and wording the graphical configurator
+  // itself uses, instead of catalog.ts's English-only internal names.
+  locale: Locale;
 }
 
 export interface ToolResult {
@@ -65,7 +97,7 @@ export const CHAT_TOOLS: AnthropicTool[] = [
   {
     name: "get_zone_catalog",
     description:
-      "Returns the real list of AMBLUX project zones (undercabinet, toe kick, crown, base cabinet, wall cabinet, floating shelves, pantry, drawers, high cabinet, library, closet hangers, shoe rack, vanity, mirror, floating cabinet), which zones apply to which project application (kitchen/bathroom/closets/furniture), the display name for each zone, the real control options available per zone/control-system, which zones support puck fixtures as an alternative to linear tape/extrusion (see puckCapableZones — a zone not in that list and not in linearOnlyZones is simply always linear, it has no light-type choice at all), and the real puck finish options by mounting. Call this before asking the customer about zones, controls, or light type so you only ever offer choices that really exist — never invent a zone, control name, or light-type option (in particular: never assume puck lighting doesn't exist for a zone, or does exist for a zone not listed in puckCapableZones).",
+      "Returns the real list of AMBLUX project zones (undercabinet, toe kick, crown, base cabinet, wall cabinet, floating shelves, pantry, drawers, high cabinet, library, closet hangers, shoe rack, vanity, mirror, floating cabinet), which zones apply to which project application (kitchen/bathroom/closets/furniture), the display name for each zone (zoneNames — already in the customer's currently selected site language, matching the graphical configurator's own wording exactly; always use these exact strings, never your own translation), the real control options available per zone/control-system, which zones support puck fixtures as an alternative to linear tape/extrusion (see puckCapableZones — a zone not in that list and not in linearOnlyZones is simply always linear, it has no light-type choice at all), the real puck finish keys by mounting (puckFinishes — pass these keys back as-is in compute_bom's puckFinish field), and the matching display name for each finish key already in the customer's language (puckFinishLabels). Call this before asking the customer about zones, controls, or light type so you only ever offer choices that really exist — never invent a zone, control name, or light-type option (in particular: never assume puck lighting doesn't exist for a zone, or does exist for a zone not listed in puckCapableZones).",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -134,10 +166,15 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
     switch (name) {
       case "get_zone_catalog": {
         const snapshot = await loadCatalogRules();
+        const allFinishKeys = [...snapshot.puckFinishes.recess, ...snapshot.puckFinishes.surface];
         return {
           content: JSON.stringify({
             zones: snapshot.zones,
-            zoneNames: snapshot.zoneNames,
+            // Localized to ctx.locale (the site's current EN/FR/ES
+            // selection) using the exact same wording as the graphical
+            // configurator — see localizedZoneNames() above — not
+            // catalog.ts's internal English-only names.
+            zoneNames: localizedZoneNames(ctx.locale),
             zonesByApplication: snapshot.zonesByApplication,
             controlOptions: snapshot.controlOptions,
             controlLabels: snapshot.controlLabel,
@@ -147,6 +184,7 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
             linearOnlyZones: snapshot.linearOnlyZones,
             puckCapableZones: snapshot.puckCapableZones,
             puckFinishes: snapshot.puckFinishes,
+            puckFinishLabels: localizedFinishLabels(ctx.locale, allFinishKeys),
           }),
         };
       }

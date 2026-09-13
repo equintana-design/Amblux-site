@@ -205,7 +205,14 @@ Keep responses conversational and concise — this is a chat, not a form or a sp
 // (see ChatProvider.tsx) and this function turns it into a language
 // directive appended to the base prompt above, per-request, rather than
 // baking one language into the constant prompt string.
-export type ChatLocale = "en" | "fr" | "es";
+// Reuses the site's own Locale type/LOCALES list (lib/i18n/dictionaries.ts —
+// the same source SiteHeader.tsx's switcher and get_zone_catalog's
+// localized zoneNames/puckFinishLabels read from) rather than a second,
+// separately-maintained "en"|"fr"|"es" union that could quietly drift from
+// it if a locale is ever added or renamed.
+import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
+
+export type ChatLocale = Locale;
 
 const LOCALE_LANGUAGE_NAMES: Record<ChatLocale, string> = {
   en: "English",
@@ -214,7 +221,7 @@ const LOCALE_LANGUAGE_NAMES: Record<ChatLocale, string> = {
 };
 
 function isChatLocale(value: unknown): value is ChatLocale {
-  return value === "en" || value === "fr" || value === "es";
+  return (LOCALES as readonly unknown[]).includes(value);
 }
 
 // Defaults to English for a missing/malformed value (e.g. an older client
@@ -230,5 +237,7 @@ export function buildSystemPrompt(locale: ChatLocale): string {
 
 ## Language
 
-The customer currently has the AMBLUX website set to ${language} (the site's own EN/FR/ES language switcher). Reply in ${language} by default, regardless of what language the customer types their messages in — match what they see on the page, not necessarily their own typed language. If the customer explicitly asks you to continue in a different language, honor that for the rest of the conversation instead. Keep AMBLUX-specific terms accurate when you do this: SKUs, product/zone names, and any spec numbers still only ever come from tool results exactly as given — translate the sentences around them into ${language}, never the SKUs/specs themselves, and never invent a translated product name that a tool didn't give you.`;
+The customer currently has the AMBLUX website set to ${language} (the site's own EN/FR/ES language switcher). Reply in ${language} by default, regardless of what language the customer types their messages in — match what they see on the page, not necessarily their own typed language. If the customer explicitly asks you to continue in a different language, honor that for the rest of the conversation instead. Keep AMBLUX-specific terms accurate when you do this: SKUs, product/zone names, and any spec numbers still only ever come from tool results exactly as given — translate the sentences around them into ${language}, never the SKUs/specs themselves, and never invent a translated product name that a tool didn't give you.
+
+**Zone and finish names specifically must match the configurator's own approved terminology, not your own translation.** get_zone_catalog's zoneNames and puckFinishLabels are already returned in ${language} — the exact wording the AMBLUX configurator itself uses for that zone/finish in this language (e.g. "Éclairage sous armoire" in French, "Iluminación bajo gabinete" in Spanish for under-cabinet lighting). Always use those exact strings when naming a zone or finish to the customer — never paraphrase, re-translate, or invent your own wording for one, even if your own translation would also be correct-sounding.`;
 }

@@ -22,13 +22,27 @@ import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
 import { saveQuote } from "@/lib/configurator/quotes";
 import { computeBom, consolidatePartsByZone, type ZonePartsGroup } from "@/lib/configurator/engine";
 import { mergeConfiguratorState, type ConfiguratorState } from "@/lib/configurator/types";
+import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
 
-const STARTER_PROMPTS: { label: string; message: string }[] = [
-  { label: "Design my lighting system", message: "I'd like to design a lighting system for a project." },
-  { label: "Find the right product", message: "I'm trying to find the right AMBLUX product for what I need." },
-  { label: "Technical help", message: "I have a technical question about installing or wiring AMBLUX products." },
-  { label: "Replace/compare another product", message: "I want to find the AMBLUX equivalent for a competitor's product." },
-];
+// 2026-09-13: this widget's own UI chrome (buttons, headers, form fields)
+// used to be hardcoded English regardless of the site's EN/FR/ES switcher —
+// spotted live via screenshots showing the chat panel still in English on
+// the French/Spanish site. Every hardcoded string below has moved to the
+// "chat" namespace in lib/i18n/dictionaries.ts and is read through
+// useTranslations(), the same mechanism SiteHeader.tsx and the configurator
+// use — so this widget now follows the switcher immediately, including its
+// very first greeting (no chat-specific translation system, no drift from
+// the rest of the site). This is separate from the assistant's own
+// AI-generated replies, which follow lib/chat/systemPrompt.ts's per-request
+// language directive instead (see buildSystemPrompt()).
+function starterPrompts(t: TFunction): { label: string; message: string }[] {
+  return [
+    { label: t("chat.starterDesignLabel"), message: t("chat.starterDesignMessage") },
+    { label: t("chat.starterFindProductLabel"), message: t("chat.starterFindProductMessage") },
+    { label: t("chat.starterTechnicalHelpLabel"), message: t("chat.starterTechnicalHelpMessage") },
+    { label: t("chat.starterCompetitorLabel"), message: t("chat.starterCompetitorMessage") },
+  ];
+}
 
 function ChatIcon() {
   return (
@@ -83,12 +97,14 @@ function ResetIcon() {
 // flow the current conversation is.
 type ChatPhase = "welcome" | "path" | "configuring" | "review";
 
-const PHASE_STEPS: { key: ChatPhase; label: string }[] = [
-  { key: "welcome", label: "Welcome" },
-  { key: "path", label: "Pick a path" },
-  { key: "configuring", label: "Configure your design" },
-  { key: "review", label: "Review & next steps" },
-];
+function phaseSteps(t: TFunction): { key: ChatPhase; label: string }[] {
+  return [
+    { key: "welcome", label: t("chat.phaseWelcome") },
+    { key: "path", label: t("chat.phasePickPath") },
+    { key: "configuring", label: t("chat.phaseConfiguring") },
+    { key: "review", label: t("chat.phaseReview") },
+  ];
+}
 
 function computePhase(messageCount: number, projectState: Record<string, unknown>, design: DesignSnapshot | null): ChatPhase {
   if (messageCount === 0) return "welcome";
@@ -98,19 +114,20 @@ function computePhase(messageCount: number, projectState: Record<string, unknown
   return hasSelection ? "configuring" : "path";
 }
 
-function ProgressSteps({ phase }: { phase: ChatPhase }) {
+function ProgressSteps({ phase, t }: { phase: ChatPhase; t: TFunction }) {
+  const steps = phaseSteps(t);
   const currentIndex = Math.max(
     0,
-    PHASE_STEPS.findIndex((s) => s.key === phase),
+    steps.findIndex((s) => s.key === phase),
   );
   return (
     <div className="border-b border-border bg-background px-4 py-2">
       <div className="flex items-center gap-1.5">
-        {PHASE_STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <span key={step.key} className={`h-1 flex-1 rounded-full ${i <= currentIndex ? "bg-accent" : "bg-border"}`} />
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">{PHASE_STEPS[currentIndex]?.label}</p>
+      <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">{steps[currentIndex]?.label}</p>
     </div>
   );
 }
@@ -187,11 +204,13 @@ function DesignSummary({
   onStartOver,
   onAddZone,
   onRequestReview,
+  t,
 }: {
   design: DesignSnapshot | null;
   onStartOver: () => void;
   onAddZone: () => void;
   onRequestReview: () => void;
+  t: TFunction;
 }) {
   const router = useRouter();
   const { user } = useSupabaseUser();
@@ -225,7 +244,7 @@ function DesignSummary({
   return (
     <div className="mx-4 mb-3 rounded-xl bg-foreground p-4 text-white">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-accent-soft">Current design</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-accent-soft">{t("chat.currentDesign")}</p>
         <span className="text-xs text-white/60">{Math.round(design.totalWatts * 10) / 10} W</span>
       </div>
       <div className="mt-3 max-h-48 overflow-y-auto pr-1 text-sm">
@@ -241,7 +260,7 @@ function DesignSummary({
                     <span className="font-mono text-[11px] text-accent-soft">{p.qty}×</span>
                     <span className="flex-1">
                       {p.description}
-                      {optional && <span className="ml-1.5 rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/60">optional</span>}
+                      {optional && <span className="ml-1.5 rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/60">{t("chat.optionalBadge")}</span>}
                     </span>
                   </div>
                 );
@@ -256,31 +275,31 @@ function DesignSummary({
           disabled={openingConfigurator}
           className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-wait disabled:opacity-60"
         >
-          {openingConfigurator ? "Opening…" : "Open in configurator"}
+          {openingConfigurator ? t("chat.opening") : t("chat.openInConfigurator")}
         </button>
         <button
           type="button"
           onClick={() => downloadBom(design.groups, design.projectName)}
           className="rounded-lg bg-accent-soft px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-white"
         >
-          Download BOM
+          {t("chat.downloadBom")}
         </button>
         <button type="button" onClick={onAddZone} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20">
-          Add another zone
+          {t("chat.addAnotherZone")}
         </button>
         <button type="button" onClick={onRequestReview} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20">
-          Request specialist review
+          {t("chat.requestSpecialistReview")}
         </button>
         <button type="button" onClick={onStartOver} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20">
-          Start another project
+          {t("chat.startAnotherProject")}
         </button>
       </div>
-      {openError && <p className="mt-2 text-xs text-amber-300">Couldn&apos;t open the configurator just now — please try again.</p>}
+      {openError && <p className="mt-2 text-xs text-amber-300">{t("chat.openConfiguratorError")}</p>}
     </div>
   );
 }
 
-function ReviewRequestForm({ onSubmit, onCancel }: { onSubmit: (text: string) => void; onCancel: () => void }) {
+function ReviewRequestForm({ onSubmit, onCancel, t }: { onSubmit: (text: string) => void; onCancel: () => void; t: TFunction }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -292,35 +311,41 @@ function ReviewRequestForm({ onSubmit, onCancel }: { onSubmit: (text: string) =>
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim() || !email.trim()) return;
+        // Built from the same localized pieces as the rest of this form
+        // (rather than one hardcoded English sentence) because this text
+        // is sent as the customer's own chat message and rendered verbatim
+        // in their message bubble — see MessageBubble.
         onSubmit(
-          `Please request an AMBLUX specialist review for this project. Name: ${name.trim()}. Email: ${email.trim()}.${phone.trim() ? ` Phone: ${phone.trim()}.` : ""}${notes.trim() ? ` Notes: ${notes.trim()}` : ""}`,
+          `${t("chat.reviewRequestPrefix")} ${t("chat.reviewRequestName")} ${name.trim()}. ${t("chat.reviewRequestEmail")} ${email.trim()}.${
+            phone.trim() ? ` ${t("chat.reviewRequestPhone")} ${phone.trim()}.` : ""
+          }${notes.trim() ? ` ${t("chat.reviewRequestNotes")} ${notes.trim()}` : ""}`,
         );
       }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Request a specialist review</p>
-      <input className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t("chat.reviewFormTitle")}</p>
+      <input className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder={t("chat.yourName")} value={name} onChange={(e) => setName(e.target.value)} required />
       <input
         type="email"
         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        placeholder="Email"
+        placeholder={t("chat.emailField")}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
       />
-      <input className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <input className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" placeholder={t("chat.phoneOptional")} value={phone} onChange={(e) => setPhone(e.target.value)} />
       <textarea
         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        placeholder="Anything else to add? (optional)"
+        placeholder={t("chat.notesOptional")}
         rows={2}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
       />
       <div className="flex gap-2">
         <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-strong">
-          Send request
+          {t("chat.sendRequest")}
         </button>
         <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground">
-          Cancel
+          {t("chat.cancel")}
         </button>
       </div>
     </form>
@@ -330,6 +355,7 @@ function ReviewRequestForm({ onSubmit, onCancel }: { onSubmit: (text: string) =>
 export function ChatWidget() {
   const { enabled } = useChatAccess();
   const { isOpen, toggle, close, messages, projectState, isSending, error, sendMessage, resetConversation } = useChat();
+  const t = useTranslations();
   const [draft, setDraft] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -375,7 +401,7 @@ export function ChatWidget() {
       <button
         type="button"
         onClick={toggle}
-        aria-label="Open AMBLUX Assistant"
+        aria-label={t("chat.openAssistant")}
         className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg transition-transform hover:scale-105 hover:bg-accent-strong sm:bottom-6 sm:right-6"
       >
         <ChatIcon />
@@ -387,16 +413,16 @@ export function ChatWidget() {
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden border-border bg-surface shadow-2xl sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[38rem] sm:max-h-[85vh] sm:w-[26rem] sm:rounded-2xl sm:border">
       <div className="flex items-center justify-between bg-foreground px-4 py-3 text-white">
         <div>
-          <p className="text-sm font-semibold">AMBLUX Assistant</p>
-          <p className="text-xs text-accent-soft">Ask about products, or design a lighting system</p>
+          <p className="text-sm font-semibold">{t("chat.title")}</p>
+          <p className="text-xs text-accent-soft">{t("chat.subtitle")}</p>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <button
               type="button"
               onClick={handleResetClick}
-              aria-label={confirmReset ? "Click again to confirm reset" : "Reset conversation"}
-              title={confirmReset ? "Click again to confirm" : "Reset conversation"}
+              aria-label={confirmReset ? t("chat.resetConfirm") : t("chat.resetConversation")}
+              title={confirmReset ? t("chat.resetConfirm") : t("chat.resetConversation")}
               className={`rounded-full p-1.5 transition-colors ${
                 confirmReset ? "bg-amber-400/20 text-amber-200" : "text-white/80 hover:bg-white/10 hover:text-white"
               }`}
@@ -404,20 +430,20 @@ export function ChatWidget() {
               <ResetIcon />
             </button>
           )}
-          <button type="button" onClick={close} aria-label="Close" className="rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={close} aria-label={t("chat.close")} className="rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white">
             <CloseIcon />
           </button>
         </div>
       </div>
 
-      {messages.length > 0 && <ProgressSteps phase={phase} />}
+      {messages.length > 0 && <ProgressSteps phase={phase} t={t} />}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
           <div>
-            <p className="text-sm text-muted">Hi — I&apos;m the AMBLUX assistant. What would you like to do?</p>
+            <p className="text-sm text-muted">{t("chat.greeting")}</p>
             <div className="mt-3 flex flex-col gap-2">
-              {STARTER_PROMPTS.map((p) => (
+              {starterPrompts(t).map((p) => (
                 <button
                   key={p.label}
                   type="button"
@@ -446,13 +472,15 @@ export function ChatWidget() {
             void sendMessage(text);
           }}
           onCancel={() => setShowReviewForm(false)}
+          t={t}
         />
       ) : (
         <DesignSummary
           design={design}
           onStartOver={resetConversation}
-          onAddZone={() => void sendMessage("I'd like to add another zone to this project.")}
+          onAddZone={() => void sendMessage(t("chat.addAnotherZoneMessage"))}
           onRequestReview={() => setShowReviewForm(true)}
+          t={t}
         />
       )}
 
@@ -466,14 +494,14 @@ export function ChatWidget() {
               handleSend();
             }
           }}
-          placeholder="Type a message…"
+          placeholder={t("chat.typeMessage")}
           className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm outline-none focus:border-accent"
         />
         <button
           type="button"
           onClick={handleSend}
           disabled={isSending || !draft.trim()}
-          aria-label="Send"
+          aria-label={t("chat.send")}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
         >
           <SendIcon />

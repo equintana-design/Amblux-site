@@ -129,7 +129,8 @@ export async function POST(request: Request) {
   }
 
   const messages: AnthropicMessage[] = body.messages.map((m) => ({ role: m.role, content: m.content }));
-  const systemPrompt = buildSystemPrompt(resolveChatLocale(body.locale));
+  const locale = resolveChatLocale(body.locale);
+  const systemPrompt = buildSystemPrompt(locale);
 
   let workingState: Record<string, unknown> = body.state ?? {};
   const ctx: ToolExecutionContext = {
@@ -137,6 +138,7 @@ export async function POST(request: Request) {
     setState: (next) => {
       workingState = next;
     },
+    locale,
   };
 
   let finalText = "";
