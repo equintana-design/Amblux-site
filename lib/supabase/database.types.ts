@@ -1,8 +1,11 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0032. Regenerate this file any time
-// the schema changes rather than hand-editing it — it's meant to always
-// mirror the real database exactly.
+// supabase/migrations/0001 through 0035 (unified_catalog_rules — see the
+// 2026-09-13 AI chat assistant planning conversation: adds
+// amblux_catalog_rules plus vertical_only/vertical_capable columns on
+// amblux_linear_families). Regenerate this file any time the schema
+// changes rather than hand-editing it — it's meant to always mirror the
+// real database exactly.
 export type Json =
   | string
   | number
@@ -19,6 +22,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      amblux_catalog_rules: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       amblux_linear_families: {
         Row: {
           created_at: string
@@ -31,6 +55,8 @@ export type Database = {
           power_cord_sku: string | null
           type: string
           updated_at: string
+          vertical_capable: boolean
+          vertical_only: boolean
           watts_per_metre: number
         }
         Insert: {
@@ -44,6 +70,8 @@ export type Database = {
           power_cord_sku?: string | null
           type: string
           updated_at?: string
+          vertical_capable?: boolean
+          vertical_only?: boolean
           watts_per_metre: number
         }
         Update: {
@@ -57,6 +85,8 @@ export type Database = {
           power_cord_sku?: string | null
           type?: string
           updated_at?: string
+          vertical_capable?: boolean
+          vertical_only?: boolean
           watts_per_metre?: number
         }
         Relationships: []
