@@ -59,6 +59,62 @@ function SendIcon() {
   );
 }
 
+function ResetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+      <path
+        d="M4.5 12a7.5 7.5 0 1 1 2.4 5.5M4.5 12V7m0 5h5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// The conversation moves through the same coarse phases every time,
+// regardless of how many zones end up in the project: greet -> pick one of
+// the four starter paths -> guided per-zone Q&A -> a computed design to
+// review. This is derived purely from state the app already has (message
+// count + the shared project state's `selected` zones + whether
+// computeDesign() below finds a real BOM) — it does not introduce any new
+// persisted field or business rule, just a UI-only label for where in that
+// flow the current conversation is.
+type ChatPhase = "welcome" | "path" | "configuring" | "review";
+
+const PHASE_STEPS: { key: ChatPhase; label: string }[] = [
+  { key: "welcome", label: "Welcome" },
+  { key: "path", label: "Pick a path" },
+  { key: "configuring", label: "Configure your design" },
+  { key: "review", label: "Review & next steps" },
+];
+
+function computePhase(messageCount: number, projectState: Record<string, unknown>, design: DesignSnapshot | null): ChatPhase {
+  if (messageCount === 0) return "welcome";
+  if (design) return "review";
+  const selected = (projectState as { selected?: Record<string, unknown> } | undefined)?.selected;
+  const hasSelection = !!selected && Object.values(selected).some(Boolean);
+  return hasSelection ? "configuring" : "path";
+}
+
+function ProgressSteps({ phase }: { phase: ChatPhase }) {
+  const currentIndex = Math.max(
+    0,
+    PHASE_STEPS.findIndex((s) => s.key === phase),
+  );
+  return (
+    <div className="border-b border-border bg-background px-4 py-2">
+      <div className="flex items-center gap-1.5">
+        {PHASE_STEPS.map((step, i) => (
+          <span key={step.key} className={`h-1 flex-1 rounded-full ${i <= currentIndex ? "bg-accent" : "bg-border"}`} />
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">{PHASE_STEPS[currentIndex]?.label}</p>
+    </div>
+  );
+}
+
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1 px-1 py-2">
@@ -107,31 +163,40 @@ function downloadBom(groups: ZonePartsGroup[], projectName: string) {
   URL.revokeObjectURL(url);
 }
 
+// Computed once per projectState change and shared by DesignSummary (the
+// action panel) and the progress indicator above the message thread, so
+// there's exactly one place in this file that turns the shared project
+// state into a BOM — both call the same lib/configurator/engine.ts
+// functions the graphical configurator uses, never a second implementation.
+type DesignSnapshot = ReturnType<typeof computeDesignSnapshot>;
+
+function computeDesignSnapshot(projectState: Record<string, unknown>) {
+  if (!projectState || Object.keys(projectState).length === 0) return null;
+  try {
+    const fullState = mergeConfiguratorState(projectState as Partial<ConfiguratorState>);
+    const bom = computeBom(fullState);
+    if (bom.rows.length === 0) return null;
+    return { fullState, bom, projectName: fullState.project.name, groups: consolidatePartsByZone(bom), totalWatts: bom.total };
+  } catch {
+    return null;
+  }
+}
+
 function DesignSummary({
-  projectState,
+  design,
   onStartOver,
+  onAddZone,
   onRequestReview,
 }: {
-  projectState: Record<string, unknown>;
+  design: DesignSnapshot | null;
   onStartOver: () => void;
+  onAddZone: () => void;
   onRequestReview: () => void;
 }) {
   const router = useRouter();
   const { user } = useSupabaseUser();
   const [openingConfigurator, setOpeningConfigurator] = useState(false);
   const [openError, setOpenError] = useState(false);
-
-  const design = useMemo(() => {
-    if (!projectState || Object.keys(projectState).length === 0) return null;
-    try {
-      const fullState = mergeConfiguratorState(projectState as Partial<ConfiguratorState>);
-      const bom = computeBom(fullState);
-      if (bom.rows.length === 0) return null;
-      return { fullState, bom, projectName: fullState.project.name, groups: consolidatePartsByZone(bom), totalWatts: bom.total };
-    } catch {
-      return null;
-    }
-  }, [projectState]);
 
   if (!design) return null;
 
@@ -200,6 +265,9 @@ function DesignSummary({
         >
           Download BOM
         </button>
+        <button type="button" onClick={onAddZone} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20">
+          Add another zone
+        </button>
         <button type="button" onClick={onRequestReview} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20">
           Request specialist review
         </button>
@@ -264,11 +332,20 @@ export function ChatWidget() {
   const { isOpen, toggle, close, messages, projectState, isSending, error, sendMessage, resetConversation } = useChat();
   const [draft, setDraft] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const confirmResetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isSending]);
+
+  useEffect(() => () => {
+    if (confirmResetTimeout.current) clearTimeout(confirmResetTimeout.current);
+  }, []);
+
+  const design = useMemo(() => computeDesignSnapshot(projectState), [projectState]);
+  const phase = computePhase(messages.length, projectState, design);
 
   if (!enabled) return null;
 
@@ -276,6 +353,21 @@ export function ChatWidget() {
     if (!draft.trim()) return;
     void sendMessage(draft);
     setDraft("");
+  };
+
+  // Resetting mid-conversation (not just from the post-design "Start another
+  // project" button) discards the in-progress chat and shared project state,
+  // so this asks for one extra click within 3s to confirm rather than firing
+  // on a single accidental tap right next to Close.
+  const handleResetClick = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      confirmResetTimeout.current = setTimeout(() => setConfirmReset(false), 3000);
+      return;
+    }
+    if (confirmResetTimeout.current) clearTimeout(confirmResetTimeout.current);
+    setConfirmReset(false);
+    resetConversation();
   };
 
   if (!isOpen) {
@@ -298,10 +390,27 @@ export function ChatWidget() {
           <p className="text-sm font-semibold">AMBLUX Assistant</p>
           <p className="text-xs text-accent-soft">Ask about products, or design a lighting system</p>
         </div>
-        <button type="button" onClick={close} aria-label="Close" className="rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white">
-          <CloseIcon />
-        </button>
+        <div className="flex items-center gap-1">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleResetClick}
+              aria-label={confirmReset ? "Click again to confirm reset" : "Reset conversation"}
+              title={confirmReset ? "Click again to confirm" : "Reset conversation"}
+              className={`rounded-full p-1.5 transition-colors ${
+                confirmReset ? "bg-amber-400/20 text-amber-200" : "text-white/80 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <ResetIcon />
+            </button>
+          )}
+          <button type="button" onClick={close} aria-label="Close" className="rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white">
+            <CloseIcon />
+          </button>
+        </div>
       </div>
+
+      {messages.length > 0 && <ProgressSteps phase={phase} />}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
@@ -339,7 +448,12 @@ export function ChatWidget() {
           onCancel={() => setShowReviewForm(false)}
         />
       ) : (
-        <DesignSummary projectState={projectState} onStartOver={resetConversation} onRequestReview={() => setShowReviewForm(true)} />
+        <DesignSummary
+          design={design}
+          onStartOver={resetConversation}
+          onAddZone={() => void sendMessage("I'd like to add another zone to this project.")}
+          onRequestReview={() => setShowReviewForm(true)}
+        />
       )}
 
       <div className="flex items-center gap-2 border-t border-border p-3">
