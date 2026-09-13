@@ -6,14 +6,18 @@
 // lib/configurator/engine.ts functions the graphical configurator uses
 // (mergeConfiguratorState + computeBom + consolidatePartsByZone) — there is
 // no second copy of that math anywhere in the chat layer. Likewise
-// get_zone_catalog/get_linear_family_options read the same database-backed
-// rule book (lib/chat/catalogRules.ts) that mirrors lib/configurator/
-// catalog.ts, so the model is only ever told about zones/controls/products
-// that really exist and are currently sellable (hidden/coming_soon SKUs are
-// already filtered out at that layer — see catalogRules.ts's header).
+// get_zone_catalog/get_linear_family_options read lib/chat/catalogRules.ts,
+// which (as of 2026-09-13) imports lib/configurator/catalog.ts directly
+// rather than a separately-seeded database copy — see catalogRules.ts's own
+// header for why (a stale copy previously caused two real bugs: a hand-
+// rolled reimplementation of linearFamiliesFor(), and puck lighting never
+// being exposed to the model at all even though it's a real AMBLUX option
+// for several zones). Live product status (hidden/coming_soon) still comes
+// from a real-time database query — that part genuinely can't come from
+// static code.
 import { computeBom, consolidatePartsByZone } from "@/lib/configurator/engine";
 import { mergeConfiguratorState, type ConfiguratorState } from "@/lib/configurator/types";
-import { loadCatalogRules } from "@/lib/chat/catalogRules";
+import { loadCatalogRules, usableLinearFamilies, puckOption } from "@/lib/chat/catalogRules";
 import { sendLeadHandoffEmail } from "@/lib/email";
 
 export interface AnthropicTool {
@@ -61,13 +65,13 @@ export const CHAT_TOOLS: AnthropicTool[] = [
   {
     name: "get_zone_catalog",
     description:
-      "Returns the real list of AMBLUX project zones (undercabinet, toe kick, crown, base cabinet, wall cabinet, floating shelves, pantry, drawers, high cabinet, library, closet hangers, shoe rack, vanity, mirror, floating cabinet), which zones apply to which project application (kitchen/bathroom/closets/furniture), the display name for each zone, and the real control options available per zone/control-system. Call this before asking the customer about zones or controls so you only ever offer choices that really exist — never invent a zone or control name.",
+      "Returns the real list of AMBLUX project zones (undercabinet, toe kick, crown, base cabinet, wall cabinet, floating shelves, pantry, drawers, high cabinet, library, closet hangers, shoe rack, vanity, mirror, floating cabinet), which zones apply to which project application (kitchen/bathroom/closets/furniture), the display name for each zone, the real control options available per zone/control-system, which zones support puck fixtures as an alternative to linear tape/extrusion (see puckCapableZones — a zone not in that list and not in linearOnlyZones is simply always linear, it has no light-type choice at all), and the real puck finish options by mounting. Call this before asking the customer about zones, controls, or light type so you only ever offer choices that really exist — never invent a zone, control name, or light-type option (in particular: never assume puck lighting doesn't exist for a zone, or does exist for a zone not listed in puckCapableZones).",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     name: "get_linear_family_options",
     description:
-      "Returns the real AMBLUX linear (tape/extrusion) product families available for a given mounting type, with their real color-temperature (CCT) and stock-length options. Call this before asking the customer to choose a linear product line, CCT, or length — never invent a product family, CCT, or length that isn't returned here.",
+      "Returns the real AMBLUX linear (tape/extrusion) product families available for a given mounting type, with their real color-temperature (CCT) and stock-length options. Call this before asking the customer to choose a linear product line, CCT, or length — never invent a product family, CCT, or length that isn't returned here. Only relevant once the customer has chosen (or the zone forces) linear lighting rather than puck — see get_zone_catalog's puckCapableZones and get_puck_option.",
     input_schema: {
       type: "object",
       properties: {
@@ -78,9 +82,21 @@ export const CHAT_TOOLS: AnthropicTool[] = [
     },
   },
   {
+    name: "get_puck_option",
+    description:
+      "Returns the real puck-fixture wattage and current sellability for a given mounting, for a zone that supports puck lighting (see get_zone_catalog's puckCapableZones). Call this once the customer has chosen puck over linear for a puck-capable zone, so you can tell them the real finish choices (from get_zone_catalog's puckFinishes) and confirm the fixture is currently sellable before finalizing.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mounting: { type: "string", enum: ["recess", "surface"], description: "Recessed (in a routed channel, with a faceplate finish) or surface-mounted (visible puck body finish)." },
+      },
+      required: ["mounting"],
+    },
+  },
+  {
     name: "compute_bom",
     description:
-      "The ONLY way to calculate a real bill of materials, SKU, quantity, wattage, or driver/receiver sizing. Never estimate or state any of these yourself — always call this tool. Pass a (partial is fine) AMBLUX project configuration object: { project: { application: 'kitchen'|'bathroom'|'closets'|'furniture', name, client, location, email, phone, ... }, selected: { undercabinet: true, base: true, ... — boolean per zone key from get_zone_catalog }, simple: { undercabinet: { zoneCount, zoneLengths: [in inches unless unit is set], unit, cct, linearFamily, control, controlSystem, mounting, ... }, toeKick: {...}, crown: {...}, floatingCabinet: {...}, mirror: {...} }, base/wall/floating/pantry/highCabinet/library/closetHangers/shoeRack: { controlSystem, control, powerType, blocks: [ { included: true, mode: 'shelf'|'vertical', mounting, height, shelves, length, linearFamily, cct, ... } ] }, drawers: { control, blocks: [{ included, count, length, linearFamily, mounting, cct }] }, vanity: { blocks: [{ included, doorsInclude, drawersInclude, floatingInclude, ... }] } }. Only include the fields the customer has actually specified or confirmed — this call is cumulative across the conversation (each call merges onto what was set in earlier calls), so you never need to re-send the whole thing from scratch. Returns the full resolved configuration plus the computed bill of materials grouped by zone (real SKUs, descriptions, quantities). If a selection is invalid or incomplete, this returns an error message explaining what's missing or wrong — ask the customer for that instead of guessing.",
+      "The ONLY way to calculate a real bill of materials, SKU, quantity, wattage, or driver/receiver sizing. Never estimate or state any of these yourself — always call this tool. Pass a (partial is fine) AMBLUX project configuration object: { project: { application: 'kitchen'|'bathroom'|'closets'|'furniture', name, client, location, email, phone, ... }, selected: { undercabinet: true, base: true, ... — boolean per zone key from get_zone_catalog }, simple: { undercabinet: { zoneCount, zoneLengths: [in inches unless unit is set], unit, cct, lightType: 'puck'|'linear' (undercabinet only — see get_zone_catalog's puckCapableZones; if 'puck', also set puckFinish and skip linearFamily), linearFamily, puckFinish, control, controlSystem, mounting, ... }, toeKick: {...}, crown: {...}, floatingCabinet: {...}, mirror: {...} — these four never support puck, always linear regardless of any lightType value }, base/wall/floating/pantry/highCabinet/library/closetHangers/shoeRack: { controlSystem, control, powerType, blocks: [ { included: true, mode: 'shelf'|'vertical' (puck only ever applies in 'shelf' mode), mounting, height, shelves, length, lightType: 'puck'|'linear' (only for zones in puckCapableZones — closetHangers/shoeRack are linear-only, never set lightType:'puck' for those), linearFamily, puckFinish, cct, ... } ] }, drawers: { control, blocks: [{ included, count, length, linearFamily, mounting, cct }] } (drawers is always linear, no lightType), vanity: { blocks: [{ included, doorsInclude, drawersInclude, floatingInclude, ... }] } (vanity is always linear, no lightType) }. Only include the fields the customer has actually specified or confirmed — this call is cumulative across the conversation (each call merges onto what was set in earlier calls), so you never need to re-send the whole thing from scratch. Returns the full resolved configuration plus the computed bill of materials grouped by zone (real SKUs, descriptions, quantities). If a selection is invalid or incomplete, this returns an error message explaining what's missing or wrong — ask the customer for that instead of guessing.",
     input_schema: {
       type: "object",
       properties: {
@@ -129,6 +145,8 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
             maxShelvesByZone: snapshot.maxShelvesByZone,
             defaultCountCap: snapshot.defaultCountCap,
             linearOnlyZones: snapshot.linearOnlyZones,
+            puckCapableZones: snapshot.puckCapableZones,
+            puckFinishes: snapshot.puckFinishes,
           }),
         };
       }
@@ -137,27 +155,13 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
         const snapshot = await loadCatalogRules();
         const mounting = input.mounting as "recess" | "surface";
         const mode = input.mode as "shelf" | "vertical" | undefined;
-        const families = snapshot.linearFamilies.filter((f) => f.mounting === mounting && (mode === "vertical" ? f.verticalCapable : !f.verticalOnly));
-        const ccts = ["3000", "4000"] as const;
-        return {
-          content: JSON.stringify(
-            families.map((f) => ({
-              id: f.id,
-              label: f.label,
-              type: f.type,
-              wattsPerMetre: f.wattsPerMetre,
-              verticalCapable: f.verticalCapable,
-              lengthsByCct: Object.fromEntries(
-                ccts.map((c) => [
-                  c,
-                  Object.keys(f.skusByCctAndLength[c] ?? {})
-                    .map(Number)
-                    .sort((a, b) => a - b),
-                ]),
-              ),
-            })),
-          ),
-        };
+        return { content: JSON.stringify(usableLinearFamilies(snapshot, mounting, mode)) };
+      }
+
+      case "get_puck_option": {
+        const snapshot = await loadCatalogRules();
+        const mounting = input.mounting as "recess" | "surface";
+        return { content: JSON.stringify(puckOption(snapshot, mounting)) };
       }
 
       case "compute_bom": {
