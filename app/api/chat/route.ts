@@ -21,9 +21,12 @@ export const runtime = "nodejs";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// Overridable without a code deploy — see the "waiting on you" note this
-// shipped with for how to change it.
-const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+// Overridable without a code deploy via ANTHROPIC_CHAT_MODEL — see the
+// "waiting on you" note this shipped with. Kept as a plain string rather
+// than pinned in a comment claiming permanence: model names move forward
+// over time, so if this ever looks stale, check console.anthropic.com's
+// model picker for the current name rather than assuming this is current.
+const DEFAULT_MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 2048;
 // Hard ceiling on tool round-trips within one request — a well-behaved
 // conversation turn needs at most a handful of tool calls; this exists only
