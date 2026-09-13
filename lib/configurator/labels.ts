@@ -27,6 +27,10 @@ export const LABELS = {
     shoeRack: "Shoe Rack",
     floatingCabinet: "Floating Cabinet",
     vanity: "Vanity",
+    // Mirror Lighting (Bathroom, 2026-09-13 audit item 9) — behind-mirror
+    // surface-mount lighting, always with mandatory install clips (see
+    // engine.ts's addSimple() and catalog.ts's ZONES comment).
+    mirror: "Mirror Lighting",
   },
   selectableWhite: "Selectable White",
   puck: "Puck light",
@@ -58,6 +62,10 @@ export const LABELS = {
   // constant instead of each file inlining its own literal.
   vanityDoors: "Doors",
   vanityDrawers: "Drawers",
+  // Vanity's third sub-fixture (2026-09-13 audit item 8) — a floating
+  // vanity lit toe-kick-style from underneath. See VanityUnit's own comment
+  // in types.ts.
+  vanityFloating: "Floating (Toe-Kick Style)",
 } as const;
 
 export function finishLabel(finish: string): string {

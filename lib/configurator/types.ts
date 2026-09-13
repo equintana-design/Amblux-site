@@ -30,6 +30,7 @@ export interface SelectedZones {
   shoeRack: boolean;
   floatingCabinet: boolean;
   vanity: boolean;
+  mirror: boolean;
 }
 
 export interface ProjectInfo {
@@ -54,6 +55,17 @@ export interface ProjectInfo {
   // list for "" so the wizard still shows a sane zone set before that
   // deliberate choice is made.
   application: ApplicationType | "";
+  // 2026-09-13: no longer rendered in ProjectInfoStep.tsx — audited against
+  // the Lighting Specification skill and found to be a purely decorative
+  // choice with nothing reading it anywhere in engine.ts/catalog.ts (a real
+  // gap the audit flagged). Per this codebase's established catalog-gated
+  // capability pattern (see catalog.ts's DRIVER_LINES comment), a
+  // plug-vs-hardwire *installation preference* only becomes a meaningful
+  // choice once a real AMBLUX hardwire driver line exists — showing it
+  // beforehand implied a real effect it didn't have. Left in the data model
+  // (rather than deleted) so it round-trips harmlessly through save/load
+  // and is ready to wire into per-zone Power defaults the moment
+  // DRIVER_LINES gains a "hardwire" entry.
   install: "plug" | "hardwire";
 }
 
@@ -100,6 +112,11 @@ export interface SimpleState {
   // Toe Kick/Crown, just under its own zone key (see catalog.ts's
   // ZONES_BY_APPLICATION comment and engine.ts's addSimple()).
   floatingCabinet: SimpleZoneState;
+  // Mirror Lighting (Bathroom, 2026-09-13 audit item 9) — same "simple
+  // linear-run" engine/shape as Toe Kick/Crown/Floating Cabinet, but always
+  // forced to surface mounting (behind-mirror lighting is never recessed —
+  // see catalog.ts's ZONES comment and engine.ts's addSimple()).
+  mirror: SimpleZoneState;
 }
 
 // Base / wall / pantry cabinet blocks (each block = one cabinet run).
@@ -218,6 +235,21 @@ export interface VanityUnit {
   drawersLinearFamily: string;
   drawersMounting: Mounting;
   drawersCct: "3000" | "4000";
+
+  // Floating (Toe-Kick Style) — Vanity's third sub-case (2026-09-13 audit
+  // item 8): a floating vanity is lit from underneath like a real Toe Kick
+  // run, so this reuses that zone's own field shape/control options
+  // (catalog.ts's CONTROL_OPTIONS.vanityFloating) rather than Doors'
+  // door-sensor-only shape or Drawers' no-control shape.
+  floatingInclude: boolean;
+  floatingLength: number;
+  floatingMounting: Mounting;
+  floatingLinearFamily: string;
+  floatingCct: "3000" | "4000";
+  floatingControlSystem: ControlSystem;
+  floatingControl: string;
+  // Same optional-accessory opt-out as Doors/CabinetBlock/SimpleZoneState.
+  floatingIncludeInstallBracket: boolean;
 }
 
 export interface VanityState {
@@ -403,14 +435,42 @@ export function vanityUnitDefault(): VanityUnit {
     drawersLinearFamily: "rigid-10x15",
     drawersMounting: "recess",
     drawersCct: "3000",
+    floatingInclude: false,
+    floatingLength: 24,
+    floatingMounting: "recess",
+    floatingLinearFamily: "silicone-6x6",
+    floatingCct: "3000",
+    floatingControlSystem: "wired",
+    floatingControl: "motion",
+    floatingIncludeInstallBracket: true,
   };
+}
+
+// High Cabinet's (Bathroom) own block default: same "storage cabinet" shape
+// as blockDefault(), but starting on a humidity-appropriate flexible/
+// silicone family instead of Rigid 10 × 15 mm (2026-09-13 audit item 7 —
+// the Lighting Specification skill recommends silicone/flexible tape by
+// default for bathroom zones given ambient humidity). See forms.tsx's
+// bathroomHumidityHint caption, shown alongside this default.
+export function highCabinetBlockDefault(): CabinetBlock {
+  return { ...blockDefault(), linearFamily: "silicone-6x6" };
 }
 
 export function defaultConfiguratorState(): ConfiguratorState {
   return {
     selected: {
-      undercabinet: false,
-      floating: false,
+      // Kitchen Tier 1 (2026-09-13 audit item 1) — the Lighting
+      // Specification skill's tier system treats under-cabinet/floating-
+      // shelf lighting as an always-include default, not opt-in-only, so a
+      // fresh Kitchen project starts with these two already on. Non-Kitchen
+      // project types never show these zones at all (see catalog.ts's
+      // ZONES_BY_APPLICATION), so defaulting them true here is harmless for
+      // Bathroom/Closet/Furniture projects. patchProject() in
+      // ConfiguratorClient.tsx also re-applies this default when the
+      // customer switches Application to Kitchen after already choosing a
+      // different type first.
+      undercabinet: true,
+      floating: true,
       toeKick: false,
       crown: false,
       base: false,
@@ -423,6 +483,7 @@ export function defaultConfiguratorState(): ConfiguratorState {
       shoeRack: false,
       floatingCabinet: false,
       vanity: false,
+      mirror: false,
     },
     project: {
       name: "",
@@ -448,6 +509,12 @@ export function defaultConfiguratorState(): ConfiguratorState {
       toeKick: { ...simpleDefault(true), control: "motion" },
       crown: { ...simpleDefault(true), control: "motion" },
       floatingCabinet: { ...simpleDefault(true), control: "motion" },
+      // Mirror Lighting (Bathroom, 2026-09-13 audit item 9) — always
+      // surface-mount (see SimpleState.mirror's comment), and defaults onto
+      // a 45°-corner-capable rigid profile since a mirror surround often
+      // needs a corner turn; "motion" matches every other bathroom/simple
+      // zone's default control.
+      mirror: { ...simpleDefault(true), mounting: "surface", linearFamily: "silicone-10x10-45deg", control: "motion" },
     },
     base: {
       unit: "in",
@@ -529,7 +596,10 @@ export function defaultConfiguratorState(): ConfiguratorState {
       sensorInstall: "recess",
       powerType: "ultra",
       control: "door",
-      blocks: Array.from({ length: 1 }, blockDefault),
+      // Bathroom-only zone — defaults to a humidity-appropriate flexible/
+      // silicone family (2026-09-13 audit item 7) instead of blockDefault()'s
+      // Rigid 10 × 15 mm. See highCabinetBlockDefault()'s own comment.
+      blocks: Array.from({ length: 1 }, highCabinetBlockDefault),
     },
     library: {
       unit: "in",
@@ -666,6 +736,8 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
       // migrateSimpleZone here too costs nothing and keeps this block
       // uniform with its two siblings above.
       floatingCabinet: migrateSimpleZone(loaded.simple?.floatingCabinet, base.simple.floatingCabinet),
+      // Brand-new zone (2026-09-13) — no prior saved shape to migrate from.
+      mirror: migrateSimpleZone(loaded.simple?.mirror, base.simple.mirror),
     },
     base: {
       ...base.base,
@@ -690,7 +762,7 @@ export function mergeConfiguratorState(loaded: Partial<ConfiguratorState> | null
     highCabinet: {
       ...base.highCabinet,
       ...(loaded.highCabinet ?? {}),
-      blocks: mergeBlocks(base.highCabinet.blocks, loaded.highCabinet?.blocks, blockDefault),
+      blocks: mergeBlocks(base.highCabinet.blocks, loaded.highCabinet?.blocks, highCabinetBlockDefault),
     },
     library: {
       ...base.library,

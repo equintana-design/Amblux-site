@@ -18,6 +18,18 @@ export const ZONES = [
   "shoeRack",
   "floatingCabinet",
   "vanity",
+  // Mirror Lighting (Bathroom, 2026-09-13) — added per the Lighting
+  // Specification skill's audit: behind-mirror lighting is a standard
+  // bathroom zone (surface-mount tape, mechanical clips required in
+  // addition to adhesive since a vertical run held by adhesive alone tends
+  // to sag/peel). Reuses the exact same "simple linear-run" engine as Toe
+  // Kick/Crown/Floating Cabinet (see engine.ts's addSimple()), forced to
+  // surface mounting always — see SimpleZoneForm's zoneKey==="mirror"
+  // handling in forms.tsx. Since no surface-mount LinearFamily carries
+  // installAccessoryOptional:true, its install clips are already mandatory
+  // (never an opt-out toggle) purely by reusing the existing family data —
+  // no special-casing needed for the "mandatory, not optional" requirement.
+  "mirror",
 ] as const;
 export type ZoneKey = (typeof ZONES)[number];
 
@@ -73,7 +85,15 @@ export const ZONES_BY_APPLICATION: Record<ApplicationType, ZoneKey[]> = {
   // Vanity (Stage 4, 2026-08-29) completes Bathroom's 3 reference zones — see
   // DEFAULT_COUNT_CAP/CONTROL_OPTIONS.vanityDoors below and engine.ts's
   // addVanity() for its own composite Doors+Drawers engine.
-  bathroom: ["highCabinet", "floatingCabinet", "vanity"],
+  //
+  // 2026-09-13: audited against AMBLUX's own Lighting Specification skill
+  // (distinct from the Cabinet Light Builder reference doc above) and
+  // extended per that audit: Toe Kick and Crown Moulding added — the skill
+  // is explicit these follow "the same rules as kitchens/closets" for
+  // Bathroom too, and the engine/forms already fully support these zone
+  // keys with zero new code, same as the Closet reuse above. Mirror added
+  // as a brand-new zone (see ZONES' own comment above).
+  bathroom: ["highCabinet", "floatingCabinet", "vanity", "mirror", "toeKick", "crown"],
   furniture: ["library", "toeKick", "crown"],
 };
 
@@ -157,15 +177,19 @@ export function maxShelvesFor(zone: ZoneKey): number {
 // a <NumberInput> specifically for this zone.
 export const CLOSET_HANGER_COMPARTMENT_COUNTS = [1, 2] as const;
 
-// Closet Hangers' main light offers a real shelf-vs-vertical choice on
-// every other "storage cabinet" zone (Shelving Cabinet, Shoe Rack, Pantry,
-// High Cabinet, Library) — verified live to be absent specifically for
-// Closet Hangers ("a hanging-rod cabinet has nothing to mount vertical
-// strip lighting to inside it"). See forms.tsx's CabinetBlockRow, which
-// hides the Layout field for this zone the same way it already does for
-// Floating Shelves, and engine.ts's addBlocks(), which defensively forces
-// shelf-mode for this zone too regardless of any stale stored mode.
-export const NO_VERTICAL_OPTION_ZONES: ZoneKey[] = ["closetHangers"];
+// Closet Hangers' main light previously had no shelf-vs-vertical choice at
+// all — verified live against the Cabinet Light Builder reference wizard as
+// absent ("a hanging-rod cabinet has nothing to mount vertical strip
+// lighting to inside it"). 2026-09-13: reversed per a direct audit against
+// AMBLUX's own Lighting Specification skill, which is explicit that a
+// closet hanging (rod) section can be lit either by shelf-lighting from
+// above (recommended) OR vertical/gable lighting on the side panels — both
+// are real, valid installation methods, not just one. This list is now
+// empty (kept, rather than deleted, as the single place to re-restrict a
+// zone's Layout choice if a future real-world constraint ever requires it)
+// — every "storage cabinet" zone, Closet Hangers included, now offers the
+// same shelf-vs-vertical Layout choice via hasVerticalOption() below.
+export const NO_VERTICAL_OPTION_ZONES: ZoneKey[] = [];
 
 export function hasVerticalOption(zone: ZoneKey): boolean {
   return !(NO_VERTICAL_OPTION_ZONES as ZoneKey[]).includes(zone);
@@ -666,6 +690,15 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // since Vanity Doors is a distinct zone even though the option lists
   // happen to match Wall's exactly right now.
   vanityDoors: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
+  // Mirror Lighting (Bathroom, 2026-09-13) — a simple linear-run zone, same
+  // motion-only shape as Toe Kick/Crown/Floating Cabinet.
+  mirror: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  // Vanity's third sub-fixture, "Floating" (2026-09-13, per the Lighting
+  // Specification skill's audit — a floating vanity is lit toe-kick-style
+  // from underneath). Same shape as the real Toe Kick zone's own control
+  // options — unlike Doors (door-sensor only, no Kinetic) this is a
+  // toe-kick-style run, so the full Kinetic/wired/wireless family applies.
+  vanityFloating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
 };
 
 // Fixed id list for the under-cabinet zone's remote/app control picker
@@ -717,4 +750,5 @@ export const ZONE_NAMES: Record<ZoneKey, string> = {
   shoeRack: "Shoe Rack",
   floatingCabinet: "Floating Cabinet",
   vanity: "Vanity",
+  mirror: "Mirror Lighting",
 };

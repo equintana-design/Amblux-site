@@ -28,6 +28,7 @@ import {
   closetHangerBlockDefault,
   drawerBlockDefault,
   floatingShelfBlockDefault,
+  highCabinetBlockDefault,
   vanityUnitDefault,
 } from "@/lib/configurator/types";
 import type {
@@ -212,7 +213,7 @@ export function SimpleZoneForm({
   bom,
   saveSlot,
 }: {
-  zoneKey: "undercabinet" | "toeKick" | "crown" | "floatingCabinet";
+  zoneKey: "undercabinet" | "toeKick" | "crown" | "floatingCabinet" | "mirror";
   title: string;
   allowPuck: boolean;
   state: SimpleZoneState;
@@ -234,7 +235,8 @@ export function SimpleZoneForm({
   // control is Kinetic (battery/app) only, no wired/wireless option, per
   // the reference doc — the other three keep their normal motion-sensor
   // CONTROL_OPTIONS choices.
-  const hasMultipleRuns = zoneKey === "undercabinet" || zoneKey === "toeKick" || zoneKey === "crown" || zoneKey === "floatingCabinet";
+  const hasMultipleRuns =
+    zoneKey === "undercabinet" || zoneKey === "toeKick" || zoneKey === "crown" || zoneKey === "floatingCabinet" || zoneKey === "mirror";
   const kineticOnly = zoneKey === "undercabinet";
   const isPuck = state.lightType === "puck";
   const controlZone = zoneKey; // toeKick / crown map directly; undercabinet uses its own remote list
@@ -321,23 +323,42 @@ export function SimpleZoneForm({
         </Field>
       )}
 
-      <Field label={t("configurator.mounting")}>
-        <Select
-          value={state.mounting}
-          onChange={(v) => {
-            const mounting = v as SimpleZoneState["mounting"];
-            onChange(
-              isPuck
-                ? { mounting, puckFinish: "white" as SimpleZoneState["puckFinish"], puckWatts: puckWattsFor(mounting) }
-                : { ...defaultLinearPatch(mounting) }
-            );
-          }}
-          options={[
-            { value: "recess", label: t("configurator.recess") },
-            { value: "surface", label: t("configurator.surface") },
-          ]}
-        />
-      </Field>
+      {/* Mirror Lighting (2026-09-13 audit item 9) is always surface-mount
+          — behind-mirror runs are never recessed (see engine.ts's
+          addSimple()) — so this is read-only here, same pattern as Vanity
+          Doors' read-only recess mounting below. */}
+      {zoneKey === "mirror" ? (
+        <Field label={t("configurator.mounting")}>
+          <ReadOnly value={t("configurator.surface")} />
+        </Field>
+      ) : (
+        <Field label={t("configurator.mounting")}>
+          <Select
+            value={state.mounting}
+            onChange={(v) => {
+              const mounting = v as SimpleZoneState["mounting"];
+              onChange(
+                isPuck
+                  ? { mounting, puckFinish: "white" as SimpleZoneState["puckFinish"], puckWatts: puckWattsFor(mounting) }
+                  : { ...defaultLinearPatch(mounting) }
+              );
+            }}
+            options={[
+              { value: "recess", label: t("configurator.recess") },
+              { value: "surface", label: t("configurator.surface") },
+            ]}
+          />
+        </Field>
+      )}
+
+      {/* Bathroom humidity guidance (2026-09-13 audit item 7) — Floating
+          Cabinet and Mirror Lighting are the two SimpleZoneForm zones that
+          only ever appear on Bathroom projects (see catalog.ts's
+          ZONES_BY_APPLICATION); High Cabinet gets the same hint in
+          CabinetBlockRow below. */}
+      {(zoneKey === "floatingCabinet" || zoneKey === "mirror") && (
+        <p className="sm:col-span-2 text-xs text-muted">{t("configuratorExtra.bathroomHumidityHint")}</p>
+      )}
 
       {isPuck ? (
         <>
@@ -420,6 +441,13 @@ export function SimpleZoneForm({
           onChange={(v) => onChange({ powerType: v as SimpleZoneState["powerType"] })}
           options={powerTypeOptions(t)}
         />
+        {/* Driver-placement + never-splice guidance (2026-09-13 audit items
+            3/5) — shown unconditionally, not gated on powerType==="hardwire"
+            (Hardwire isn't actually selectable today — see
+            powerTypeOptions()'s comment — so gating it there would make this
+            guidance permanently invisible). */}
+        <p className="mt-1 text-xs text-muted">{t("configuratorExtra.driverPlacementHint")}</p>
+        <p className="mt-1 text-xs text-muted">{t("configuratorExtra.neverSplice")}</p>
       </Field>
 
       {/* Hardwire connection kit — 1 per zone, Toe Kick/Crown Moulding only
@@ -489,7 +517,12 @@ export function BlocksZoneForm({
   // choice — see CabinetBlockRow's per-shelf Control System/Switches fields
   // below and engine.ts's addBlocks() for the matching calculation-side
   // logic.
-  const independentDrivers = zoneKey === "base" || zoneKey === "wall" || (isFloating && state.group === false);
+  // Pantry (2026-09-13 audit item 12, Closet's relabeled "Overhead Storage")
+  // now gets the same pooled-vs-independent choice Floating Shelves already
+  // had — see engine.ts's addBlocks()/supportsPerBlockControl for the
+  // matching calculation-side change.
+  const supportsPerBlockControl = isFloating || zoneKey === "pantry";
+  const independentDrivers = zoneKey === "base" || zoneKey === "wall" || (supportsPerBlockControl && state.group === false);
   // Closet Hangers / Shoe Rack are open shelving with no puck option — see
   // catalog.ts's isLinearOnlyZone(). maxShelvesFor() returns the real cap
   // for every zone's free-typed shelf-count field (10 by default, 2 for
@@ -522,8 +555,8 @@ export function BlocksZoneForm({
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
 
-      {isFloating && (
-        <Field label={t("configuratorExtra.shelfControlGrouping")}>
+      {supportsPerBlockControl && (
+        <Field label={isFloating ? t("configuratorExtra.shelfControlGrouping") : t("configuratorExtra.cabinetControlGrouping")}>
           <Select
             value={state.group === false ? "separate" : "together"}
             onChange={(v) => onChange({ group: v === "together" })}
@@ -564,6 +597,11 @@ export function BlocksZoneForm({
           onChange={(v) => onChange({ powerType: v as BlocksState["powerType"] })}
           options={powerTypeOptions(t)}
         />
+        {/* Driver-placement + never-splice guidance (2026-09-13 audit items
+            3/5) — see SimpleZoneForm's matching Power field for why this is
+            unconditional rather than gated on powerType==="hardwire". */}
+        <p className="mt-1 text-xs text-muted">{t("configuratorExtra.driverPlacementHint")}</p>
+        <p className="mt-1 text-xs text-muted">{t("configuratorExtra.neverSplice")}</p>
       </Field>
 
       <div className="sm:col-span-2 flex flex-col gap-4">
@@ -585,7 +623,13 @@ export function BlocksZoneForm({
           count={state.blocks.length}
           unitLabel={isFloating ? t("configurator.shelfUnit") : t("configurator.cabinet")}
           onAdd={(copyFromPrevious) => {
-            const factory = isFloating ? floatingShelfBlockDefault : zoneKey === "closetHangers" ? closetHangerBlockDefault : blockDefault;
+            const factory = isFloating
+              ? floatingShelfBlockDefault
+              : zoneKey === "closetHangers"
+                ? closetHangerBlockDefault
+                : zoneKey === "highCabinet"
+                  ? highCabinetBlockDefault
+                  : blockDefault;
             const last = state.blocks[state.blocks.length - 1];
             const newBlock = copyFromPrevious && last ? { ...last } : factory();
             onChange({ blocks: [...state.blocks, newBlock] });
@@ -644,6 +688,14 @@ function CabinetBlockRow({
   // from before this zone had its own engine.
   const isFloatingShelf = zoneKey === "floating";
   const isClosetHangers = zoneKey === "closetHangers";
+  // Pantry (2026-09-13 audit item 12) now supports the same per-block
+  // independent control choice Floating Shelves already had — see
+  // BlocksZoneForm's matching supportsPerBlockControl and engine.ts's
+  // addBlocks(). CONTROL_OPTIONS is keyed "floating" for Floating Shelves
+  // and "pantry" for Pantry, so the lookups below resolve that directly off
+  // zoneKey rather than hardcoding "floating".
+  const supportsPerBlockControl = isFloatingShelf || zoneKey === "pantry";
+  const perBlockControlZone = isFloatingShelf ? "floating" : zoneKey;
   // Closet Hangers has no shelf-vs-vertical choice at all (verified against
   // the live reference wizard — see catalog.ts's hasVerticalOption()), same
   // treatment as Floating Shelves. effectiveMode mirrors engine.ts's own
@@ -888,24 +940,24 @@ function CabinetBlockRow({
             </>
           )}
 
-          {isFloatingShelf && independentDrivers && (
+          {supportsPerBlockControl && independentDrivers && (
             <>
               <Field label={t("configurator.controlSystem")}>
                 <Select
                   value={block.controlSystem ?? "wired"}
                   onChange={(v) => {
                     const system = v as NonNullable<CabinetBlock["controlSystem"]>;
-                    const opts = CONTROL_OPTIONS.floating?.[system] || [];
+                    const opts = CONTROL_OPTIONS[perBlockControlZone]?.[system] || [];
                     onChange({ controlSystem: system, control: opts[0] || block.control });
                   }}
-                  options={controlSystemOptions("floating", t)}
+                  options={controlSystemOptions(perBlockControlZone, t)}
                 />
               </Field>
               <Field label={t("configurator.switches")}>
                 <Select
                   value={block.control ?? "motion"}
                   onChange={(v) => onChange({ control: v })}
-                  options={controlOptionsFor("floating", block.controlSystem ?? "wired")}
+                  options={controlOptionsFor(perBlockControlZone, block.controlSystem ?? "wired")}
                 />
               </Field>
             </>
@@ -919,10 +971,33 @@ function CabinetBlockRow({
                   ? t("configurator.zoneNames.base")
                   : zoneKey === "wall"
                     ? t("configurator.zoneNames.wall")
-                    : t("configurator.zoneNames.floating")
+                    : zoneKey === "pantry"
+                      ? t("configurator.zoneNames.pantry")
+                      : t("configurator.zoneNames.floating")
               )}
             </p>
           )}
+
+          {/* Bathroom humidity guidance (2026-09-13 audit item 7) — High
+              Cabinet is the "blocks"-style zone that only ever appears on
+              Bathroom projects (see catalog.ts's ZONES_BY_APPLICATION);
+              Floating Cabinet/Mirror Lighting get the same hint in
+              SimpleZoneForm above. */}
+          {zoneKey === "highCabinet" && (
+            <p className="sm:col-span-2 text-xs text-muted">{t("configuratorExtra.bathroomHumidityHint")}</p>
+          )}
+
+          {/* Furniture guidance (2026-09-13 audit items 13/14) — Library/
+              Bookcase is the one "blocks"-style zone that only ever appears
+              on Furniture projects (see catalog.ts's ZONES_BY_APPLICATION).
+              The linear-over-puck hint only makes sense while a puck choice
+              is actually on the table (not linearOnly, not vertical mode,
+              where Light Type isn't even shown). The TV/media hint applies
+              regardless of light type/mode. */}
+          {zoneKey === "library" && !linearOnly && effectiveMode !== "vertical" && (
+            <p className="sm:col-span-2 text-xs text-muted">{t("configuratorExtra.furnitureLinearHint")}</p>
+          )}
+          {zoneKey === "library" && <p className="sm:col-span-2 text-xs text-muted">{t("configuratorExtra.tvMediaHint")}</p>}
         </div>
       )}
     </div>
@@ -1140,6 +1215,13 @@ export function VanityForm({
               rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityDrawers}`)}
             />
           )}
+          {b.floatingInclude && (
+            <CalculatedSolution
+              heading={t("configurator.calculate")}
+              title={`${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityFloating}`}
+              rows={bom.rows.filter((r) => r.zone === `${zoneLabel} · ${LABELS.cabinet} ${i + 1} · ${LABELS.vanityFloating}`)}
+            />
+          )}
         </div>
       ))}
       <CalculatedSolution heading={t("configurator.calculate")} title={zoneLabel} rows={sharedRows} />
@@ -1291,6 +1373,90 @@ function VanityUnitRow({
                 </Field>
                 <Field label={t("configurator.linearWatts")}>
                   <ReadOnly value={linearWattsLabel(getLinearFamily(block.drawersLinearFamily).wattsPerMetre, unit)} />
+                </Field>
+                <Field label={t("configurator.power")}>
+                  <ReadOnly value={t("configuratorExtra.ultraLocked")} />
+                </Field>
+              </div>
+            )}
+          </div>
+
+          {/* Floating (Toe-Kick Style) — Vanity's third sub-case (2026-09-13
+              audit item 8): a floating vanity lit from underneath like a
+              real Toe Kick run. Reuses the full Kinetic/wired/wireless
+              control family (catalog.ts's CONTROL_OPTIONS.vanityFloating),
+              unlike Doors (door-sensor only). */}
+          <div className="rounded-lg bg-background p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-foreground">{t("configuratorExtra.vanityFloating")}</span>
+              <Toggle label={t("configurator.includeBlock")} checked={block.floatingInclude} onChange={(v) => onChange({ floatingInclude: v })} />
+            </div>
+            {block.floatingInclude && (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label={`${t("configurator.run")} (${unit})`}>
+                  <NumberInput value={block.floatingLength} unit={unit} onChange={(v) => onChange({ floatingLength: v })} />
+                </Field>
+                <Field label={t("configurator.mounting")}>
+                  <Select
+                    value={block.floatingMounting}
+                    onChange={(v) => {
+                      const mounting = v as VanityUnit["floatingMounting"];
+                      const patch = defaultLinearPatch(mounting);
+                      onChange({ floatingMounting: mounting, floatingLinearFamily: patch.linearFamily, floatingCct: patch.cct });
+                    }}
+                    options={[
+                      { value: "recess", label: t("configurator.recess") },
+                      { value: "surface", label: t("configurator.surface") },
+                    ]}
+                  />
+                </Field>
+                <Field label={t("configurator.linearSolution")}>
+                  <Select
+                    value={block.floatingLinearFamily}
+                    onChange={(v) => {
+                      const cct = familyCcts(getLinearFamily(v))[0] || "3000";
+                      onChange({ floatingLinearFamily: v, floatingCct: cct as VanityUnit["floatingCct"] });
+                    }}
+                    options={linearFamilyOptions(block.floatingMounting)}
+                  />
+                </Field>
+                <FixedStockLengthField family={getLinearFamily(block.floatingLinearFamily)} cct={block.floatingCct} t={t} />
+                <Field label={t("product.cct")}>
+                  <Select
+                    value={block.floatingCct}
+                    onChange={(v) => onChange({ floatingCct: v as VanityUnit["floatingCct"] })}
+                    options={cctOptionsForFamily(block.floatingLinearFamily)}
+                  />
+                </Field>
+                <Field label={t("configurator.linearWatts")}>
+                  <ReadOnly value={linearWattsLabel(getLinearFamily(block.floatingLinearFamily).wattsPerMetre, unit)} />
+                </Field>
+                {getLinearFamily(block.floatingLinearFamily).installAccessoryOptional && (
+                  <Field label={getLinearFamily(block.floatingLinearFamily).installAccessoryLabel || t("configuratorExtra.installHardware")}>
+                    <Toggle
+                      label={t("configuratorExtra.addToBom")}
+                      checked={block.floatingIncludeInstallBracket}
+                      onChange={(v) => onChange({ floatingIncludeInstallBracket: v })}
+                    />
+                  </Field>
+                )}
+                <Field label={t("configurator.controlSystem")}>
+                  <Select
+                    value={block.floatingControlSystem}
+                    onChange={(v) => {
+                      const system = v as VanityUnit["floatingControlSystem"];
+                      const opts = CONTROL_OPTIONS.vanityFloating?.[system] || [];
+                      onChange({ floatingControlSystem: system, floatingControl: opts[0] || block.floatingControl });
+                    }}
+                    options={controlSystemOptions("vanityFloating", t)}
+                  />
+                </Field>
+                <Field label={t("configurator.switches")}>
+                  <Select
+                    value={block.floatingControl}
+                    onChange={(v) => onChange({ floatingControl: v })}
+                    options={controlOptionsFor("vanityFloating", block.floatingControlSystem)}
+                  />
                 </Field>
                 <Field label={t("configurator.power")}>
                   <ReadOnly value={t("configuratorExtra.ultraLocked")} />

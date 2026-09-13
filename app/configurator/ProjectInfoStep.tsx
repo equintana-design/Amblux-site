@@ -134,16 +134,15 @@ export function ProjectInfoStep({
             ]}
           />
         </Field>
-        <Field label={t("configurator.preference")}>
-          <Select
-            value={project.install}
-            onChange={(v) => onChange({ install: v as ProjectInfo["install"] })}
-            options={[
-              { value: "plug", label: t("configurator.plug") },
-              { value: "hardwire", label: t("configurator.hardwire") },
-            ]}
-          />
-        </Field>
+        {/* "Installation preference" (plug/hardwire) removed here 2026-09-13
+            per the Lighting Specification audit (item 4) — it was a purely
+            decorative field with nothing in engine.ts/catalog.ts reading it
+            (Hardwire has no real AMBLUX driver SKU yet — see catalog.ts's
+            DRIVER_LINES comment), so showing it implied a real effect it
+            didn't have. The underlying ProjectInfo.install field itself is
+            left in the data model unchanged (see its own comment in
+            types.ts) so a saved project round-trips this value harmlessly;
+            it's just no longer rendered as a choice here. */}
         <Field label={t("configurator.notes")} wide>
           <Textarea value={project.notes} onChange={(v) => onChange({ notes: v })} />
         </Field>

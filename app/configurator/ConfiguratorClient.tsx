@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccountStatus } from "@/app/components/AccountStatus";
 import type { ApplicationType } from "@/lib/configurator/catalog";
 import { zonesForApplication } from "@/lib/configurator/catalog";
-import { activeCcts, applyQuantityOverrides, computeBom } from "@/lib/configurator/engine";
+import { activeCcts, activeControlSystems, applyQuantityOverrides, computeBom } from "@/lib/configurator/engine";
 import { defaultConfiguratorState } from "@/lib/configurator/types";
 import type { ConfiguratorState, SelectedZones } from "@/lib/configurator/types";
 import { useLocale, useTranslations } from "@/app/providers/LocaleProvider";
@@ -40,6 +40,7 @@ const ZONE_STEP_ORDER: ZoneStepKey[] = [
   "drawers",
   "highCabinet",
   "floatingCabinet",
+  "mirror",
   "vanity",
   "library",
   "closetHangers",
@@ -164,6 +165,9 @@ export function ConfiguratorClient() {
     [computedBom, state.manualQuantityOverrides]
   );
   const ccts = useMemo(() => activeCcts(state), [state]);
+  // Control-system mismatch advisory (2026-09-13 audit item 2) — mirrors
+  // the CCT advisory above exactly. See engine.ts's activeControlSystems().
+  const controlSystems = useMemo(() => activeControlSystems(state), [state]);
 
   // Writes (or clears, when qty is null) one row's quantity override —
   // keyed by `${zone}:${sku}` exactly like applyQuantityOverrides() reads
@@ -213,10 +217,18 @@ export function ConfiguratorClient() {
     crown: { title: t("configurator.zoneNames.crown"), allowPuck: false },
     base: { title: t("configurator.zoneNames.base") },
     wall: { title: t("configurator.zoneNames.wall") },
-    pantry: { title: t("configurator.zoneNames.pantry") },
+    // Closet reuses the Pantry zone/engine under a relabeled title
+    // (2026-09-13 audit item 12) — "Overhead Storage" per the Lighting
+    // Specification skill's terminology standard, matching this doc's own
+    // established precedent for UI-facing-only zone relabeling (see the
+    // Kitchen/Closet Pantry note this touches on in the Project doc). Only
+    // the step-tab/sidebar/checklist title changes — engine.ts's own
+    // internal LABELS.zoneNames.pantry BOM label is untouched.
+    pantry: { title: state.project.application === "closets" ? t("configuratorExtra.overheadStorage") : t("configurator.zoneNames.pantry") },
     drawers: { title: t("configurator.zoneNames.drawers") },
     highCabinet: { title: t("configurator.zoneNames.highCabinet") },
     floatingCabinet: { title: t("configurator.zoneNames.floatingCabinet"), allowPuck: false },
+    mirror: { title: t("configurator.zoneNames.mirror"), allowPuck: false },
     vanity: { title: t("configurator.zoneNames.vanity") },
     library: { title: t("configurator.zoneNames.library") },
     closetHangers: { title: t("configurator.zoneNames.closetHangers") },
@@ -243,7 +255,10 @@ export function ConfiguratorClient() {
     setState((s) => ({ ...s, selected: { ...s.selected, [key]: value } }));
   };
 
-  const patchSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet", patch: Partial<ConfiguratorState["simple"][typeof key]>) => {
+  const patchSimple = (
+    key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet" | "mirror",
+    patch: Partial<ConfiguratorState["simple"][typeof key]>
+  ) => {
     setState((s) => ({ ...s, simple: { ...s.simple, [key]: { ...s.simple[key], ...patch } } }));
   };
 
@@ -280,6 +295,16 @@ export function ConfiguratorClient() {
       (Object.keys(selected) as ZoneStepKey[]).forEach((key) => {
         if (!allowed.has(key)) selected[key] = false;
       });
+      // Kitchen Tier 1 (2026-09-13 audit item 1) — re-applies the same
+      // always-include default defaultConfiguratorState() starts a fresh
+      // Kitchen project with, for the case where the customer switches
+      // Application to Kitchen after already choosing a different type
+      // first (which would otherwise leave these zones off, since the loop
+      // above only ever turns zones off, never back on).
+      if (patch.application === "kitchen") {
+        selected.undercabinet = true;
+        selected.floating = true;
+      }
       return { ...s, project, selected };
     });
     if (patch.application) {
@@ -330,6 +355,7 @@ export function ConfiguratorClient() {
             onQuantityChange={(zone, sku, qty) => setQuantityOverride(zone, sku, qty)}
             onResetQuantity={(zone, sku) => setQuantityOverride(zone, sku, null)}
             ccts={ccts}
+            controlSystems={controlSystems}
             project={state.project}
           />
           <div className="grid gap-6 print:hidden lg:grid-cols-2">
@@ -345,6 +371,7 @@ export function ConfiguratorClient() {
       case "toeKick":
       case "crown":
       case "floatingCabinet":
+      case "mirror":
         return (
           <SimpleZoneForm
             zoneKey={activeStep}

@@ -52,6 +52,7 @@ import {
   getLinearFamily,
   hasVerticalOption,
   isLinearOnlyZone,
+  linearFamiliesFor,
   normalizedPuckFinish,
   puckFaceplateSku,
   puckFixtureSku,
@@ -71,6 +72,8 @@ import type {
   BomResult,
   BomRow,
   ConfiguratorState,
+  ControlSystem,
+  Mounting,
   PowerType,
   SimpleZoneState,
   Unit,
@@ -383,8 +386,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
   // BOM row at the very end of this function.
   let hardwareKitsNeeded = 0;
 
-  // ---- undercabinet / toeKick / crown / floatingCabinet ("simple" zones) ----
-  const addSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet") => {
+  // ---- undercabinet / toeKick / crown / floatingCabinet / mirror ("simple" zones) ----
+  const addSimple = (key: "undercabinet" | "toeKick" | "crown" | "floatingCabinet" | "mirror") => {
     if (!selected[key]) return;
     const z: SimpleZoneState = simple[key];
     // Toe Kick / Crown Moulding / Floating Cabinet now support 1-4 runs
@@ -396,12 +399,21 @@ export function computeBom(state: ConfiguratorState): BomResult {
     // ZONES_BY_APPLICATION comment.
     const runLengths = z.zoneLengths.slice(0, Math.max(1, z.zoneCount));
     const isPuck = key === "undercabinet" && z.lightType === "puck";
-    const family = getLinearFamily(z.linearFamily);
+    // Mirror Lighting (Bathroom, 2026-09-13 audit item 9) is always
+    // surface-mount — behind-mirror runs are never recessed. Force it here
+    // rather than trusting the stored mounting, and defensively fall back to
+    // a real surface-mount family if the stored linearFamily somehow isn't
+    // one (e.g. a value carried over before this zone forced surface).
+    const effectiveMounting: Mounting = key === "mirror" ? "surface" : z.mounting;
+    let family = getLinearFamily(z.linearFamily);
+    if (key === "mirror" && family.mounting !== "surface") {
+      family = linearFamiliesFor("surface")[0] || family;
+    }
     const spacingIn = z.spacing > 0 ? toInches(z.spacing, z.spacingUnit) : 16;
     const name = LABELS.zoneNames[key];
     const availableControls = key === "undercabinet" ? underCabinetRemoteOptions() : zoneControls(key, z.controlSystem);
     const receiver = receiverSku(z.control);
-    const mountingLabel = z.mounting === "recess" ? LABELS.recess : LABELS.surface;
+    const mountingLabel = effectiveMounting === "recess" ? LABELS.recess : LABELS.surface;
 
     const results = runLengths
       .map((length, index) => {
@@ -434,7 +446,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
         const watts = lengthM * family.wattsPerMetre;
         total += watts;
         if (length > 0) {
-          pushLinearRows(rows, zone, family, z.cct, lengthM, 1, z.mounting, {
+          pushLinearRows(rows, zone, family, z.cct, lengthM, 1, effectiveMounting, {
             includeOptionalAccessory: z.includeInstallBracket,
           });
           rows.push({ zone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
@@ -491,6 +503,7 @@ export function computeBom(state: ConfiguratorState): BomResult {
   addSimple("toeKick");
   addSimple("crown");
   addSimple("floatingCabinet");
+  addSimple("mirror");
 
   // ---- base / wall / floating / pantry / highCabinet / library (per-cabinet-block "blocks" zones) ----
   // Floating Shelves shares this exact engine with Base/Wall/Pantry (same
@@ -527,7 +540,11 @@ export function computeBom(state: ConfiguratorState): BomResult {
     if (!selected[key]) return;
     let zoneWatts = 0;
     const isFloatingShelf = key === "floating";
-    const independentDrivers = key === "base" || key === "wall" || (isFloatingShelf && zoneState.group === false);
+    // Pantry (2026-09-13 audit item 12, Closet's relabeled "Overhead
+    // Storage") now supports the same independent-per-compartment driver
+    // choice Floating Shelves already had — see the supportsPerBlockControl
+    // comment below for the matching per-block control-selection change.
+    const independentDrivers = key === "base" || key === "wall" || ((isFloatingShelf || key === "pantry") && zoneState.group === false);
     const linearOnly = isLinearOnlyZone(key);
 
     zoneState.blocks.forEach((b, i) => {
@@ -654,11 +671,15 @@ export function computeBom(state: ConfiguratorState): BomResult {
         // independently-chosen control type/switch (verified against the
         // live reference wizard) — not just its own driver sized off one
         // shared zone-wide control choice, the way Base/Wall's always-
-        // independent drivers still share one zone-level control pick. Fall
-        // back to the zone-level value if a block somehow has no per-shelf
-        // choice yet (e.g. a saved shelf from before this field existed).
-        const blockControlSystem = isFloatingShelf && b.controlSystem ? b.controlSystem : zoneState.controlSystem;
-        const blockControl = isFloatingShelf && b.control ? b.control : zoneState.control;
+        // independent drivers still share one zone-level control pick.
+        // Pantry (2026-09-13 audit item 12) now gets the same per-compartment
+        // choice, generalized via this flag rather than duplicating the
+        // Floating-only condition. Fall back to the zone-level value if a
+        // block somehow has no per-block choice yet (e.g. a saved
+        // shelf/compartment from before this field existed).
+        const supportsPerBlockControl = isFloatingShelf || key === "pantry";
+        const blockControlSystem = supportsPerBlockControl && b.controlSystem ? b.controlSystem : zoneState.controlSystem;
+        const blockControl = supportsPerBlockControl && b.control ? b.control : zoneState.control;
         const availableControls = zoneControls(key === "wall" ? "wall" : key, blockControlSystem);
         rows.push({
           zone,
@@ -780,6 +801,36 @@ export function computeBom(state: ConfiguratorState): BomResult {
         rows.push({ zone, qty: u.drawersCount, sku: EXTENSION_SKU, description: "2m extension cord" });
         rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
       }
+
+      if (u.floatingInclude) {
+        // Floating (Toe-Kick Style) — Vanity's third sub-case (2026-09-13
+        // audit item 8): lit toe-kick-style from underneath, so unlike
+        // Doors (door-sensor only) and Drawers (no control offered), this
+        // reuses the real Toe Kick-shaped control family (catalog.ts's
+        // CONTROL_OPTIONS.vanityFloating) and gets its own independent
+        // driver, matching Doors/Drawers' own-driver-per-sub-fixture rule.
+        const zone = `${unitZone} · ${LABELS.vanityFloating}`;
+        const family = getLinearFamily(u.floatingLinearFamily);
+        const lengthM = toMetres(u.floatingLength, vanity.unit);
+        const watts = lengthM * family.wattsPerMetre;
+        total += watts;
+        pushLinearRows(rows, zone, family, u.floatingCct, lengthM, 1, u.floatingMounting, {
+          includeOptionalAccessory: u.floatingIncludeInstallBracket,
+        });
+        rows.push({ zone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
+        rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
+        const availableControls = zoneControls("vanityFloating", u.floatingControlSystem);
+        rows.push({
+          zone,
+          qty: 1,
+          sku: controlSku(u.floatingControl),
+          description: findControlLabel(availableControls, u.floatingControl) || u.floatingControl,
+        });
+        const receiver = receiverSku(u.floatingControl);
+        if (receiver) {
+          rows.push({ zone, qty: supplyCount(watts, "ultra"), sku: receiver, description: receiverDescription(receiver) });
+        }
+      }
     });
   }
 
@@ -837,7 +888,7 @@ export function applyQuantityOverrides(bom: BomResult, overrides: Record<string,
 // than counted as a value or a "mismatch." More than one distinct value
 // here means the job mixes colour temperatures across zones — see
 // BomSummaryStep.tsx's non-blocking advisory note.
-const SIMPLE_CCT_ZONE_KEYS = ["undercabinet", "toeKick", "crown", "floatingCabinet"] as const;
+const SIMPLE_CCT_ZONE_KEYS = ["undercabinet", "toeKick", "crown", "floatingCabinet", "mirror"] as const;
 const BLOCKS_CCT_ZONE_KEYS = ["base", "wall", "floating", "pantry", "highCabinet", "library", "closetHangers", "shoeRack"] as const;
 
 export function activeCcts(state: ConfiguratorState): ("3000" | "4000")[] {
@@ -875,6 +926,64 @@ export function activeCcts(state: ConfiguratorState): ("3000" | "4000")[] {
       if (!u.included) return;
       if (u.doorsInclude) found.add(u.doorsCct);
       if (u.drawersInclude) found.add(u.drawersCct);
+      if (u.floatingInclude) found.add(u.floatingCct);
+    });
+  }
+
+  return Array.from(found);
+}
+
+// ---------------------------------------------------------------------
+// Cross-zone control-system advisory (2026-09-13 audit item 2)
+// ---------------------------------------------------------------------
+// Mirrors activeCcts() above exactly, but for ControlSystem ("wired" /
+// "wireless" / "wallControl") instead of CCT — the Lighting Specification
+// skill recommends committing to one control philosophy for the whole job
+// (protects sales/ordering/integration/install/troubleshooting), so surface
+// a matching non-blocking advisory when a job mixes them across zones. See
+// BomSummaryStep.tsx's rendering of this alongside the CCT advisory.
+//
+// Undercabinet is deliberately excluded (unlike the CCT check, which does
+// include it): its stored controlSystem is a latent, not-really-editable
+// value given that zone's Kinetic-only UI (see forms.tsx's SimpleZoneForm),
+// so counting it would produce a false-positive "mismatch" on a freshly
+// created, never-touched Undercabinet zone. Puck-lit zones/blocks ARE
+// included here (unlike the CCT check) since control system is a real
+// choice for puck fixtures too — only CCT is baked into one tri-colour SKU.
+const SIMPLE_CONTROL_ZONE_KEYS = ["toeKick", "crown", "floatingCabinet", "mirror"] as const;
+const BLOCKS_CONTROL_ZONE_KEYS = ["base", "wall", "floating", "pantry", "highCabinet", "library", "closetHangers", "shoeRack"] as const;
+
+export function activeControlSystems(state: ConfiguratorState): ControlSystem[] {
+  const { selected, simple, vanity } = state;
+  const found = new Set<ControlSystem>();
+
+  SIMPLE_CONTROL_ZONE_KEYS.forEach((key) => {
+    if (!selected[key]) return;
+    found.add(simple[key].controlSystem);
+  });
+
+  BLOCKS_CONTROL_ZONE_KEYS.forEach((key) => {
+    if (!selected[key]) return;
+    const zoneState = state[key];
+    const isFloatingShelf = key === "floating";
+    const supportsPerBlockControl = isFloatingShelf || key === "pantry";
+    const independentDrivers = key === "base" || key === "wall" || (supportsPerBlockControl && zoneState.group === false);
+    if (!independentDrivers) {
+      found.add(zoneState.controlSystem);
+      return;
+    }
+    zoneState.blocks.forEach((b) => {
+      if (!b.included) return;
+      const blockControlSystem = supportsPerBlockControl && b.controlSystem ? b.controlSystem : zoneState.controlSystem;
+      found.add(blockControlSystem);
+    });
+  });
+
+  if (selected.vanity) {
+    vanity.blocks.forEach((u) => {
+      if (!u.included) return;
+      if (u.doorsInclude) found.add(u.doorsControlSystem);
+      if (u.floatingInclude) found.add(u.floatingControlSystem);
     });
   }
 

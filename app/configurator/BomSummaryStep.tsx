@@ -44,6 +44,7 @@ export function BomSummaryStep({
   onQuantityChange,
   onResetQuantity,
   ccts,
+  controlSystems,
   project,
 }: {
   bom: BomResult;
@@ -53,6 +54,8 @@ export function BomSummaryStep({
   onResetQuantity: (zone: string, sku: string) => void;
   /** Distinct colour-temperature values in play across the whole job (see engine.ts's activeCcts()) — more than one means a mismatch worth flagging. */
   ccts: string[];
+  /** Distinct control-system values in play across the whole job (see engine.ts's activeControlSystems(), 2026-09-13 audit item 2) — more than one means a mixed wired/wireless/wall-control job worth flagging. */
+  controlSystems: string[];
   project: ProjectInfo;
 }) {
   const t = useTranslations();
@@ -173,6 +176,26 @@ export function BomSummaryStep({
             {ccts.length > 1 && (
               <div className="mt-2 rounded-lg border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                 {t("configuratorExtra.cctMismatchWarning").replace("{values}", ccts.map((c) => `${c}K`).join(" / "))}
+              </div>
+            )}
+
+            {/* Non-blocking cross-zone control-system advisory (2026-09-13
+                audit item 2) — mirrors the CCT advisory above exactly. See
+                engine.ts's activeControlSystems(). */}
+            {controlSystems.length > 1 && (
+              <div className="mt-2 rounded-lg border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                {t("configuratorExtra.controlMismatchWarning").replace(
+                  "{values}",
+                  controlSystems
+                    .map((s) =>
+                      s === "wired"
+                        ? t("configurator.wiredSensor")
+                        : s === "wireless"
+                          ? t("configurator.wirelessSensor")
+                          : t("configurator.wallControl")
+                    )
+                    .join(" / ")
+                )}
               </div>
             )}
 

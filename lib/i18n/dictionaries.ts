@@ -164,6 +164,7 @@ const en = {
       shoeRack: "Shoe Rack",
       floatingCabinet: "Floating Cabinet",
       vanity: "Vanity",
+      mirror: "Mirror Lighting",
     },
     projectName: "Project name",
     client: "Client / Company",
@@ -394,11 +395,18 @@ const en = {
     noZonesForApplication: "More zones for this project type are coming soon — check back after AMBLUX adds them.",
     numberOfRuns: "Number of runs",
     shelfControlGrouping: "Shelf driver & control",
+    // Pantry's own version of shelfControlGrouping's label (2026-09-13 audit
+    // item 12) — same field, different generic wording since a Pantry
+    // compartment isn't a "shelf."
+    cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Number of hanging compartments",
     hangingCompartmentsHint: "Whether this cabinet has one continuous hanging section or is split into two — each compartment gets its own shelf-mounted light fixture, and the driver is sized for that count.",
     sectionVanityDesc: "Each cabinet unit can have Doors (vertical gable lighting) and/or Drawers (fixed drawer light), independently. Up to 10 cabinet units.",
     vanityDoors: "Doors",
     vanityDrawers: "Drawers",
+    // Vanity's third sub-case (2026-09-13 audit item 8) — a floating vanity
+    // lit toe-kick-style from underneath.
+    vanityFloating: "Floating (Toe-Kick Style)",
     ultraLocked: "Ultra-thin power supply (plug & play)",
     vanityUnitNote: "Doors and Drawers each get their own independent driver when turned on for this cabinet.",
     addAnother: "+ Add another {unit}",
@@ -427,6 +435,28 @@ const en = {
     fixedLength: "{length} m (fixed)",
     resetToSuggested: "Reset to suggested",
     cctMismatchWarning: "Note: this job mixes {values} colour temperature across zones — confirm this is intentional.",
+    // Control-system mismatch advisory (2026-09-13 audit item 2) — mirrors
+    // cctMismatchWarning's exact phrasing/shape. See engine.ts's
+    // activeControlSystems() and BomSummaryStep.tsx.
+    controlMismatchWarning: "Note: this job mixes control systems ({values}) across zones — confirm this is intentional.",
+    // Driver-placement guidance (2026-09-13 audit item 3) — the Lighting
+    // Specification skill's 3-tier best-practice default: open on the
+    // cabinet top, in a utility room, or concealed only if a licensed
+    // electrician hardwires the 120V input. Shown unconditionally under
+    // every zone's Power field — see forms.tsx.
+    driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
+    // Never-splice wiring guidance (2026-09-13 audit item 5).
+    neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    // Bathroom humidity guidance (2026-09-13 audit item 7) — shown on the
+    // bathroom-only zones that default to a flexible/silicone family.
+    bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
+    // Furniture guidance (2026-09-13 audit items 13/14) — Library/Bookcase.
+    furnitureLinearHint: "Linear lighting is recommended over puck lights for a more upscale look on open shelving and bookcases.",
+    tvMediaHint: "Never place a light directly above or in front of a TV/media area — put it on its own separate dimmer instead of recessing it over the screen.",
+    // Closet's relabeled Pantry zone title (2026-09-13 audit item 12) —
+    // "Overhead Storage" per the Lighting Specification skill's terminology
+    // standard. Only the UI-facing title changes — see ConfiguratorClient.tsx.
+    overheadStorage: "Overhead Storage",
     copyFromPrevious: "Copy from previous",
   },
 };
@@ -565,6 +595,7 @@ const fr: Messages = {
       shoeRack: "Range-chaussures",
       floatingCabinet: "Armoire flottante",
       vanity: "Vanité",
+      mirror: "Éclairage de miroir",
     },
     projectName: "Nom du projet",
     client: "Client / entreprise",
@@ -796,11 +827,17 @@ const fr: Messages = {
     noZonesForApplication: "D'autres zones pour ce type de projet arrivent bientôt — revenez après qu'AMBLUX les ajoute.",
     numberOfRuns: "Nombre de sections",
     shelfControlGrouping: "Alimentation et contrôle des tablettes",
+    // No original translation exists for this namespace (2026-09-13) —
+    // English placeholder pending real copy, same as several other
+    // configuratorExtra keys in this file (see the file-level comment).
+    cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Nombre de compartiments suspendus",
     hangingCompartmentsHint: "Si ce meuble a une seule section de suspension continue ou est divisé en deux — chaque compartiment reçoit son propre luminaire monté sur tablette, et le driver est dimensionné en conséquence.",
     sectionVanityDesc: "Chaque meuble peut avoir des Portes (éclairage vertical des façades) et/ou des Tiroirs (éclairage de tiroir fixe), indépendamment. Jusqu’à 10 meubles.",
     vanityDoors: "Portes",
     vanityDrawers: "Tiroirs",
+    // English placeholder pending real copy — see cabinetControlGrouping above.
+    vanityFloating: "Floating (Toe-Kick Style)",
     ultraLocked: "Bloc d’alimentation ultra-mince (prêt-à-brancher)",
     vanityUnitNote: "Les Portes et les Tiroirs obtiennent chacun leur propre driver indépendant lorsqu’ils sont activés pour ce meuble.",
     addAnother: "+ Ajouter un autre — {unit}",
@@ -829,6 +866,15 @@ const fr: Messages = {
     fixedLength: "{length} m (fixe)",
     resetToSuggested: "Réinitialiser à la valeur suggérée",
     cctMismatchWarning: "Remarque : ce projet combine plusieurs températures de couleur ({values}) selon les zones — veuillez confirmer que c’est voulu.",
+    // English placeholders pending real copy — see cabinetControlGrouping's
+    // comment above.
+    controlMismatchWarning: "Note: this job mixes control systems ({values}) across zones — confirm this is intentional.",
+    driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
+    neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
+    furnitureLinearHint: "Linear lighting is recommended over puck lights for a more upscale look on open shelving and bookcases.",
+    tvMediaHint: "Never place a light directly above or in front of a TV/media area — put it on its own separate dimmer instead of recessing it over the screen.",
+    overheadStorage: "Overhead Storage",
     copyFromPrevious: "Copier le précédent",
   },
 };
@@ -961,6 +1007,7 @@ const es: Messages = {
       shoeRack: "Zapatera",
       floatingCabinet: "Gabinete flotante",
       vanity: "Tocador",
+      mirror: "Iluminación de espejo",
     },
     projectName: "Nombre del proyecto",
     client: "Cliente / Empresa",
@@ -1192,11 +1239,17 @@ const es: Messages = {
     noZonesForApplication: "Más zonas para este tipo de proyecto llegarán pronto — vuelva a revisar cuando AMBLUX las agregue.",
     numberOfRuns: "Número de tramos",
     shelfControlGrouping: "Alimentación y control de las repisas",
+    // No original translation exists for this namespace (2026-09-13) —
+    // English placeholder pending real copy, same as several other
+    // configuratorExtra keys in this file (see the file-level comment).
+    cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Número de compartimentos colgantes",
     hangingCompartmentsHint: "Si este gabinete tiene una sola sección colgante continua o está dividido en dos — cada compartimento recibe su propia luminaria montada en repisa, y el driver se dimensiona según esa cantidad.",
     sectionVanityDesc: "Cada mueble puede tener Puertas (iluminación vertical de gabinete) y/o Cajones (luz de cajón fija), de forma independiente. Hasta 10 muebles.",
     vanityDoors: "Puertas",
     vanityDrawers: "Cajones",
+    // English placeholder pending real copy — see cabinetControlGrouping above.
+    vanityFloating: "Floating (Toe-Kick Style)",
     ultraLocked: "Fuente ultradelgada (enchufar y usar)",
     vanityUnitNote: "Las Puertas y los Cajones obtienen cada uno su propio driver independiente cuando están activados para este mueble.",
     addAnother: "+ Agregar otro — {unit}",
@@ -1225,6 +1278,15 @@ const es: Messages = {
     fixedLength: "{length} m (fijo)",
     resetToSuggested: "Restablecer al valor sugerido",
     cctMismatchWarning: "Nota: este proyecto combina varias temperaturas de color ({values}) entre zonas — confirme que esto es intencional.",
+    // English placeholders pending real copy — see cabinetControlGrouping's
+    // comment above.
+    controlMismatchWarning: "Note: this job mixes control systems ({values}) across zones — confirm this is intentional.",
+    driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
+    neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
+    furnitureLinearHint: "Linear lighting is recommended over puck lights for a more upscale look on open shelving and bookcases.",
+    tvMediaHint: "Never place a light directly above or in front of a TV/media area — put it on its own separate dimmer instead of recessing it over the screen.",
+    overheadStorage: "Overhead Storage",
     copyFromPrevious: "Copiar del anterior",
   },
 };
