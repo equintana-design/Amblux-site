@@ -201,6 +201,37 @@ export function isLinearOnlyZone(zone: ZoneKey): boolean {
   return (LINEAR_ONLY_ZONES as ZoneKey[]).includes(zone);
 }
 
+// Which zones can offer a puck-light fixture instead of a linear tape/
+// extrusion run, as a real named fact — added 2026-09-13 after a chat-
+// assistant bug where puck lighting was never mentioned to the model at all
+// (it isn't recorded anywhere in the catalog as data; it was only implicit
+// in which engine.ts function handles a zone). This must stay in sync with
+// engine.ts's actual behavior:
+//   - addSimple() only ever treats "undercabinet" as puck-capable (its
+//     `isPuck` check is literally `key === "undercabinet"`) even though
+//     toeKick/crown/floatingCabinet/mirror share the same SimpleZoneState
+//     shape (with its own lightType field) — those four are linear-only in
+//     practice today, so they are deliberately left out of this list.
+//   - addBlocks() treats every non-linear-only "storage cabinet" zone
+//     (including Floating Shelves, which is a "blocks" zone in the engine
+//     despite reading as a simple one) as puck-capable in shelf mode
+//     (vertical/gable lighting is always linear) — its isPuck check is
+//     `!linearOnly && b.lightType === "puck" && effectiveMode !== "vertical"`,
+//     with no zone-specific exclusion beyond that.
+//   - drawers and vanity are linear-only in the engine with no lightType
+//     branch at all, so they're excluded too, same as closetHangers/shoeRack
+//     (which are already excluded via LINEAR_ONLY_ZONES).
+// If engine.ts's puck-eligibility logic for any zone ever changes, update
+// this list in the same commit — it's the one place both the graphical
+// configurator's own UI (forms.tsx's allowPuck prop, kept in sync by
+// convention) and the chat (lib/chat/catalogRules.ts) can read the same
+// real fact instead of each guessing independently.
+export const PUCK_CAPABLE_ZONES: ZoneKey[] = ["undercabinet", "floating", "base", "wall", "pantry", "highCabinet", "library"];
+
+export function zoneSupportsPuck(zone: ZoneKey): boolean {
+  return (PUCK_CAPABLE_ZONES as ZoneKey[]).includes(zone);
+}
+
 // Widened to accept "" (Task: Application Type required field) — Project
 // Info's Application select now starts unset (see types.ts's
 // ProjectInfo.application/defaultConfiguratorState()) so a customer can't
