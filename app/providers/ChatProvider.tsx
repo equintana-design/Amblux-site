@@ -17,6 +17,7 @@
 // server-side history can replace this later without changing the
 // context's shape.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useLocale } from "@/app/providers/LocaleProvider";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -46,6 +47,13 @@ interface StoredShape {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
+  // The site's own EN/FR/ES language switcher (app/providers/LocaleProvider
+  // .tsx) — read here and sent on every /api/chat request so the assistant's
+  // replies follow whatever language the customer has the page set to,
+  // rather than defaulting to English or guessing from what they type. This
+  // provider is always rendered inside LocaleProvider (see app/layout.tsx),
+  // so this hook call is safe.
+  const { locale } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [projectState, setProjectState] = useState<Record<string, unknown>>({});
@@ -97,7 +105,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: nextMessages, state: projectState }),
+          body: JSON.stringify({ messages: nextMessages, state: projectState, locale }),
         });
         if (!res.ok) {
           const bodyText = await res.text().catch(() => "");
@@ -113,7 +121,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setIsSending(false);
       }
     },
-    [messages, projectState],
+    [messages, projectState, locale],
   );
 
   const resetConversation = useCallback(() => {

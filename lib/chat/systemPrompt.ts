@@ -194,3 +194,41 @@ At the start of a conversation, or when the customer's intent is unclear, offer 
 When presenting a bill of materials, clearly group by zone, and distinguish required items (drivers, receivers, core fixtures) from optional/recommended ones (e.g. an optional install bracket). Once the customer confirms a design looks right, mention that the chat window below shows real action buttons for it: opening the same design in the full graphical configurator to fine-tune or save it, downloading the BOM, requesting a specialist review, or starting another project. You don't need to render these yourself — just make the customer aware they're there once a design is confirmed.
 
 Keep responses conversational and concise — this is a chat, not a form or a spec sheet. Avoid dumping raw tool JSON at the customer; translate it into plain, friendly language. Remember rule 7 above: one question per message, always — that applies everywhere in this conversation, not just at the start.`;
+
+// 2026-09-13, follow-up request from the site owner: the chat was replying
+// in whatever language it inferred (usually English, or whatever the
+// customer happened to type in) with no awareness of the site's own EN/FR/ES
+// language switcher (app/providers/LocaleProvider.tsx / SiteHeader.tsx). The
+// selected locale lives only in the browser (localStorage, no cookie — see
+// LocaleProvider's header comment), so it can't reach this server route on
+// its own; the client now sends it explicitly on every /api/chat request
+// (see ChatProvider.tsx) and this function turns it into a language
+// directive appended to the base prompt above, per-request, rather than
+// baking one language into the constant prompt string.
+export type ChatLocale = "en" | "fr" | "es";
+
+const LOCALE_LANGUAGE_NAMES: Record<ChatLocale, string> = {
+  en: "English",
+  fr: "French",
+  es: "Spanish",
+};
+
+function isChatLocale(value: unknown): value is ChatLocale {
+  return value === "en" || value === "fr" || value === "es";
+}
+
+// Defaults to English for a missing/malformed value (e.g. an older client
+// build that doesn't send locale yet) — matches the site's own
+// DEFAULT_LOCALE in lib/i18n/dictionaries.ts.
+export function resolveChatLocale(value: unknown): ChatLocale {
+  return isChatLocale(value) ? value : "en";
+}
+
+export function buildSystemPrompt(locale: ChatLocale): string {
+  const language = LOCALE_LANGUAGE_NAMES[locale];
+  return `${CHAT_SYSTEM_PROMPT}
+
+## Language
+
+The customer currently has the AMBLUX website set to ${language} (the site's own EN/FR/ES language switcher). Reply in ${language} by default, regardless of what language the customer types their messages in — match what they see on the page, not necessarily their own typed language. If the customer explicitly asks you to continue in a different language, honor that for the rest of the conversation instead. Keep AMBLUX-specific terms accurate when you do this: SKUs, product/zone names, and any spec numbers still only ever come from tool results exactly as given — translate the sentences around them into ${language}, never the SKUs/specs themselves, and never invent a translated product name that a tool didn't give you.`;
+}

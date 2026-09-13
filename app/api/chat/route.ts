@@ -15,7 +15,7 @@
 // instructions.
 import { createClient } from "@/lib/supabase/server";
 import { CHAT_TOOLS, executeTool, type ToolExecutionContext } from "@/lib/chat/tools";
-import { CHAT_SYSTEM_PROMPT } from "@/lib/chat/systemPrompt";
+import { buildSystemPrompt, resolveChatLocale } from "@/lib/chat/systemPrompt";
 
 export const runtime = "nodejs";
 
@@ -57,6 +57,13 @@ interface ChatRequestBody {
   // back (possibly updated) in the response so the client can keep both in
   // sync.
   state?: Record<string, unknown>;
+  // The site's currently selected UI language ("en" | "fr" | "es", from
+  // app/providers/LocaleProvider.tsx's useLocale()). That preference lives
+  // only in the browser (localStorage, no cookie), so the client has to send
+  // it explicitly on every request — see ChatProvider.tsx. Anything else
+  // (missing, malformed, an older client build) falls back to English via
+  // resolveChatLocale() below.
+  locale?: string;
 }
 
 async function isAuthorized(): Promise<boolean> {
@@ -70,7 +77,7 @@ async function isAuthorized(): Promise<boolean> {
   return !!profile && profile.role === "admin" && profile.approved === true;
 }
 
-async function callAnthropic(messages: AnthropicMessage[], apiKey: string): Promise<{
+async function callAnthropic(messages: AnthropicMessage[], apiKey: string, systemPrompt: string): Promise<{
   content: ChatContentBlock[];
   stop_reason: string;
 }> {
@@ -84,7 +91,7 @@ async function callAnthropic(messages: AnthropicMessage[], apiKey: string): Prom
     body: JSON.stringify({
       model: process.env.ANTHROPIC_CHAT_MODEL || DEFAULT_MODEL,
       max_tokens: MAX_TOKENS,
-      system: CHAT_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
       tools: CHAT_TOOLS,
     }),
@@ -122,6 +129,7 @@ export async function POST(request: Request) {
   }
 
   const messages: AnthropicMessage[] = body.messages.map((m) => ({ role: m.role, content: m.content }));
+  const systemPrompt = buildSystemPrompt(resolveChatLocale(body.locale));
 
   let workingState: Record<string, unknown> = body.state ?? {};
   const ctx: ToolExecutionContext = {
@@ -134,7 +142,7 @@ export async function POST(request: Request) {
   let finalText = "";
   try {
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-      const response = await callAnthropic(messages, apiKey);
+      const response = await callAnthropic(messages, apiKey, systemPrompt);
 
       if (response.stop_reason !== "tool_use") {
         finalText = response.content
