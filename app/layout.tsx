@@ -3,6 +3,8 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { LocaleProvider } from "./providers/LocaleProvider";
 import { TestProjectProvider } from "./providers/TestProjectProvider";
+import { ChatProvider } from "./providers/ChatProvider";
+import { ChatWidget } from "./components/chat/ChatWidget";
 
 // The original ChatGPT-built site used "Avenir Next, Helvetica Neue, Arial,
 // sans-serif" (recovered from the compiled CSS). Avenir Next isn't a
@@ -28,7 +30,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <LocaleProvider>
-          <TestProjectProvider>{children}</TestProjectProvider>
+          <TestProjectProvider>
+            <ChatProvider>
+              {children}
+              <ChatWidget />
+            </ChatProvider>
+          </TestProjectProvider>
         </LocaleProvider>
       </body>
       {/* Google Analytics (GA4). The tracking ID lives in an environment
