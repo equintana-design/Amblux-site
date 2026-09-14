@@ -35,6 +35,7 @@ import {
   DEFAULT_COUNT_CAP,
   LINEAR_ONLY_ZONES,
   PUCK_CAPABLE_ZONES,
+  VERTICAL_CAPABLE_ZONES,
   RECESSED_FACEPLATES,
   SURFACE_PUCKS,
   PUCK_SKU,
@@ -63,6 +64,16 @@ export interface CatalogSnapshot {
   // linearOnlyZones (toe kick, crown, floating cabinet, mirror, drawers,
   // vanity) simply has no lightType concept at all — always linear.
   puckCapableZones: readonly string[];
+  // Zones with a real shelf-vs-vertical/gable "Layout" choice, which must be
+  // asked BEFORE light type/mounting/product family — see catalog.ts's
+  // VERTICAL_CAPABLE_ZONES for exactly which zones and why (2026-09-13 chat
+  // bug: this question was never asked at all, so a customer had to
+  // self-correct from an assumed shelf answer to get gable-appropriate
+  // options). A zone not in this list has no Layout choice — it's always
+  // shelf-orientation (undercabinet, floating shelves) or has no shelf/
+  // gable concept at all (toe kick, crown, drawers, vanity, mirror,
+  // floating cabinet).
+  verticalCapableZones: readonly string[];
   puckFinishes: { recess: string[]; surface: string[] };
   controlOptions: typeof CONTROL_OPTIONS;
   controlLabel: typeof CONTROL_LABEL;
@@ -96,6 +107,7 @@ export async function loadCatalogRules(forceRefresh = false): Promise<CatalogSna
     maxShelvesByZone: MAX_SHELVES_BY_ZONE,
     linearOnlyZones: LINEAR_ONLY_ZONES,
     puckCapableZones: PUCK_CAPABLE_ZONES,
+    verticalCapableZones: VERTICAL_CAPABLE_ZONES,
     puckFinishes: { recess: Object.keys(RECESSED_FACEPLATES), surface: Object.keys(SURFACE_PUCKS) },
     controlOptions: CONTROL_OPTIONS,
     controlLabel: CONTROL_LABEL,

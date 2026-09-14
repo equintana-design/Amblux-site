@@ -195,6 +195,29 @@ export function hasVerticalOption(zone: ZoneKey): boolean {
   return !(NO_VERTICAL_OPTION_ZONES as ZoneKey[]).includes(zone);
 }
 
+// Which zones actually show the shelf-vs-vertical/gable "Layout" field at
+// all, as a real named fact for callers outside forms.tsx (added 2026-09-13
+// after a chat-assistant bug: the AI never asked this question — a customer
+// who said "pantry" then had to correct it to "gable" before it gave
+// gable-appropriate linear families, instead of asking Layout first the way
+// the graphical configurator does). hasVerticalOption() above answers a
+// different, narrower question ("is this specific zone individually
+// excluded", currently true for none) and is only meaningful already inside
+// forms.tsx's CabinetBlockRow, which only ever renders for the "blocks"
+// zones below in the first place — it returns true even for zones (like
+// undercabinet) that have no Layout concept at all, so it is NOT safe for a
+// caller outside that component to use to decide whether to ask the
+// question. This list is that zone set directly: every "blocks" zone
+// (see CabinetBlockRow's own zoneKey union in forms.tsx) except Floating
+// Shelves, which forms.tsx hardcodes to shelf-mode always (isFloatingShelf
+// — one physical shelf, no Layout field rendered at all). Keep in sync with
+// forms.tsx's `noVertical = isFloatingShelf || !hasVerticalOption(zoneKey)`.
+export const VERTICAL_CAPABLE_ZONES: ZoneKey[] = ["base", "wall", "pantry", "highCabinet", "library", "closetHangers", "shoeRack"];
+
+export function zoneHasLayoutChoice(zone: ZoneKey): boolean {
+  return (VERTICAL_CAPABLE_ZONES as ZoneKey[]).includes(zone);
+}
+
 export const LINEAR_ONLY_ZONES: ZoneKey[] = ["closetHangers", "shoeRack"];
 
 export function isLinearOnlyZone(zone: ZoneKey): boolean {
