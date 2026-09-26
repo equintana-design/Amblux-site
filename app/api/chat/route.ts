@@ -1,10 +1,16 @@
 // POST /api/chat — the AI chat assistant's only server endpoint.
 //
-// Access: Stage 1 of the staged rollout agreed with the site owner
-// (2026-09-13) — admin-only (amblux_profiles.role === "admin" && approved).
-// Stage 2 will add a per-account "chat tester" flag; Stage 3 opens this to
-// any approved, signed-in account. Nothing below should assume "admin"
-// forever — the check is isolated in isAuthorized() below for that reason.
+// Access: Stage 2 of the staged rollout agreed with the site owner
+// (2026-09-13, chat_tester flag added 2026-09-26 for a client demo) —
+// admin-only, OR an approved account with amblux_profiles.chat_tester set
+// (migration 0035). Stage 3 opens this to any approved, signed-in account.
+// Nothing below should assume "admin"-or-"chat_tester" forever — the check
+// is isolated in isAuthorized() below for that reason. chat_tester is an
+// access-control column with the same sensitivity as role/approved — it's
+// pinned by the same amblux_profiles_pin_restricted_columns trigger
+// (migration 0035) so a non-admin can never self-grant it via a client
+// update; only /admin/distributors' setChatTesterAction (admin-gated) can
+// actually flip it.
 //
 // This route holds the ONLY Anthropic API key usage in the app — the
 // browser never sees it. It also never computes BOM/pricing/catalog logic
@@ -73,8 +79,8 @@ async function isAuthorized(): Promise<boolean> {
   } = await supabase.auth.getUser();
   if (!user) return false;
 
-  const { data: profile } = await supabase.from("amblux_profiles").select("role, approved").eq("id", user.id).single();
-  return !!profile && profile.role === "admin" && profile.approved === true;
+  const { data: profile } = await supabase.from("amblux_profiles").select("role, approved, chat_tester").eq("id", user.id).single();
+  return !!profile && profile.approved === true && (profile.role === "admin" || profile.chat_tester === true);
 }
 
 async function callAnthropic(messages: AnthropicMessage[], apiKey: string, systemPrompt: string): Promise<{

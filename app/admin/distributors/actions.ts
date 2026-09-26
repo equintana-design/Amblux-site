@@ -70,3 +70,21 @@ export async function setBusinessTypeAction(formData: FormData) {
   await supabase.from("amblux_profiles").update({ business_type: businessType }).eq("id", id);
   revalidatePath("/admin/distributors");
 }
+
+// Stage 2 of the chat assistant's staged rollout (migration 0035, added
+// 2026-09-26 for a client demo) — lets an admin flip individual approved
+// accounts into the AI chat assistant beta without promoting them to full
+// Admin. Same defense-in-depth story as setApprovalAction/setRoleAction:
+// requireAdmin() here is a fast, clear rejection before the update is even
+// attempted, but the actual enforcement is the database's own
+// amblux_profiles_pin_restricted_columns trigger, which silently pins
+// chat_tester back to its old value for any non-admin update regardless of
+// what this (or any other) client sends.
+export async function setChatTesterAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const id = String(formData.get("id") || "");
+  const chatTester = formData.get("chatTester") === "true";
+
+  await supabase.from("amblux_profiles").update({ chat_tester: chatTester }).eq("id", id);
+  revalidatePath("/admin/distributors");
+}

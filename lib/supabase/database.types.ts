@@ -375,6 +375,7 @@ export type Database = {
         Row: {
           approved: boolean
           business_type: string | null
+          chat_tester: boolean
           company_name: string | null
           created_at: string
           email: string | null
@@ -384,6 +385,7 @@ export type Database = {
         Insert: {
           approved?: boolean
           business_type?: string | null
+          chat_tester?: boolean
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -393,6 +395,7 @@ export type Database = {
         Update: {
           approved?: boolean
           business_type?: string | null
+          chat_tester?: boolean
           company_name?: string | null
           created_at?: string
           email?: string | null

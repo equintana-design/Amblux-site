@@ -4,14 +4,16 @@
 // UX nicety only — it decides whether to render the floating button, never
 // a security boundary. The real gate is server-side in app/api/chat/
 // route.ts's isAuthorized(), which runs this exact same check
-// (amblux_profiles.role === "admin" && approved) against the request's own
-// session on every call, regardless of what the browser thinks.
+// (approved && (role === "admin" || chat_tester)) against the request's
+// own session on every call, regardless of what the browser thinks.
 //
-// Stage 1 of the staged rollout agreed with the site owner (2026-09-13):
-// admin-only. Stage 2 will also accept a per-account "chat tester" flag;
-// Stage 3 opens this to any approved, signed-in account. When that
-// changes, update this hook AND app/api/chat/route.ts's isAuthorized()
-// together — they must never drift apart.
+// Stage 2 of the staged rollout agreed with the site owner (2026-09-13,
+// chat_tester flag added 2026-09-26 for a client demo): admin, or any
+// approved account with amblux_profiles.chat_tester set (migration 0035,
+// flipped per-account from /admin/distributors). Stage 3 opens this to any
+// approved, signed-in account. When that changes, update this hook AND
+// app/api/chat/route.ts's isAuthorized() together — they must never drift
+// apart.
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
@@ -35,12 +37,12 @@ export function useChatAccess(): { enabled: boolean; loading: boolean } {
     const supabase = createClient();
     supabase
       .from("amblux_profiles")
-      .select("role, approved")
+      .select("role, approved, chat_tester")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
         if (cancelled) return;
-        setEnabled(!!data && data.role === "admin" && data.approved === true);
+        setEnabled(!!data && data.approved === true && (data.role === "admin" || data.chat_tester === true));
         setProfileLoading(false);
       });
 

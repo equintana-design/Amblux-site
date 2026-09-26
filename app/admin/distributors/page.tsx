@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setApprovalAction, setBusinessTypeAction, setRoleAction } from "./actions";
+import { setApprovalAction, setBusinessTypeAction, setChatTesterAction, setRoleAction } from "./actions";
 
 const ROLE_LABEL: Record<string, string> = {
   client: "Client",
@@ -33,7 +33,7 @@ export default async function AdminDistributorsPage() {
   // this to see every account, not just the caller's own row.
   const { data: profiles } = await supabase
     .from("amblux_profiles")
-    .select("id, email, role, company_name, approved, business_type, created_at")
+    .select("id, email, role, company_name, approved, business_type, chat_tester, created_at")
     .order("created_at", { ascending: false });
 
   const pending = (profiles ?? []).filter((p) => !p.approved);
@@ -48,7 +48,10 @@ export default async function AdminDistributorsPage() {
         configurator, and you can promote a Client to Hardware Distributor or Admin below. Every other signed-in or
         anonymous visitor only ever sees MSRP — that&apos;s enforced by the database itself, not by this page. A
         Client account can also have a Business type (Kitchen Manufacturer or Kitchen Dealer) — used by the
-        configurator&apos;s pricing panel to recommend a resale price range — which you can set here too.
+        configurator&apos;s pricing panel to recommend a resale price range — which you can set here too. An
+        approved account can also be given AI Chat Assistant access below without promoting it to Admin — useful for
+        letting a specific client try the assistant (e.g. for a demo) while it&apos;s still in limited rollout; Admins
+        already have chat access by default.
       </p>
 
       <section className="mt-8">
@@ -124,6 +127,7 @@ export default async function AdminDistributorsPage() {
                   <p className="text-xs text-muted">
                     {p.company_name || "No company name provided"} · {ROLE_LABEL[p.role] ?? p.role}
                     {p.role === "client" && p.business_type ? ` · ${BUSINESS_TYPE_LABEL[p.business_type] ?? p.business_type}` : ""}
+                    {p.role !== "admin" && p.chat_tester ? " · Chat access" : ""}
                   </p>
                 </div>
                 {p.id !== user.id && (
@@ -167,6 +171,18 @@ export default async function AdminDistributorsPage() {
                           className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong"
                         >
                           Update
+                        </button>
+                      </form>
+                    )}
+                    {p.role !== "admin" && (
+                      <form action={setChatTesterAction}>
+                        <input type="hidden" name="id" value={p.id} />
+                        <input type="hidden" name="chatTester" value={p.chat_tester ? "false" : "true"} />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong"
+                        >
+                          {p.chat_tester ? "Revoke chat access" : "Grant chat access"}
                         </button>
                       </form>
                     )}
