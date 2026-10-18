@@ -277,6 +277,15 @@ export async function createProductAction(formData: FormData) {
     }
     axisKeys = axes.map((a) => a.key);
 
+    // default_sku is left null here, not `sku` — amblux_product_pages and
+    // amblux_products have a mutual foreign key (pages.default_sku ->
+    // products.sku, products.page_slug -> pages.slug), and the product row
+    // below doesn't exist yet at this point. Inserting default_sku: sku
+    // here throws amblux_product_pages_default_sku_fkey every time a
+    // brand-new product is added — this was the exact bug reported against
+    // this flow. default_sku is nullable precisely so the page can be
+    // created first and linked to its SKU afterward (see the update call
+    // right after the product insert below).
     const { error: pageError } = await supabase.from("amblux_product_pages").insert({
       slug: pageSlug,
       category: pageCategory,
@@ -284,7 +293,7 @@ export async function createProductAction(formData: FormData) {
       name,
       hero_summary: heroSummary,
       variant_axes: axes as never,
-      default_sku: sku,
+      default_sku: null,
       status: "active",
     });
     if (pageError) {
@@ -329,7 +338,34 @@ export async function createProductAction(formData: FormData) {
   });
 
   if (productError) {
+    // Clean up the page row this attempt just created in "new" mode —
+    // otherwise it's left behind with no SKU at all, and every retry
+    // under the same URL immediately fails with "a product page at
+    // /products/<slug> already exists" instead of the real error.
+    if (mode === "new") {
+      await supabase.from("amblux_product_pages").delete().eq("slug", pageSlug);
+    }
     redirect(`/admin/products/new?error=${encodeURIComponent(productError.message)}`);
+  }
+
+  // Now that the product row exists, link the page to it as its default
+  // SKU (deliberately left null on the insert above — see the comment
+  // there). Not fatal on its own: the page and product both exist either
+  // way, just not yet linked, and that's fixable from the page's own
+  // edit screen — but it should be rare, so it's worth knowing about if
+  // it ever happens.
+  if (mode === "new") {
+    const { error: linkError } = await supabase
+      .from("amblux_product_pages")
+      .update({ default_sku: sku })
+      .eq("slug", pageSlug);
+    if (linkError) {
+      redirect(
+        `/admin/products/${pageSlug}/${encodeURIComponent(sku)}?error=${encodeURIComponent(
+          `SKU was created, but linking it as the page's default failed: ${linkError.message}. You can fix this from the page's edit screen.`,
+        )}`,
+      );
+    }
   }
 
   // FOB cost is optional here — a SKU with no cost row just shows up in

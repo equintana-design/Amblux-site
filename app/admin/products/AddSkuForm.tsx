@@ -31,6 +31,23 @@ export function AddSkuForm({ action, pages, productCategories, pageCategories, s
   const [productCategory, setProductCategory] = useState(sampleCategoryByPage[pages[0]?.slug ?? ""] ?? "");
   const [newHasVariants, setNewHasVariants] = useState(false);
   const [newAxisKeys, setNewAxisKeys] = useState<string[]>(["", "", ""]);
+  // Page URL used to be a fully manual field — the reported friction of
+  // adding several new models in a row. It now auto-fills from the
+  // product name as you type, the same kebab-casing the server already
+  // did on submit (see createProductAction), and stops auto-filling the
+  // moment the slug field itself is edited by hand, so a deliberate
+  // override is never clobbered.
+  const [newPageName, setNewPageName] = useState("");
+  const [newPageSlug, setNewPageSlug] = useState("");
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+
+  function slugify(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
 
   const selectedPage = useMemo(() => pages.find((p) => p.slug === existingPageSlug), [pages, existingPageSlug]);
   const existingAxes = selectedPage?.variant_axes ?? [];
@@ -118,11 +135,35 @@ export function AddSkuForm({ action, pages, productCategories, pageCategories, s
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-muted">Product name</span>
-              <input name="newPageName" required placeholder="e.g. Corner bracket — 2-pack" className={inputClass} />
+              <input
+                name="newPageName"
+                required
+                placeholder="e.g. Corner bracket — 2-pack"
+                className={inputClass}
+                value={newPageName}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewPageName(value);
+                  if (!slugManuallyEdited) setNewPageSlug(slugify(value));
+                }}
+              />
             </label>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-muted">Page URL (/products/…)</span>
-              <input name="newPageSlug" required placeholder="e.g. corner-bracket-2pk" className={inputClass} />
+              <input
+                name="newPageSlug"
+                required
+                placeholder="e.g. corner-bracket-2pk"
+                className={inputClass}
+                value={newPageSlug}
+                onChange={(e) => {
+                  setSlugManuallyEdited(true);
+                  setNewPageSlug(e.target.value);
+                }}
+              />
+              <span className="text-xs text-muted">
+                Filled in automatically from the product name — only edit it if you want a different URL.
+              </span>
             </label>
           </div>
           <label className="flex flex-col gap-1.5 text-sm">
