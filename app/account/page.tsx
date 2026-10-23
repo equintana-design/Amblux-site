@@ -160,6 +160,9 @@ export default async function AccountPage({
               <Link href="/admin/products" className="text-sm font-medium text-accent-strong hover:underline">
                 Edit product pages →
               </Link>
+              <Link href="/admin/orders" className="text-sm font-medium text-accent-strong hover:underline">
+                Build a vendor order →
+              </Link>
             </div>
           )}
 

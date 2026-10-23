@@ -1,11 +1,14 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0035 (unified_catalog_rules — see the
-// 2026-09-13 AI chat assistant planning conversation: adds
-// amblux_catalog_rules plus vertical_only/vertical_capable columns on
-// amblux_linear_families). Regenerate this file any time the schema
-// changes rather than hand-editing it — it's meant to always mirror the
-// real database exactly.
+// supabase/migrations/0001 through 0036 (vendor_orders — adds
+// amblux_vendors / amblux_vendor_skus for the vendor purchase-order
+// template feature at /admin/orders; see that migration's own header for
+// why there's no amblux_purchase_orders history table yet).
+//
+// Regenerate the same way after any future migration: call
+// mcp__Supabase__generate_typescript_types and replace everything below
+// this comment block wholesale — don't hand-edit the generated types.
+
 export type Json =
   | string
   | number
@@ -18,7 +21,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -478,6 +481,96 @@ export type Database = {
           status?: string
           total_watts?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      amblux_vendor_skus: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          qty_per_amblux_sku: number
+          sku: string
+          unit: string
+          unit_price_usd: number
+          vendor_id: string
+          vendor_sku: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          qty_per_amblux_sku?: number
+          sku: string
+          unit?: string
+          unit_price_usd: number
+          vendor_id: string
+          vendor_sku?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          qty_per_amblux_sku?: number
+          sku?: string
+          unit?: string
+          unit_price_usd?: number
+          vendor_id?: string
+          vendor_sku?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amblux_vendor_skus_sku_fkey"
+            columns: ["sku"]
+            isOneToOne: false
+            referencedRelation: "amblux_products"
+            referencedColumns: ["sku"]
+          },
+          {
+            foreignKeyName: "amblux_vendor_skus_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "amblux_vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      amblux_vendors: {
+        Row: {
+          address: string | null
+          bank_info: string | null
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          terms: string | null
+        }
+        Insert: {
+          address?: string | null
+          bank_info?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          terms?: string | null
+        }
+        Update: {
+          address?: string | null
+          bank_info?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          terms?: string | null
         }
         Relationships: []
       }

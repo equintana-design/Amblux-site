@@ -9,7 +9,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <div className="border-b border-border bg-background px-6 py-3">
+      <div className="border-b border-border bg-background px-6 py-3 print:hidden">
         <div className="mx-auto w-full max-w-6xl">
           <Link href="/account" className="text-sm font-medium text-muted hover:text-accent-strong">
             ← Back to account
