@@ -163,6 +163,9 @@ export default async function AccountPage({
               <Link href="/admin/orders" className="text-sm font-medium text-accent-strong hover:underline">
                 Build a vendor order →
               </Link>
+              <Link href="/admin/distributor-quotes" className="text-sm font-medium text-accent-strong hover:underline">
+                Build a distributor quote →
+              </Link>
             </div>
           )}
 
