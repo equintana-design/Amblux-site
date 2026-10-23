@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { updateProductPageStatusAction } from "./actions";
 
 const CATEGORY_LABEL: Record<string, string> = {
   "silicone-linear": "Silicone linear",
@@ -11,11 +12,33 @@ const CATEGORY_LABEL: Record<string, string> = {
   accessory: "Accessories",
 };
 
+// Every product page can be in any of these four states — previously this
+// list only ever showed/edited two of them (Active implicitly, Hidden as
+// a badge), even though Backordered and Coming soon have been real,
+// selectable options on the page's own edit screen all along.
+const STATUS_OPTIONS = ["active", "backordered", "coming_soon", "hidden"] as const;
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  backordered: "Backordered",
+  coming_soon: "Coming soon",
+  hidden: "Hidden",
+};
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  backordered: "bg-orange-100 text-orange-700",
+  coming_soon: "bg-blue-100 text-blue-700",
+  hidden: "bg-amber-100 text-amber-700",
+};
+
 // Every product_pages row is editable here — the 13 family pages and, as
 // of migration 0022, every individual accessory/replacement-part page
 // too (each accessory used to be grouped under one shared catalog page;
 // now each has its own row and its own edit screen, same as a family).
-export default async function AdminProductsPage() {
+export default async function AdminProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,6 +80,10 @@ export default async function AdminProductsPage() {
         + Add new SKU
       </Link>
 
+      {error ? (
+        <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+      ) : null}
+
       {[...grouped.entries()].map(([category, rows]) => (
         <section key={category} className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
@@ -64,21 +91,46 @@ export default async function AdminProductsPage() {
           </h2>
           <div className="mt-3 flex flex-col gap-2">
             {rows!.map((page) => (
-              <Link
+              <div
                 key={page.slug}
-                href={`/admin/products/${page.slug}`}
-                className="flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-4 hover:border-accent"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-4 hover:border-accent"
               >
-                <div className="min-w-0">
+                <Link href={`/admin/products/${page.slug}`} className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{page.name}</p>
                   <p className="truncate text-xs text-muted">{page.eyebrow} · /products/{page.slug}</p>
+                </Link>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  {page.status !== "active" ? (
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE_CLASS[page.status] ?? "bg-amber-100 text-amber-700"}`}
+                    >
+                      {STATUS_LABEL[page.status] ?? page.status}
+                    </span>
+                  ) : null}
+
+                  <form action={updateProductPageStatusAction} className="flex items-center gap-1.5">
+                    <input type="hidden" name="slug" value={page.slug} />
+                    <select
+                      name="status"
+                      defaultValue={page.status}
+                      className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {STATUS_LABEL[s]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:border-accent hover:text-accent-strong"
+                    >
+                      Update
+                    </button>
+                  </form>
                 </div>
-                {page.status === "hidden" ? (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Hidden
-                  </span>
-                ) : null}
-              </Link>
+              </div>
             ))}
           </div>
         </section>

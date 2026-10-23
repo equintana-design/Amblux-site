@@ -143,7 +143,12 @@ export async function updateProductPageAction(formData: FormData) {
       hero_image_url: heroImage.url,
       gallery_image_urls: galleryImageUrls as never,
       document_urls: documentUrls as never,
-      status: formData.get("status") === "hidden" ? "hidden" : "active",
+      // Was `=== "hidden" ? "hidden" : "active"` — silently collapsed
+      // Backordered/Coming soon (both real, selectable options on this
+      // same form's Status dropdown) down to Active on every save. Fixed
+      // to accept all four, matching updateProductVariantAction and
+      // createProductAction below, which never had this bug.
+      status: (formData.get("status") as "active" | "backordered" | "coming_soon" | "hidden") || "active",
     })
     .eq("slug", slug);
 
@@ -158,6 +163,28 @@ export async function updateProductPageAction(formData: FormData) {
   const allUploadErrors = [...imageUploadErrors, ...documentUploadErrors];
   if (allUploadErrors.length > 0) params.set("imageError", allUploadErrors.join("; "));
   redirect(`/admin/products/${slug}?${params.toString()}`);
+}
+
+// Quick status change from the main /admin/products list — previously the
+// only way to change a page's status at all was to open its full edit
+// screen, scroll to the Status field, and save the whole form. This lets
+// every product page's status be flipped directly from the list, without
+// touching anything else on the page.
+export async function updateProductPageStatusAction(formData: FormData) {
+  const supabase = await requireAdmin();
+  const slug = String(formData.get("slug") || "");
+  const status = (formData.get("status") as "active" | "backordered" | "coming_soon" | "hidden") || "active";
+  if (!slug) redirect("/admin/products");
+
+  const { error } = await supabase.from("amblux_product_pages").update({ status }).eq("slug", slug);
+  if (error) {
+    redirect(`/admin/products?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/products");
+  revalidatePath(`/admin/products/${slug}`);
+  revalidatePath(`/products/${slug}`);
+  redirect("/admin/products");
 }
 
 const SPEC_ROW_COUNT = 16;
