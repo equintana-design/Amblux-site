@@ -142,6 +142,15 @@ export function DistributorQuoteBuilder({
     setQuantities((prev) => ({ ...prev, [sku]: n }));
   }
 
+  // Removing a line is just setting its qty to 0 (rows filters qty>0 out
+  // of the quote entirely) — this is the explicit affordance for it
+  // directly in the quote line-items table, since previously the only
+  // way to remove a line was to scroll back up to the full catalog
+  // search table and find that same SKU again to zero it out there.
+  function removeLine(sku: string) {
+    setQuantities((prev) => ({ ...prev, [sku]: 0 }));
+  }
+
   function buildState(): DistributorQuoteState {
     return {
       recipient: {
@@ -474,6 +483,7 @@ export function DistributorQuoteBuilder({
                   <th className="py-2 pr-3 print:hidden">Dealer price</th>
                   <th className="py-2 pr-3 print:hidden">Resale value</th>
                   <th className="py-2 pr-3 print:hidden">Margin</th>
+                  <th className="py-2 pr-3 print:hidden" />
                 </tr>
               </thead>
               <tbody>
@@ -483,7 +493,17 @@ export function DistributorQuoteBuilder({
                       <div className="font-mono text-xs">{r.product.sku}</div>
                       <div className="text-xs text-muted">{r.product.label}</div>
                     </td>
-                    <td className="py-2 pr-3 text-xs">{r.qty}</td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={r.qty || ""}
+                        onChange={(e) => setQty(r.product.sku, e.target.value)}
+                        placeholder="0"
+                        className="w-16 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent print:w-auto print:border-0 print:bg-transparent print:p-0"
+                      />
+                    </td>
                     <td className="py-2 pr-3 whitespace-nowrap text-xs text-foreground">
                       {formatCad(r.product.distributorCents)}
                     </td>
@@ -499,6 +519,15 @@ export function DistributorQuoteBuilder({
                     <td className="py-2 pr-3 whitespace-nowrap text-xs text-green-700 print:hidden">
                       {formatCad(r.lineMarginCents)}
                     </td>
+                    <td className="py-2 pr-3 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => removeLine(r.product.sku)}
+                        className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -513,6 +542,7 @@ export function DistributorQuoteBuilder({
                   <td className="py-3 pr-3 text-sm font-semibold text-green-700 print:hidden">
                     {formatCad(totalMarginCents)} ({marginPct.toFixed(0)}%)
                   </td>
+                  <td className="print:hidden" />
                 </tr>
               </tfoot>
             </table>
