@@ -14,7 +14,10 @@ function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     .join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // UTF-8 BOM prefix so Excel detects UTF-8 on double-click (outside any
+  // browser/HTTP context) instead of guessing the system codepage and
+  // mangling non-ASCII characters (×, °, etc.) in product descriptions.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

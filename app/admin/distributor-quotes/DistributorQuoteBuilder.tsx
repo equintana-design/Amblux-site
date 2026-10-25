@@ -44,8 +44,13 @@ function csvField(value: string | number | null | undefined): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// A UTF-8 BOM prefix is required for Excel (on double-click, outside any
+// browser/HTTP context) to detect the file as UTF-8 rather than guessing
+// the system codepage — without it, every non-ASCII character here (×,
+// —, °, etc. in product labels) renders as mojibake in Excel even though
+// the file is already valid UTF-8 and opens correctly everywhere else.
 function downloadTextFile(filename: string, contents: string, mimeType: string) {
-  const blob = new Blob([contents], { type: mimeType });
+  const blob = new Blob(["﻿" + contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

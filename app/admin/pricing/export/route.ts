@@ -79,7 +79,12 @@ export async function GET() {
   const csv = [header.join(","), ...rows].join("\n") + "\n";
   const date = new Date().toISOString().slice(0, 10);
 
-  return new Response(csv, {
+  // UTF-8 BOM prefix so Excel detects UTF-8 instead of guessing the system
+  // codepage and mangling non-ASCII characters (×, °, etc.) in labels.
+  // Safe for the "Import costs from CSV" round-trip above: JS String#trim()
+  // strips U+FEFF along with whitespace, so the header's sku/fob_usd/etc.
+  // lookups below still match after a re-import of this exact file.
+  return new Response("﻿" + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="amblux-pricing-${date}.csv"`,
