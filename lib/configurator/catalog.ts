@@ -274,26 +274,23 @@ export const PSU = [24, 36, 60, 96] as const;
 // ---------------------------------------------------------------------
 // A driver "kind" is the axis Cabinet Light Builder calls plug-and-play vs.
 // hardwire (see types.ts PowerType = "ultra" | "hardwire"). AMBLUX's real
-// product line today only has one: the compact 24V "ultra-thin" driver
-// (AMB-DRV-24V-{24,36,60,96}W). There is currently no real 120V hardwire
-// driver SKU at all — confirmed directly against amblux_products (no SKU
-// matches DRV/120V/HW patterns other than the four 24V sizes above).
+// product line has two today: the compact 24V "ultra-thin" driver
+// (AMB-DRV-24V-{24,36,60,96}W) and, as of 2026-10, a real 120V hardwire
+// driver line (AMB-HWRDRV-24V-{60,96}W) — both confirmed live in
+// amblux_products/amblux_pricing.
 //
-// Rather than let every zone's Power select unconditionally offer
-// "Hardwire" (which is what the previous build did — cosmetically labeling
-// the BOM row "Hardwire power supply" while still emitting the real 24V
-// AMB-DRV-24V-{size}W SKU underneath, since that was the only SKU pattern
-// wired in), driver kinds are modeled as a small catalog table exactly like
+// Driver kinds are modeled as a small catalog table exactly like
 // LINEAR_FAMILIES: a kind is only selectable in the wizard if a real stock
-// list + SKU pattern is defined for it here. Add a "hardwire" entry the
-// moment a real AMBLUX 120V hardwire driver line exists (with its own real
-// stock sizes and SKU pattern — they need not match the 24V line's
-// 24/36/60/96W steps) and every zone's Power dropdown picks it up
-// automatically; nothing else needs to change. Until then, "hardwire" is
-// simply absent from every Power select, and any old saved project that
-// still has powerType:"hardwire" on file falls back to the real ultra-thin
-// driver at calculation time (driverLineFor() below) rather than emitting
-// an invented SKU.
+// list + SKU pattern is defined for it here — this is what stopped the
+// previous build from cosmetically labeling a BOM row "Hardwire power
+// supply" while still emitting the real 24V AMB-DRV-24V-{size}W SKU
+// underneath (the only SKU pattern that was ever actually wired in, back
+// when no real hardwire line existed at all). Now that a real hardwire
+// entry exists below, every zone's Power dropdown offers it automatically —
+// nothing else needed to change, per this comment's own original design.
+// Any older saved project that has powerType:"hardwire" on file from before
+// this entry existed will now correctly resolve to the real AMB-HWRDRV-24V
+// SKU at calculation time instead of silently falling back to "ultra".
 export interface DriverLine {
   // Real stock wattage sizes this driver line actually ships in.
   sizes: readonly number[];
@@ -301,12 +298,21 @@ export interface DriverLine {
   skuFor: (watts: number) => string;
 }
 
+// Real AMBLUX 120V hardwire driver line — launched 2026-10 (confirmed live
+// in amblux_products/amblux_pricing: AMB-HWRDRV-24V-60W and -96W, both
+// priced in all tiers). Only 2 stock sizes exist today, unlike the 4-size
+// "ultra" plug-in line — selectPowerSupplies()/driverLineFor() already read
+// sizes generically from this table, so no calculation-logic change was
+// needed to light this up, exactly as the comment above anticipated.
 export const DRIVER_LINES: Partial<Record<"ultra" | "hardwire", DriverLine>> = {
   ultra: {
     sizes: PSU,
     skuFor: (w) => `AMB-DRV-24V-${w}W`,
   },
-  // hardwire: intentionally absent — see comment above.
+  hardwire: {
+    sizes: [60, 96],
+    skuFor: (w) => `AMB-HWRDRV-24V-${w}W`,
+  },
 };
 
 // Only kinds with a real DRIVER_LINES entry are offered anywhere in the
@@ -337,7 +343,11 @@ export const EXTENSION_SKU = "AMB-EXT-2M";
 export const WIRELESS_SENSOR_RECEIVER = "AMB-WRLSS-SS-RCVR";
 export const WIRELESS_DIMMING_RECEIVER = "AMB-DMG-WRLSS-RCVR";
 export const RIGID_CORD_SKU = "AMB-FCRGL-RC0608TR-PC-1.5M";
-export const DEFAULT_FLEXIBLE_LINEAR_SKU = "AMB-FCST-RC0606-24V-30-24-90-3M-27W";
+// Updated 2026-10 to the real N0606D 20 m roll SKU — the old 3 m piece this
+// constant pointed to is discontinued (see LINEAR_FAMILIES' silicone-6x6
+// entry below). Unused by any current caller as of this writing, but kept
+// pointed at a real, purchasable SKU rather than a hidden/discontinued one.
+export const DEFAULT_FLEXIBLE_LINEAR_SKU = "AMB-FCST-N0606D-24V-30-24-90-20M-192W";
 export const DEFAULT_RIGID_LINEAR_SKU = "AMB-FCRGL-RC0608TR-24V-30-24-90-2.4M-18W";
 
 // Real AMBLUX SKU, confirmed to exist in the live product/pricing tables
@@ -464,33 +474,78 @@ export interface LinearFamily {
   // silicone-4x8.5-trim only; every other family stays available
   // regardless of layout.
   verticalOnly?: boolean;
+  // true = this family is no longer sold as discrete stock-length pieces at
+  // all — it ships as a single continuous roll (see skusByCctAndLength,
+  // which for a roll family carries exactly one length key: the roll's full
+  // length in metres) and the engine should compute a single cut-to-length
+  // quantity (run length + ROLL_LENGTH_BUFFER_PCT buffer) instead of
+  // bin-packing discrete piece sizes via selectPieces(). Set 2026-10 on the
+  // three EQ001 silicone-tape families (N0606D/N0408D/NA1010D) when AMBLUX
+  // discontinued their 1.5/3/5 m stock pieces in favour of 20 m rolls.
+  soldByRoll?: boolean;
+  // Real splice/connector SKU used to join two rolls end-to-end when a
+  // single run is longer than one roll — only relevant for soldByRoll
+  // families. Undefined means no confirmed splicing SKU exists yet (don't
+  // invent one; flag it instead).
+  splicingConnectorSku?: string;
   // real SKU for each (CCT, stock length in metres) this family is actually
   // sold in — absence of a key means AMBLUX doesn't carry that combination.
+  // For a soldByRoll family this holds exactly one length key (the roll's
+  // full length), not a menu of discrete piece sizes.
   skusByCctAndLength: Partial<Record<"3000" | "4000", Record<number, string>>>;
 }
 
 export const LINEAR_FAMILIES: LinearFamily[] = [
+  // Updated 2026-10 — AMBLUX is discontinuing the 1.5/3/5 m stock pieces
+  // for all three silicone-tape families (this one, silicone-4x8.5-trim,
+  // and silicone-10x10-45deg below) in favour of the new EQ001 20 m roll
+  // SKUs (N0606D/N0408D/NA1010D), sold cut-to-length from the roll rather
+  // than stocked/combined as discrete pieces. Mapping confirmed directly
+  // with the business owner (see claude/quote-eq001-sku-mapping.md):
+  // silicone-6x6 → N0606D (exact 6×6mm cross-section match). The old
+  // "AMB-FCST-RC0606-..." SKUs above are discontinued and marked hidden in
+  // the catalog; selectPieces()'s knapsack logic no longer applies to this
+  // family — see soldByRoll in engine.ts's linearPurchaseLines().
+  // Note: unlike the old family, the new roll is not adhesive-backed (no
+  // 3M tape) — it mounts via endcaps + mechanical clips — but AMBLUX has
+  // no confirmed dedicated "clips" SKU for this family yet, so no
+  // installAccessorySku is set (flagged as an open assumption, not
+  // invented). Also unlike the old family, only a 3000K SKU is confirmed
+  // to exist for N0606D (no 4000K variant) — the "4000" key is
+  // intentionally absent below, not an oversight.
   {
     id: "silicone-6x6",
     label: "Flexible Silicone 6 × 6 mm",
     type: "flexible",
     mounting: "recess",
-    wattsPerMetre: 9,
+    wattsPerMetre: 9.6,
+    powerCordSku: "AMB-FCST-N0606D-PC-2M",
+    soldByRoll: true,
+    splicingConnectorSku: "AMB-FCST-N0606D-N2N-CON",
     skusByCctAndLength: {
-      "3000": { 1.5: "AMB-FCST-RC0606-24V-30-24-90-1.5M-13.5W", 3: "AMB-FCST-RC0606-24V-30-24-90-3M-27W" },
-      "4000": { 1.5: "AMB-FCST-RC0606-24V-40-24-90-1.5M-13.5W", 3: "AMB-FCST-RC0606-24V-40-24-90-3M-27W" },
+      "3000": { 20: "AMB-FCST-N0606D-24V-30-24-90-20M-192W" },
     },
   },
+  // silicone-4x8.5-trim → N0408D, the cross-section match (4×8mm vs. the
+  // old family's 4×8.5mm) — explicitly chosen over N0410D (~4×10mm, which
+  // was actually used on the real Berenson order but isn't the
+  // cross-section match) per the business owner's direct call. N0408D is
+  // a dual-CCT strip — one real SKU switches between 3000K/4000K, so the
+  // same SKU is listed under both CCT keys below rather than two SKUs.
+  // N0410D itself stays an unmapped, unreferenced raw product SKU.
   {
     id: "silicone-4x8.5-trim",
     label: "Flexible Silicone 4 × 8.5 mm translucent trim",
     type: "flexible",
     mounting: "recess",
-    wattsPerMetre: 6,
+    wattsPerMetre: 9.6,
+    powerCordSku: "AMB-FCST-N0408D-PC-2M",
+    soldByRoll: true,
+    splicingConnectorSku: "AMB-FCST-N0408D-N2N-CON",
     verticalOnly: true,
     skusByCctAndLength: {
-      "3000": { 3: "AMB-FCST-RC0485TR-24V-30-24-90-3M-18W" },
-      "4000": { 3: "AMB-FCST-RC0485TR-24V-40-24-90-3M-18W" },
+      "3000": { 20: "AMB-FCST-N0408D-24V-3040-24-90-20M-192W" },
+      "4000": { 20: "AMB-FCST-N0408D-24V-3040-24-90-20M-192W" },
     },
   },
   {
@@ -526,17 +581,25 @@ export const LINEAR_FAMILIES: LinearFamily[] = [
       "4000": { 2.4: "AMB-FCRGL-RC0608TR-24V-40-24-90-2.4M-18W" },
     },
   },
+  // silicone-10x10-45deg → NA1010D (closest cross-section match, ~10×10mm,
+  // inferred not confirmed per the mapping doc — same as the old family's
+  // 10×10mm). Dropped installAccessorySku/installAccessoryLabel: the old
+  // family's "AMB-FCST-SR1010-45DEG-CLIPS" 10-pack has no NA1010D
+  // equivalent — AMBLUX hasn't confirmed a dedicated clips SKU for this
+  // roll family yet, so none is set here rather than guessing one. Only a
+  // 3000K SKU is confirmed for NA1010D (no 4000K variant), same situation
+  // as silicone-6x6 above.
   {
     id: "silicone-10x10-45deg",
     label: "Flexible Silicone 10 × 10 mm · 45°",
     type: "flexible",
     mounting: "surface",
-    wattsPerMetre: 9,
-    installAccessorySku: "AMB-FCST-SR1010-45DEG-CLIPS",
-    installAccessoryLabel: "Clips",
+    wattsPerMetre: 9.6,
+    powerCordSku: "AMB-FCST-NA1010D-PC-2M",
+    soldByRoll: true,
+    splicingConnectorSku: "AMB-FCST-NA1010D-N2N-CON",
     skusByCctAndLength: {
-      "3000": { 3: "AMB-FCST-SR1010-45DEG-24V-30-24-90-3M-27W", 5: "AMB-FCST-SR1010-45DEG-24V-30-24-90-5M-45W" },
-      "4000": { 3: "AMB-FCST-SR1010-45DEG-24V-40-24-90-3M-27W" },
+      "3000": { 20: "AMB-FCST-NA1010D-24V-30-24-90-20M-192W" },
     },
   },
   {

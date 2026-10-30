@@ -125,6 +125,16 @@ export function calcPuckPlacement(runInches: number, spacingIn: number): PuckPla
 // ---------------------------------------------------------------------
 const PSU_MAX_LOADING = 0.8;
 
+// Roll-sold linear families (LinearFamily.soldByRoll — see catalog.ts'
+// LINEAR_FAMILIES, the three EQ001 silicone-tape families as of 2026-10)
+// are no longer bin-packed from discrete stock pieces: AMBLUX ships them
+// as one continuous roll, cut to length on site. The suggested cut length
+// is the run's required length plus this buffer (install waste, trimming
+// a clean end, avoiding a too-short cut) — per the business owner's
+// direct instruction: "the length of the job required, that's what we
+// have to suggest, plus 10%." See linearPurchaseLines() below.
+const ROLL_LENGTH_BUFFER_PCT = 0.1;
+
 export interface PsuSupply {
   watts: number;
   usedWatts: number;
@@ -254,6 +264,12 @@ export interface LinearPurchaseLine {
   sku: string;
   sizeM: number;
   qty: number;
+  // Set only when this line comes from a soldByRoll family: the suggested
+  // on-site cut length (run length + ROLL_LENGTH_BUFFER_PCT) and how many
+  // rolls that required — pushLinearRows() uses these to show "cut to
+  // X.X m" and to add a splicing-connector row when rollsPerRun > 1.
+  cutLengthM?: number;
+  rollsPerRun?: number;
 }
 
 // targetLengthM x repeat: repeat lets a shelf-light spec's per-shelf piece
@@ -262,7 +278,21 @@ export interface LinearPurchaseLine {
 // the piece breakdown for one shelf just repeats).
 export function linearPurchaseLines(family: LinearFamily, cct: "3000" | "4000", targetLengthM: number, repeat = 1): LinearPurchaseLine[] {
   const lengths = familyLengthsM(family, cct);
-  if (lengths.length === 0) return [];
+  if (lengths.length === 0 || !targetLengthM || targetLengthM <= 0) return [];
+
+  if (family.soldByRoll) {
+    // Sold as a single continuous roll (familyLengthsM has exactly one
+    // entry for a roll family — the roll's full length) — cut to the run
+    // length plus the buffer, rather than bin-packed from discrete stock
+    // piece sizes like the branch below.
+    const rollLengthM = lengths[0];
+    const sku = familyPieceSku(family, cct, rollLengthM);
+    if (!sku) return [];
+    const cutLengthM = round2(targetLengthM * (1 + ROLL_LENGTH_BUFFER_PCT));
+    const rollsPerRun = Math.max(1, Math.ceil(cutLengthM / rollLengthM));
+    return [{ sku, sizeM: rollLengthM, qty: rollsPerRun * repeat, cutLengthM, rollsPerRun }];
+  }
+
   const pieces = selectPieces(targetLengthM, lengths);
   return pieces
     .filter((p) => p.count > 0)
@@ -318,13 +348,33 @@ function pushLinearRows(
   const mountingLabel = mounting === "recess" ? LABELS.recess : LABELS.surface;
   const lines = linearPurchaseLines(family, cct, targetLengthM, repeat);
   lines.forEach((line) => {
+    const description =
+      line.cutLengthM !== undefined
+        ? `${family.label} · cut to ${line.cutLengthM.toFixed(1)} m (from ${line.sizeM} m roll, incl. ${Math.round(
+            ROLL_LENGTH_BUFFER_PCT * 100
+          )}% buffer) · ${cct} K · ${mountingLabel}`
+        : `${family.label} · ${line.sizeM} m piece · ${cct} K · ${mountingLabel}`;
     rows.push({
       zone,
       qty: line.qty,
       sku: line.sku,
-      description: `${family.label} · ${line.sizeM} m piece · ${cct} K · ${mountingLabel}`,
+      description,
       notes: opts?.notes,
     });
+    // A run needing more rolls than one (rollsPerRun > 1) is spliced
+    // together on site — add the family's confirmed splicing-connector SKU,
+    // one per joint needed across this run (repeat already baked into
+    // line.qty/rollsPerRun upstream, so this stays per-run accurate when
+    // repeat > 1, e.g. multiple shelves each needing their own splice).
+    if (family.soldByRoll && family.splicingConnectorSku && line.rollsPerRun && line.rollsPerRun > 1) {
+      rows.push({
+        zone,
+        qty: (line.rollsPerRun - 1) * repeat,
+        sku: family.splicingConnectorSku,
+        description: `${family.label} end-to-end splicing connector (joins rolls for a run longer than one roll)`,
+        notes: opts?.notes,
+      });
+    }
   });
   if (lines.length === 0) return;
 
