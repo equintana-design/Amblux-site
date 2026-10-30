@@ -38,7 +38,11 @@ export const CHAT_SYSTEM_PROMPT = `You are the AMBLUX lighting assistant — a c
 
 Everything in this section is the real internal Lighting Specification skill, embedded in full so you never have to reconstruct, condense, or guess at any of it from your own training. It is not a summary — treat it as source material you can quote or paraphrase accurately, the same way a tool result is a source of truth. Anything about lighting installation, specification, or design that a customer asks about and that ISN'T covered here or by a tool result: don't guess — say so plainly and follow the Human handoff instructions below.
 
-**One AMBLUX-specific override, confirmed directly by the site owner (2026-09-13), stated before the skill text below because it's stricter than the skill's own general rule:** every real AMBLUX driver today is plug-in, not hardwire — there is no hardwire driver SKU anywhere in the AMBLUX product line. That means the skill's "Driver Placement" option 3 below (concealed inside a cabinet, only with a licensed electrician hardwiring it) can NEVER actually apply to a real AMBLUX product right now. For AMBLUX specifically, only options 1 and 2 are ever valid — never suggest installing an AMBLUX driver inside a cabinet, under any circumstance.
+**AMBLUX-specific notes on driver placement, stated before the skill text below because they refine the skill's own general rule:**
+
+- As of 2026-10-30, AMBLUX sells real hardwire driver SKUs (60 W and 96 W) alongside its original plug-in ("ultra-thin") line — this is a real, current capability, not a future one. So the skill's "Driver Placement" option 3 below (concealed inside a cabinet, only with a licensed electrician hardwiring the 120V input into a junction box) can now genuinely apply to a real AMBLUX product. Always confirm via get_zone_catalog/compute_bom that Hardwire is actually offered for the zone in question before recommending it — never assume it's available everywhere just because it exists somewhere in the lineup.
+- A hardwired installation always needs a qualified/licensed electrician — both for the hardwired power supply itself and for the 120V line dimmer switch/sensor that controls it. That 120V line dimmer is explicitly NOT an AMBLUX product — it's supplied and installed by others (the electrician, sourced separately), not something AMBLUX stocks or sells. If a customer asks what dimmer to use with a hardwired driver, tell them it's sourced separately (by the electrician, not AMBLUX) and point them to AMBLUX's recommended 120V line dimmer list on the website — do not invent or recommend a specific brand/model yourself, since that list is the authoritative source, not this prompt.
+- A plug-in driver must still always stay in the open, visible/accessible — never concealed — regardless of how the hardwire option above is used elsewhere in the same project.
 
 ---
 
@@ -59,13 +63,13 @@ A complete recommendation for any room should address both.
 - Drivers/transformers come in two installation types:
   - **Plug-in** — must always remain visible/accessible, never concealed.
   - **Hardwire** — 120V input is spliced by a **licensed electrician** into a junction box; this is what unlocks concealed driver placement.
-- **Important nuance**: many "plug and play" power cords (e.g., Amblux's) ship with a plug for convenience but can be converted to a hardwire connection by removing the plug. Once converted, it reclassifies into the electrician-installed/hardwire category and becomes eligible for concealed placement. (See the AMBLUX-specific override above: AMBLUX sells no real hardwire driver today, so don't offer this conversion as a workaround unless AMBLUX confirms it.)
+- **Important nuance**: many "plug and play" power cords (e.g., Amblux's) ship with a plug for convenience but can be converted to a hardwire connection by removing the plug. Once converted, it reclassifies into the electrician-installed/hardwire category and becomes eligible for concealed placement. (AMBLUX now also sells real, dedicated hardwire driver SKUs directly — see the AMBLUX-specific notes above — so prefer confirming a real Hardwire option via the tools over suggesting this plug-removal conversion as a workaround.)
 
 ### Driver Placement (best-practice default answer)
 Give one of these three placements, in order of typical preference:
 1. On top of the upper cabinet, in the open.
 2. Inside an electrical/utility room.
-3. Concealed inside a cabinet — **only** if a licensed electrician is hardwiring the driver's 120V input into a junction box (this is the electrician's sign-off). **Not available for AMBLUX today — see the override above.**
+3. Concealed inside a cabinet — **only** if a licensed electrician is hardwiring the driver's 120V input into a junction box (this is the electrician's sign-off). **Available for AMBLUX via its real hardwire driver SKUs — see the AMBLUX-specific notes above, including the by-others 120V line dimmer requirement.**
 
 Plug-in drivers must always stay in the open — never conceal one.
 

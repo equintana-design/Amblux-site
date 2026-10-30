@@ -233,6 +233,11 @@ const en = {
     wiredSensor: "Wired sensor",
     wirelessSensor: "Wireless sensor",
     wallControl: "Kinetic RF switch / Bluetooth App",
+    // Line-voltage (120V) control system — only offered when this zone's
+    // Power is set to Hardwire (see catalog.ts's CONTROL_OPTIONS
+    // lineVoltage entries and forms.tsx's controlSystemOptions()). Added
+    // 2026-10-30 at the business owner's direct instruction.
+    lineVoltageControl: "Line voltage (120V)",
     mounting: "Installation method",
     sensorInstall: "Sensor installation",
     recess: "Recessed",
@@ -447,6 +452,13 @@ const en = {
     driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
     // Never-splice wiring guidance (2026-09-13 audit item 5).
     neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    // Hardwire electrician note (2026-10-30, business owner's direct
+    // instruction, added once a real hardwire driver SKU existed to select
+    // in the first place) — shown only when powerType === "hardwire",
+    // unlike driverPlacementHint/neverSplice above which apply regardless
+    // of driver kind. See forms.tsx's Power field in SimpleZoneForm,
+    // BlocksZoneForm, and DrawersForm.
+    hardwireElectricianNote: "Hardwired installations require a qualified electrician for the installation of the hardwired power supply and 120-volt line dimmer.",
     // Bathroom humidity guidance (2026-09-13 audit item 7) — shown on the
     // bathroom-only zones that default to a flexible/silicone family.
     bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
@@ -718,6 +730,7 @@ const fr: Messages = {
     wiredSensor: "Capteur câblé",
     wirelessSensor: "Capteur sans fil",
     wallControl: "Interrupteur RF cinétique / application Bluetooth",
+    lineVoltageControl: "Line voltage (120V)",
     mounting: "Type d’installation",
     sensorInstall: "Installation du capteur",
     recess: "Encastrée",
@@ -925,6 +938,7 @@ const fr: Messages = {
     controlMismatchWarning: "Note: this job mixes control systems ({values}) across zones — confirm this is intentional.",
     driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
     neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    hardwireElectricianNote: "Hardwired installations require a qualified electrician for the installation of the hardwired power supply and 120-volt line dimmer.",
     bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
     furnitureLinearHint: "Linear lighting is recommended over puck lights for a more upscale look on open shelving and bookcases.",
     tvMediaHint: "Never place a light directly above or in front of a TV/media area — put it on its own separate dimmer instead of recessing it over the screen.",
@@ -1175,6 +1189,7 @@ const es: Messages = {
     wiredSensor: "Sensor cableado",
     wirelessSensor: "Sensor inalámbrico",
     wallControl: "Interruptor RF cinético / aplicación Bluetooth",
+    lineVoltageControl: "Line voltage (120V)",
     mounting: "Tipo de instalación",
     sensorInstall: "Instalación del sensor",
     recess: "Empotrada",
@@ -1382,6 +1397,7 @@ const es: Messages = {
     controlMismatchWarning: "Note: this job mixes control systems ({values}) across zones — confirm this is intentional.",
     driverPlacementHint: "Driver placement: on top of the upper cabinet in the open, inside an electrical/utility room, or concealed inside a cabinet only if a licensed electrician hardwires the 120V input into a junction box. A plug-in driver must always stay in the open — never concealed.",
     neverSplice: "Never cut or splice a certified fixture cable to bridge a gap — this voids certification. Use a proper low-voltage connector system instead, with any in-wall run completed by a licensed electrician.",
+    hardwireElectricianNote: "Hardwired installations require a qualified electrician for the installation of the hardwired power supply and 120-volt line dimmer.",
     bathroomHumidityHint: "Bathroom zones default to flexible/silicone tape given ambient humidity — a rigid profile can still be selected if preferred.",
     furnitureLinearHint: "Linear lighting is recommended over puck lights for a more upscale look on open shelving and bookcases.",
     tvMediaHint: "Never place a light directly above or in front of a TV/media area — put it on its own separate dimmer instead of recessing it over the screen.",

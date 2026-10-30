@@ -704,7 +704,17 @@ export const CONTROL_SKU: Record<string, string> = {
   wirelessMotion: "AMB-WRLSS-MS",
 };
 
+// Not a real AMBLUX SKU — this is the sentinel "part number" for the one
+// control option (lineDimmerByOther, see CONTROL_LABEL below) that is
+// explicitly supplied by others, not sold by AMBLUX, so there's nothing to
+// price or stock. Kept as a visible, self-explanatory placeholder string
+// (rather than throwing, or returning an empty string that would look like
+// a bug) so it reads clearly wherever a SKU column is shown — the BOM/parts
+// list, CSV export, distributor quote builder, etc.
+export const BY_OTHERS_SKU = "BY-OTHERS-120V-DIMMER";
+
 export function controlSku(control: string): string {
+  if (control === "lineDimmerByOther") return BY_OTHERS_SKU;
   const sku = CONTROL_SKU[control];
   if (!sku) throw new Error(`No AMBLUX SKU mapped for control option "${control}"`);
   return sku;
@@ -771,6 +781,18 @@ export const CONTROL_LABEL: Record<string, string> = {
   remote2Zone: "Kinetic RF switch — 1 gang, 2 zones",
   remoteButton: "Compact kinetic RF push-button switch",
   bluetoothApp: "Bluetooth App",
+  // Added 2026-10-30 at the business owner's direct instruction, alongside
+  // the real hardwire driver SKUs — this is a 120V line-voltage dimmer
+  // switch/sensor, upstream of the driver, not a low-voltage DC accessory
+  // like every other control above. It's explicitly "by other": not an
+  // AMBLUX product (see BY_OTHERS_SKU/controlSku() above), supplied and
+  // installed separately by the electrician doing the hardwire work (see
+  // configuratorExtra.hardwireElectricianNote). The reference to AMBLUX's
+  // own recommended-dimmer list is baked into the label text itself (rather
+  // than a separate conditional UI element) so it shows everywhere this
+  // option appears — the Control System dropdown, the BOM row, CSV/quote
+  // exports — without extra plumbing.
+  lineDimmerByOther: "Switch / sensor — 120V line dimmer (by other — see AMBLUX's recommended 120V line dimmer list on the website)",
 };
 
 export const WIRELESS_DIMMING_RECEIVER_DESCRIPTION = "Wireless RF and Bluetooth receiver for Kinetic RF Switches and App";
@@ -780,24 +802,77 @@ export const WIRELESS_SENSOR_RECEIVER_DESCRIPTION = "LED Wireless receiver";
 // Verbatim from CONTROL_OPTIONS[zone][system] in the recovered source
 // (id lists only here — the "sku — label" strings are rebuilt from
 // controlSku()/CONTROL_LABEL so they can't drift out of sync with the SKU map).
+// Every zone below except vanityDoors/vanityFloating also carries a
+// lineVoltage: ["lineDimmerByOther"] entry (2026-10-30) — the 120V line
+// dimmer switch/sensor, only ever offered once a zone's Power is actually
+// set to Hardwire (see forms.tsx's controlSystemOptions(), which is what
+// gates this, not this table). Vanity's two sub-fixtures are excluded
+// because their Power field is permanently locked to "ultra" (see
+// forms.tsx's VanityForm "ultraLocked" read-only Power field) — Hardwire
+// never becomes selectable there, so offering this system would be dead.
 export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
-  toeKick: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
-  crown: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  toeKick: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
+  crown: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
   // Floating Cabinet (Bathroom) — identical shape to Toe Kick/Crown, per the
   // reference doc's list of motion-only zones.
-  floatingCabinet: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
-  base: { wired: ["door", "doubleDoor", "motion"], wireless: ["wirelessDoor"], wallControl: [] },
-  wall: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
-  floating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "remoteButton", "bluetoothApp"] },
-  pantry: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  floatingCabinet: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
+  base: { wired: ["door", "doubleDoor", "motion"], wireless: ["wirelessDoor"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
+  wall: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
+  floating: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "remoteButton", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
+  pantry: {
+    wired: ["door", "doubleDoor", "motion", "motionDayNight"],
+    wireless: ["wirelessDoor", "wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
   // Clones of pantry's own options — see the ZONES_BY_APPLICATION comment
   // above for why High Cabinet/Library are exact Pantry behavioral clones.
-  highCabinet: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
-  library: { wired: ["door", "doubleDoor", "motion", "motionDayNight"], wireless: ["wirelessDoor", "wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  highCabinet: {
+    wired: ["door", "doubleDoor", "motion", "motionDayNight"],
+    wireless: ["wirelessDoor", "wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
+  library: {
+    wired: ["door", "doubleDoor", "motion", "motionDayNight"],
+    wireless: ["wirelessDoor", "wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
   // Open shelving, not cabinet doors — motion/wall-remote only, same shape
   // as Toe Kick/Crown/Floating rather than Pantry's door-sensor options.
-  closetHangers: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
-  shoeRack: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  closetHangers: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
+  shoeRack: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
   // Vanity Doors — door-position sensors only, no Kinetic option at all
   // (verified live: "Wired single-door control sensor switch," "Wired
   // double-door control sensor switch," and their wireless versions). Same
@@ -805,16 +880,23 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // real wireless door-sensor SKU covering both single/double doors — see
   // CONTROL_SKU.wirelessDoor's description), kept as its own named entry
   // since Vanity Doors is a distinct zone even though the option lists
-  // happen to match Wall's exactly right now.
+  // happen to match Wall's exactly right now. No lineVoltage entry — see
+  // this table's file-level comment above.
   vanityDoors: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
   // Mirror Lighting (Bathroom, 2026-09-13) — a simple linear-run zone, same
   // motion-only shape as Toe Kick/Crown/Floating Cabinet.
-  mirror: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  mirror: {
+    wired: ["motion", "motionDayNight"],
+    wireless: ["wirelessMotion"],
+    wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
+    lineVoltage: ["lineDimmerByOther"],
+  },
   // Vanity's third sub-fixture, "Floating" (2026-09-13, per the Lighting
   // Specification skill's audit — a floating vanity is lit toe-kick-style
   // from underneath). Same shape as the real Toe Kick zone's own control
   // options — unlike Doors (door-sensor only, no Kinetic) this is a
   // toe-kick-style run, so the full Kinetic/wired/wireless family applies.
+  // No lineVoltage entry — see this table's file-level comment above.
   vanityFloating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
 };
 

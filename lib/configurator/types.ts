@@ -11,7 +11,12 @@ export type WattUnit = "W/m" | "W/ft";
 export type Mounting = "recess" | "surface";
 export type LightType = "puck" | "linear";
 export type PuckFinish = "white" | "satinNickel" | "black" | "chrome";
-export type ControlSystem = "wired" | "wireless" | "wallControl";
+// "lineVoltage" (2026-10-30) is the 120V line-dimmer control system —
+// offered only when a zone's PowerType is "hardwire" (see catalog.ts's
+// CONTROL_OPTIONS lineVoltage entries and forms.tsx's controlSystemOptions())
+// and never reaches VanityUnit's doorsControlSystem/Vanity's power-locked
+// zones, which stay on their own narrower "wired" | "wireless" type.
+export type ControlSystem = "wired" | "wireless" | "wallControl" | "lineVoltage";
 export type PowerType = "ultra" | "hardwire";
 export type ZoneControlMode = "together" | "separate";
 

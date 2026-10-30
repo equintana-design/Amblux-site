@@ -37,6 +37,7 @@ import type {
   CabinetBlock,
   DrawerBlock,
   DrawersState,
+  PowerType,
   SimpleZoneState,
   Unit,
   VanityState,
@@ -63,14 +64,22 @@ function controlOptionsFor(zone: string, system: string): { value: string; label
 // control model" — Kinetic RF switch/Bluetooth App, wired sensor, wireless
 // sensor): Kinetic/Bluetooth first when this zone offers it at all, then
 // wired, then wireless — confirmed order, not just whatever order the
-// options happened to be built in.
-function controlSystemOptions(zone: string, t: TFunction): { value: string; label: string }[] {
+// options happened to be built in. "Line voltage (120V)" (2026-10-30) is a
+// fourth family, added last, and only when powerType is passed in as
+// "hardwire" — it's meaningless on an ultra-thin 24V driver, so omitting
+// the powerType argument (or passing "ultra") keeps every existing call
+// site's behavior exactly as it was before this option existed. See
+// catalog.ts's CONTROL_OPTIONS lineVoltage entries.
+function controlSystemOptions(zone: string, t: TFunction, powerType?: PowerType): { value: string; label: string }[] {
   const opts: { value: string; label: string }[] = [];
   if ((CONTROL_OPTIONS[zone]?.wallControl || []).length > 0) {
     opts.push({ value: "wallControl", label: t("configurator.wallControl") });
   }
   opts.push({ value: "wired", label: t("configurator.wiredSensor") });
   opts.push({ value: "wireless", label: t("configurator.wirelessSensor") });
+  if (powerType === "hardwire" && (CONTROL_OPTIONS[zone]?.lineVoltage || []).length > 0) {
+    opts.push({ value: "lineVoltage", label: t("configurator.lineVoltageControl") });
+  }
   return opts;
 }
 
@@ -428,7 +437,11 @@ export function SimpleZoneForm({
               : CONTROL_OPTIONS[controlZone]?.[system] || [];
             onChange({ controlSystem: system, control: opts[0] || state.control });
           }}
-          options={kineticOnly ? [{ value: "wallControl", label: t("configurator.wallControl") }] : controlSystemOptions(controlZone, t)}
+          options={
+            kineticOnly
+              ? [{ value: "wallControl", label: t("configurator.wallControl") }]
+              : controlSystemOptions(controlZone, t, state.powerType)
+          }
         />
       </Field>
       <Field label={t("configurator.switches")}>
@@ -442,12 +455,18 @@ export function SimpleZoneForm({
           options={powerTypeOptions(t)}
         />
         {/* Driver-placement + never-splice guidance (2026-09-13 audit items
-            3/5) — shown unconditionally, not gated on powerType==="hardwire"
-            (Hardwire isn't actually selectable today — see
-            powerTypeOptions()'s comment — so gating it there would make this
-            guidance permanently invisible). */}
+            3/5) — shown unconditionally regardless of powerType, since it
+            applies to a plug-in driver too (it's what tells you a plug-in
+            driver must stay in the open). */}
         <p className="mt-1 text-xs text-muted">{t("configuratorExtra.driverPlacementHint")}</p>
         <p className="mt-1 text-xs text-muted">{t("configuratorExtra.neverSplice")}</p>
+        {/* Hardwire electrician note (2026-10-30) — gated on
+            powerType==="hardwire" specifically, unlike the two hints above:
+            it's only true once a licensed electrician is actually involved
+            (hardwiring the 120V input), not for a plug-in driver. */}
+        {state.powerType === "hardwire" && (
+          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+        )}
       </Field>
 
       {/* Hardwire connection kit — 1 per zone, Toe Kick/Crown Moulding only
@@ -578,7 +597,7 @@ export function BlocksZoneForm({
                 const opts = CONTROL_OPTIONS[controlZone]?.[system] || [];
                 onChange({ controlSystem: system, control: opts[0] || state.control });
               }}
-              options={controlSystemOptions(controlZone, t)}
+              options={controlSystemOptions(controlZone, t, state.powerType)}
             />
           </Field>
           <Field label={t("configurator.zoneControl")}>
@@ -602,6 +621,11 @@ export function BlocksZoneForm({
             unconditional rather than gated on powerType==="hardwire". */}
         <p className="mt-1 text-xs text-muted">{t("configuratorExtra.driverPlacementHint")}</p>
         <p className="mt-1 text-xs text-muted">{t("configuratorExtra.neverSplice")}</p>
+        {/* Hardwire electrician note (2026-10-30) — see SimpleZoneForm's
+            matching Power field for why this one IS gated. */}
+        {state.powerType === "hardwire" && (
+          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+        )}
       </Field>
 
       <div className="sm:col-span-2 flex flex-col gap-4">
@@ -616,6 +640,7 @@ export function BlocksZoneForm({
             independentDrivers={independentDrivers}
             linearOnly={linearOnly}
             maxShelves={maxShelves}
+            powerType={state.powerType}
             onChange={(patch) => updateBlock(i, patch)}
           />
         ))}
@@ -662,6 +687,7 @@ function CabinetBlockRow({
   independentDrivers,
   linearOnly,
   maxShelves,
+  powerType,
   onChange,
 }: {
   index: number;
@@ -676,6 +702,13 @@ function CabinetBlockRow({
   // Closet Hangers, which renders its own 1-or-2 dropdown instead.
   linearOnly: boolean;
   maxShelves?: number;
+  // Zone-level Power choice (BlocksState.powerType) — there is no per-block
+  // powerType; every cabinet/shelf in a zone shares the same driver kind.
+  // Passed down only so this row's own Control System pickers (the Pantry
+  // top-light separate control and the per-block independent control below)
+  // can offer "Line voltage (120V)" when it's actually relevant — see
+  // controlSystemOptions()'s powerType argument.
+  powerType: PowerType;
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
   const t = useTranslations();
@@ -925,7 +958,7 @@ function CabinetBlockRow({
                         const opts = CONTROL_OPTIONS.pantry?.[system] || [];
                         onChange({ topControlSystem: system, topControl: opts[0] || block.topControl });
                       }}
-                      options={controlSystemOptions("pantry", t)}
+                      options={controlSystemOptions("pantry", t, powerType)}
                     />
                   </Field>
                   <Field label={t("configurator.topControl")}>
@@ -950,7 +983,7 @@ function CabinetBlockRow({
                     const opts = CONTROL_OPTIONS[perBlockControlZone]?.[system] || [];
                     onChange({ controlSystem: system, control: opts[0] || block.control });
                   }}
-                  options={controlSystemOptions(perBlockControlZone, t)}
+                  options={controlSystemOptions(perBlockControlZone, t, powerType)}
                 />
               </Field>
               <Field label={t("configurator.switches")}>
@@ -1051,6 +1084,14 @@ export function DrawersForm({
           onChange={(v) => onChange({ powerType: v as DrawersState["powerType"] })}
           options={powerTypeOptions(t)}
         />
+        {/* Hardwire electrician note (2026-10-30) — see SimpleZoneForm's
+            matching Power field for the full rationale. Drawers has no
+            Control System picker at all (see catalog.ts's CONTROL_OPTIONS
+            comment — no "drawers" entry exists), so there's no "Line
+            voltage (120V)" option to offer here, just this note. */}
+        {state.powerType === "hardwire" && (
+          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+        )}
       </Field>
 
       <div className="sm:col-span-2 flex flex-col gap-4">
