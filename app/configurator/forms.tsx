@@ -36,6 +36,7 @@ import type {
   BlocksState,
   BomResult,
   CabinetBlock,
+  ControlSystem,
   DrawerBlock,
   DrawersState,
   PowerType,
@@ -82,6 +83,39 @@ function controlSystemOptions(zone: string, t: TFunction, powerType?: PowerType)
     opts.push({ value: "lineVoltage", label: t("configurator.lineVoltageControl") });
   }
   return opts;
+}
+
+// Kinetic RF switch ("remote1Zone", SKU AMB-DMG-WRLSS-KNT-1ZWS) is a
+// low-voltage wireless dimming accessory — it pairs with a dimmable 24V
+// driver through its RF receiver, not with a hardwired 120V driver, which
+// is dimmed upstream at the wall dimmer itself (see
+// configuratorExtra.hardwireElectricianNote / catalog.ts's
+// CONTROL_LABEL.lineDimmerByOther). Per the business owner's direct
+// instruction (2026-10-30): whenever Power is set to Hardwire for a
+// zone/control that actually offers the Kinetic 1-zone switch at all
+// (CONTROL_OPTIONS[zone].wallControl includes "remote1Zone" — Base/Wall
+// Cabinets' wallControl list is empty, so they're untouched by this), the
+// Control System must always default to "Line voltage (120V)" instead of
+// whatever was previously selected — a forced override, not just a
+// suggestion, since Kinetic RF + Hardwire is never a valid real-world pairing.
+// Switching Power away from Hardwire reverses this the same way (back to
+// the zone's plain "wired" default) so the dropdown is never left pointing
+// at "Line voltage (120V)" once controlSystemOptions() has stopped listing
+// it as an option at all.
+function controlForPowerType(
+  zone: string,
+  nextPowerType: PowerType,
+  current: { controlSystem: ControlSystem; control?: string }
+): { controlSystem: ControlSystem; control: string } {
+  const offersKineticSwitch = (CONTROL_OPTIONS[zone]?.wallControl || []).includes("remote1Zone");
+  if (nextPowerType === "hardwire" && offersKineticSwitch) {
+    return { controlSystem: "lineVoltage", control: "lineDimmerByOther" };
+  }
+  if (nextPowerType !== "hardwire" && current.controlSystem === "lineVoltage") {
+    const fallback = controlOptionsFor(zone, "wired")[0]?.value ?? current.control ?? "";
+    return { controlSystem: "wired", control: fallback };
+  }
+  return { controlSystem: current.controlSystem, control: current.control ?? "" };
 }
 
 // Only offers a driver kind if catalog.ts's DRIVER_LINES has a real AMBLUX
@@ -452,7 +486,10 @@ export function SimpleZoneForm({
       <Field label={t("configurator.power")}>
         <Select
           value={state.powerType}
-          onChange={(v) => onChange({ powerType: v as SimpleZoneState["powerType"] })}
+          onChange={(v) => {
+            const powerType = v as SimpleZoneState["powerType"];
+            onChange({ powerType, ...controlForPowerType(controlZone, powerType, state) });
+          }}
           options={powerTypeOptions(t)}
         />
         {/* Driver-placement + never-splice guidance (2026-09-13 audit items
@@ -619,7 +656,34 @@ export function BlocksZoneForm({
       <Field label={t("configurator.power")}>
         <Select
           value={state.powerType}
-          onChange={(v) => onChange({ powerType: v as BlocksState["powerType"] })}
+          onChange={(v) => {
+            const powerType = v as BlocksState["powerType"];
+            const zoneLevel = controlForPowerType(controlZone, powerType, state);
+            // Cascades the same forced default to every block's own
+            // independent Control System (Floating Shelves/Pantry "separate"
+            // per-shelf control) and separate top-light control — see
+            // controlForPowerType's comment above. Blocks that don't use
+            // either (controlSystem unset, topLightControl !== "separate")
+            // are left untouched.
+            const blocks = state.blocks.map((b) => {
+              const patch: Partial<CabinetBlock> = {};
+              if (b.controlSystem) {
+                const updated = controlForPowerType(controlZone, powerType, { controlSystem: b.controlSystem, control: b.control });
+                patch.controlSystem = updated.controlSystem;
+                patch.control = updated.control;
+              }
+              if (b.topLight && b.topLightControl === "separate") {
+                const updatedTop = controlForPowerType("pantry", powerType, {
+                  controlSystem: b.topControlSystem,
+                  control: b.topControl,
+                });
+                patch.topControlSystem = updatedTop.controlSystem;
+                patch.topControl = updatedTop.control;
+              }
+              return Object.keys(patch).length > 0 ? { ...b, ...patch } : b;
+            });
+            onChange({ powerType, ...zoneLevel, blocks });
+          }}
           options={powerTypeOptions(t)}
         />
         {/* Driver-placement + never-splice guidance (2026-09-13 audit items
@@ -667,7 +731,34 @@ export function BlocksZoneForm({
                   ? highCabinetBlockDefault
                   : blockDefault;
             const last = state.blocks[state.blocks.length - 1];
-            const newBlock = copyFromPrevious && last ? { ...last } : factory();
+            let newBlock = copyFromPrevious && last ? { ...last } : factory();
+            // A fresh (non-copied) block's factory default always starts
+            // "wired"/plain-sensor (see types.ts's blockDefault() etc.) with
+            // no idea the zone's own Power might already be Hardwire — apply
+            // the same forced Kinetic-switch-to-line-voltage default here too
+            // (see controlForPowerType's comment above) so a block added
+            // after Hardwire is already selected doesn't start on a stale,
+            // factory "wired" control.
+            if (state.powerType === "hardwire") {
+              const patch: Partial<CabinetBlock> = {};
+              if (newBlock.controlSystem) {
+                const updated = controlForPowerType(controlZone, "hardwire", {
+                  controlSystem: newBlock.controlSystem,
+                  control: newBlock.control,
+                });
+                patch.controlSystem = updated.controlSystem;
+                patch.control = updated.control;
+              }
+              if (newBlock.topLight && newBlock.topLightControl === "separate") {
+                const updatedTop = controlForPowerType("pantry", "hardwire", {
+                  controlSystem: newBlock.topControlSystem,
+                  control: newBlock.topControl,
+                });
+                patch.topControlSystem = updatedTop.controlSystem;
+                patch.topControl = updatedTop.control;
+              }
+              newBlock = { ...newBlock, ...patch };
+            }
             onChange({ blocks: [...state.blocks, newBlock] });
           }}
         />
