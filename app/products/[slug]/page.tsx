@@ -5,6 +5,7 @@ import { SiteHeader } from "@/app/components/SiteHeader";
 import { AccessoriesSection } from "./AccessoriesSection";
 import { BenefitGrid } from "./BenefitGrid";
 import { Breadcrumb } from "./Breadcrumb";
+import { CompatibleDimmersSection } from "./CompatibleDimmersSection";
 import { PrintMasthead } from "./PrintMasthead";
 import { ProductDocuments } from "./ProductDocuments";
 import { ProductHero } from "./ProductHero";
@@ -82,6 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <ProductStory page={page} />
           <BenefitGrid page={page} />
           <Specifications />
+          <CompatibleDimmersSection page={page} />
           <ProductDocuments page={page} />
           <AccessoriesSection page={page} skuToSlug={skuToSlug} />
         </VariantProvider>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   CLOSET_HANGER_COMPARTMENT_COUNTS,
   CONTROL_LABEL,
@@ -465,7 +466,12 @@ export function SimpleZoneForm({
             it's only true once a licensed electrician is actually involved
             (hardwiring the 120V input), not for a plug-in driver. */}
         {state.powerType === "hardwire" && (
-          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+          <p className="mt-1 text-xs text-muted">
+            {t("configuratorExtra.hardwireElectricianNote")}{" "}
+            <Link href="/products/dimmer-compatibility" className="font-medium text-accent-strong hover:underline">
+              View recommended 120V line dimmers →
+            </Link>
+          </p>
         )}
       </Field>
 
@@ -624,7 +630,12 @@ export function BlocksZoneForm({
         {/* Hardwire electrician note (2026-10-30) — see SimpleZoneForm's
             matching Power field for why this one IS gated. */}
         {state.powerType === "hardwire" && (
-          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+          <p className="mt-1 text-xs text-muted">
+            {t("configuratorExtra.hardwireElectricianNote")}{" "}
+            <Link href="/products/dimmer-compatibility" className="font-medium text-accent-strong hover:underline">
+              View recommended 120V line dimmers →
+            </Link>
+          </p>
         )}
       </Field>
 
@@ -1090,7 +1101,12 @@ export function DrawersForm({
             comment — no "drawers" entry exists), so there's no "Line
             voltage (120V)" option to offer here, just this note. */}
         {state.powerType === "hardwire" && (
-          <p className="mt-1 text-xs text-muted">{t("configuratorExtra.hardwireElectricianNote")}</p>
+          <p className="mt-1 text-xs text-muted">
+            {t("configuratorExtra.hardwireElectricianNote")}{" "}
+            <Link href="/products/dimmer-compatibility" className="font-medium text-accent-strong hover:underline">
+              View recommended 120V line dimmers →
+            </Link>
+          </p>
         )}
       </Field>
 
