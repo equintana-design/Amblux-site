@@ -406,6 +406,12 @@ const en = {
     cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Number of hanging compartments",
     hangingCompartmentsHint: "Whether this cabinet has one continuous hanging section or is split into two — each compartment gets its own shelf-mounted light fixture, and the driver is sized for that count.",
+    // Closet Hangers zone-wide fixture guidance (2026-10-31, per the AMBLUX
+    // Lighting Specification skill's closet section) — not translated to
+    // fr/es yet, same as bathroomHumidityHint/hardwireElectricianNote above
+    // (kept in English in every locale rather than guessing a translation).
+    closetHangersRodHint:
+      "We recommend one linear light fixture mounted on the shelf above the hanging rod, for even, uniform lighting across the hanging space. We prefer this over a hanging rod with integrated lighting: a light-integrated rod has much less weight capacity than a standard rod, and closet hanging rods need that extra capacity for hung clothing.",
     sectionVanityDesc: "Each cabinet unit can have Doors (vertical gable lighting) and/or Drawers (fixed drawer light), independently. Up to 10 cabinet units.",
     vanityDoors: "Doors",
     vanityDrawers: "Drawers",
@@ -900,6 +906,8 @@ const fr: Messages = {
     cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Nombre de compartiments suspendus",
     hangingCompartmentsHint: "Si ce meuble a une seule section de suspension continue ou est divisé en deux — chaque compartiment reçoit son propre luminaire monté sur tablette, et le driver est dimensionné en conséquence.",
+    closetHangersRodHint:
+      "We recommend one linear light fixture mounted on the shelf above the hanging rod, for even, uniform lighting across the hanging space. We prefer this over a hanging rod with integrated lighting: a light-integrated rod has much less weight capacity than a standard rod, and closet hanging rods need that extra capacity for hung clothing.",
     sectionVanityDesc: "Chaque meuble peut avoir des Portes (éclairage vertical des façades) et/ou des Tiroirs (éclairage de tiroir fixe), indépendamment. Jusqu’à 10 meubles.",
     vanityDoors: "Portes",
     vanityDrawers: "Tiroirs",
@@ -1359,6 +1367,8 @@ const es: Messages = {
     cabinetControlGrouping: "Cabinet driver & control",
     hangingCompartments: "Número de compartimentos colgantes",
     hangingCompartmentsHint: "Si este gabinete tiene una sola sección colgante continua o está dividido en dos — cada compartimento recibe su propia luminaria montada en repisa, y el driver se dimensiona según esa cantidad.",
+    closetHangersRodHint:
+      "We recommend one linear light fixture mounted on the shelf above the hanging rod, for even, uniform lighting across the hanging space. We prefer this over a hanging rod with integrated lighting: a light-integrated rod has much less weight capacity than a standard rod, and closet hanging rods need that extra capacity for hung clothing.",
     sectionVanityDesc: "Cada mueble puede tener Puertas (iluminación vertical de gabinete) y/o Cajones (luz de cajón fija), de forma independiente. Hasta 10 muebles.",
     vanityDoors: "Puertas",
     vanityDrawers: "Cajones",

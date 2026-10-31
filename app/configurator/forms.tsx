@@ -107,11 +107,18 @@ function controlForPowerType(
   nextPowerType: PowerType,
   current: { controlSystem: ControlSystem; control?: string }
 ): { controlSystem: ControlSystem; control: string } {
-  const offersKineticSwitch = (CONTROL_OPTIONS[zone]?.wallControl || []).includes("remote1Zone");
+  // Undercabinet has no CONTROL_OPTIONS entry at all (its control is
+  // Kinetic-only, bypassing this generic table entirely — see
+  // SimpleZoneForm's kineticOnly comment) but it always offers the Kinetic
+  // 1-zone switch as its one non-hardwire control, so it needs this same
+  // forced default too, just without a wallControl list to read it from.
+  const isUndercabinet = zone === "undercabinet";
+  const offersKineticSwitch = isUndercabinet || (CONTROL_OPTIONS[zone]?.wallControl || []).includes("remote1Zone");
   if (nextPowerType === "hardwire" && offersKineticSwitch) {
     return { controlSystem: "lineVoltage", control: "lineDimmerByOther" };
   }
   if (nextPowerType !== "hardwire" && current.controlSystem === "lineVoltage") {
+    if (isUndercabinet) return { controlSystem: "wallControl", control: "remote1Zone" };
     const fallback = controlOptionsFor(zone, "wired")[0]?.value ?? current.control ?? "";
     return { controlSystem: "wired", control: fallback };
   }
@@ -284,8 +291,15 @@ export function SimpleZoneForm({
   const kineticOnly = zoneKey === "undercabinet";
   const isPuck = state.lightType === "puck";
   const controlZone = zoneKey; // toeKick / crown map directly; undercabinet uses its own remote list
+  // Undercabinet can still use the real Hardwire driver (powerTypeOptions()
+  // is zone-agnostic) even though its Control System is otherwise
+  // Kinetic-only — and a Kinetic RF switch doesn't pair with a hardwired
+  // 120V driver (see controlForPowerType's comment above), so Hardwire
+  // unlocks the same by-others "Line voltage (120V)" sentinel control every
+  // other zone's hardwire path uses, as its one real alternative here.
+  const undercabinetControlIds = state.controlSystem === "lineVoltage" ? ["lineDimmerByOther"] : UNDERCABINET_REMOTE_CONTROLS;
   const availableControls = kineticOnly
-    ? UNDERCABINET_REMOTE_CONTROLS.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }))
+    ? undercabinetControlIds.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }))
     : controlOptionsFor(controlZone, state.controlSystem);
 
   const zoneLabel = LABELS.zoneNames[zoneKey];
@@ -468,13 +482,18 @@ export function SimpleZoneForm({
           onChange={(v) => {
             const system = v as SimpleZoneState["controlSystem"];
             const opts = kineticOnly
-              ? UNDERCABINET_REMOTE_CONTROLS
+              ? system === "lineVoltage"
+                ? ["lineDimmerByOther"]
+                : UNDERCABINET_REMOTE_CONTROLS
               : CONTROL_OPTIONS[controlZone]?.[system] || [];
             onChange({ controlSystem: system, control: opts[0] || state.control });
           }}
           options={
             kineticOnly
-              ? [{ value: "wallControl", label: t("configurator.wallControl") }]
+              ? [
+                  { value: "wallControl", label: t("configurator.wallControl") },
+                  ...(state.powerType === "hardwire" ? [{ value: "lineVoltage", label: t("configurator.lineVoltageControl") }] : []),
+                ]
               : controlSystemOptions(controlZone, t, state.powerType)
           }
         />
@@ -616,6 +635,14 @@ export function BlocksZoneForm({
       <Field label={t("configurator.units")}>
         <Select value={state.unit} onChange={(v) => onChange({ unit: v as Unit })} options={unitOptions(t)} />
       </Field>
+
+      {/* Closet Hangers fixture guidance (2026-10-31, per direct business
+          owner instruction, matching the AMBLUX Lighting Specification
+          skill's closet section) — same placement/pattern as the bathroom
+          humidity hint above (SimpleZoneForm) and below (CabinetBlockRow). */}
+      {zoneKey === "closetHangers" && (
+        <p className="sm:col-span-2 text-xs text-muted">{t("configuratorExtra.closetHangersRodHint")}</p>
+      )}
 
       {supportsPerBlockControl && (
         <Field label={isFloating ? t("configuratorExtra.shelfControlGrouping") : t("configuratorExtra.cabinetControlGrouping")}>
