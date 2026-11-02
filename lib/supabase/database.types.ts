@@ -1,9 +1,10 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0036 (vendor_orders — adds
-// amblux_vendors / amblux_vendor_skus for the vendor purchase-order
-// template feature at /admin/orders; see that migration's own header for
-// why there's no amblux_purchase_orders history table yet).
+// supabase/migrations/0001 through 0038 (purchase_orders — adds
+// amblux_purchase_orders, the saved vendor order generated automatically
+// from a distributor quote; see that migration's own header, and
+// lib/configurator/purchaseOrders.ts, for how it differs from the
+// nothing-saved /admin/orders generator added by migration 0036).
 //
 // Regenerate the same way after any future migration: call
 // mcp__Supabase__generate_typescript_types and replace everything below
@@ -406,6 +407,54 @@ export type Database = {
           role?: string
         }
         Relationships: []
+      }
+      amblux_purchase_orders: {
+        Row: {
+          created_at: string
+          distributor_quote_id: string
+          id: string
+          line_items: Json
+          po_number: string
+          total_usd: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          distributor_quote_id: string
+          id?: string
+          line_items?: Json
+          po_number: string
+          total_usd?: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          distributor_quote_id?: string
+          id?: string
+          line_items?: Json
+          po_number?: string
+          total_usd?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amblux_purchase_orders_distributor_quote_id_fkey"
+            columns: ["distributor_quote_id"]
+            isOneToOne: false
+            referencedRelation: "amblux_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amblux_purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "amblux_vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       amblux_quote_line_items: {
         Row: {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listDistributorQuotes, loadDistributorQuote } from "@/lib/configurator/distributorQuotes";
+import { listPurchaseOrdersForQuote } from "@/lib/configurator/purchaseOrders";
 import { DistributorQuoteBuilder } from "./DistributorQuoteBuilder";
 
 // /admin/distributor-quotes — the mirror image of /admin/orders: that one
@@ -78,7 +79,10 @@ export default async function AdminDistributorQuotesPage({
     email: d.email ?? "",
   }));
 
-  const initialQuote = quote_id ? await loadDistributorQuote(supabase, quote_id) : null;
+  const [initialQuote, initialPurchaseOrders] = await Promise.all([
+    quote_id ? loadDistributorQuote(supabase, quote_id) : Promise.resolve(null),
+    quote_id ? listPurchaseOrdersForQuote(supabase, quote_id) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-16 print:max-w-none print:px-0 print:py-0">
@@ -126,6 +130,7 @@ export default async function AdminDistributorQuotesPage({
         catalog={catalog}
         distributors={distributors}
         initialQuote={initialQuote ? { id: quote_id!, ...initialQuote } : null}
+        initialPurchaseOrders={initialPurchaseOrders}
       />
     </div>
   );

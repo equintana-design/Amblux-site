@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -10,6 +11,7 @@ import {
   deleteDistributorQuote,
   type DistributorQuoteState,
 } from "@/lib/configurator/distributorQuotes";
+import type { PurchaseOrderSummary, UnmappedSku } from "@/lib/configurator/purchaseOrders";
 
 interface CatalogProduct {
   sku: string;
@@ -65,10 +67,12 @@ export function DistributorQuoteBuilder({
   catalog,
   distributors,
   initialQuote,
+  initialPurchaseOrders,
 }: {
   catalog: CatalogProduct[];
   distributors: DistributorOption[];
   initialQuote: InitialQuote | null;
+  initialPurchaseOrders: PurchaseOrderSummary[];
 }) {
   const router = useRouter();
   const defaults = distributorQuoteDefault();
@@ -100,6 +104,13 @@ export function DistributorQuoteBuilder({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  // Vendor orders auto-generated from this quote's line items — see
+  // lib/configurator/purchaseOrders.ts. Seeded from the server-loaded
+  // snapshot on open, then replaced with handleSave()'s fresh result on
+  // every save so this stays in sync without a page reload.
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderSummary[]>(initialPurchaseOrders);
+  const [unmappedSkus, setUnmappedSkus] = useState<UnmappedSku[]>([]);
 
   function selectDistributor(id: string) {
     setDistributorAccountId(id);
@@ -185,7 +196,13 @@ export function DistributorQuoteBuilder({
       });
       setQuoteId(result.id);
       setJobNumber(result.jobNumber);
-      setSavedNotice("Saved.");
+      setPurchaseOrders(result.purchaseOrders);
+      setUnmappedSkus(result.unmappedSkus);
+      setSavedNotice(
+        result.unmappedSkus.length > 0
+          ? `Saved. ${result.unmappedSkus.length} SKU(s) couldn't be added to a vendor order — see below.`
+          : "Saved.",
+      );
       router.refresh();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
@@ -570,6 +587,53 @@ export function DistributorQuoteBuilder({
           />
         </label>
       </section>
+
+      {/* --- Vendor orders generated from this quote --- */}
+      {(purchaseOrders.length > 0 || unmappedSkus.length > 0) && (
+        <section className="mt-6 rounded-2xl border border-border bg-surface p-6 print:hidden">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Vendor orders for this quote</h2>
+          <p className="mt-1 text-xs text-muted">
+            Automatically generated from the line items above, split by vendor, and regenerated every time you save.
+          </p>
+
+          {purchaseOrders.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              {purchaseOrders.map((po) => (
+                <Link
+                  key={po.vendorId}
+                  href={`/admin/purchase-orders/${po.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-accent"
+                >
+                  <span className="font-medium text-foreground">{po.vendorName}</span>
+                  <span className="font-mono text-xs text-muted">{po.poNumber}</span>
+                  <span className="text-xs text-muted">{po.lineItemCount} line item(s)</span>
+                  <span className="text-xs font-semibold text-foreground">
+                    {po.totalUsd.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {unmappedSkus.length > 0 && (
+            <div className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-semibold">
+                {unmappedSkus.length} SKU(s) have no vendor mapping on file and were skipped from every vendor order:
+              </p>
+              <ul className="mt-2 list-inside list-disc space-y-0.5">
+                {unmappedSkus.map((u) => (
+                  <li key={u.sku} className="font-mono text-xs">
+                    {u.qty} x {u.sku} — {u.label}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">
+                Add a vendor SKU mapping for these, then save the quote again to include them.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
 
       {saveError && (
         <p className="mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 print:hidden">{saveError}</p>

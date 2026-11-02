@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import type { BomResult } from "./types";
+import { syncPurchaseOrdersForQuote, type SyncPurchaseOrdersResult } from "./purchaseOrders";
 
 type Client = SupabaseClient<Database>;
 
@@ -98,7 +99,7 @@ export interface DistributorQuoteSummary {
 export async function saveDistributorQuote(
   supabase: Client,
   args: { id: string | null; accountId: string | null; state: DistributorQuoteState },
-): Promise<{ id: string; jobNumber: string }> {
+): Promise<{ id: string; jobNumber: string } & SyncPurchaseOrdersResult> {
   const payload = {
     account_id: args.accountId,
     kind: "distributor_quote" as const,
@@ -107,23 +108,40 @@ export async function saveDistributorQuote(
     total_watts: null,
   };
 
+  let id: string;
+  let jobNumber: string;
+
   if (args.id) {
     const { error } = await supabase.from("amblux_quotes").update(payload).eq("id", args.id);
     if (error) throw error;
     // job_number doesn't change on update — fetch it back for the caller
     // rather than re-deriving it, since it was fixed at creation time.
     const { data } = await supabase.from("amblux_quotes").select("job_number").eq("id", args.id).single();
-    return { id: args.id, jobNumber: data?.job_number ?? "" };
+    id = args.id;
+    jobNumber = data?.job_number ?? "";
+  } else {
+    jobNumber = generateQuoteNumber(args.state.recipient.companyName);
+    const { data, error } = await supabase
+      .from("amblux_quotes")
+      .insert({ ...payload, job_number: jobNumber })
+      .select("id")
+      .single();
+    if (error) throw error;
+    id = data.id;
   }
 
-  const jobNumber = generateQuoteNumber(args.state.recipient.companyName);
-  const { data, error } = await supabase
-    .from("amblux_quotes")
-    .insert({ ...payload, job_number: jobNumber })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return { id: data.id, jobNumber };
+  // Every save — draft or not — regenerates the matching vendor purchase
+  // order(s) so they never drift out of sync with the quote's own line
+  // items (the site owner's explicit call: automatic on every save, not
+  // just once the quote is marked "sent"). See purchaseOrders.ts for why
+  // this is a full resync rather than an incremental patch.
+  const sync = await syncPurchaseOrdersForQuote(supabase, {
+    quoteId: id,
+    quoteJobNumber: jobNumber,
+    lineItems: args.state.lineItems,
+  });
+
+  return { id, jobNumber, ...sync };
 }
 
 export async function listDistributorQuotes(supabase: Client): Promise<DistributorQuoteSummary[]> {
