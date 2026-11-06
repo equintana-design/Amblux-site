@@ -13,6 +13,7 @@ import {
   UNDERCABINET_REMOTE_CONTROLS,
   availablePowerTypes,
   controlSku,
+  driverLineFor,
   familyCcts,
   familyLengthsM,
   getLinearFamily,
@@ -23,6 +24,8 @@ import {
   puckWattsFor,
   type LinearFamily,
 } from "@/lib/configurator/catalog";
+import { skuIsUsable, type UsableSkuSnapshot } from "@/lib/configurator/availability";
+import { useUsableSkus } from "./UsableSkusContext";
 import { blockUnitLabel, finishLabel, LABELS } from "@/lib/configurator/labels";
 import {
   blockDefault,
@@ -57,9 +60,13 @@ function unitOptions(t: TFunction): { value: Unit; label: string }[] {
   ];
 }
 
-function controlOptionsFor(zone: string, system: string): { value: string; label: string }[] {
+// usableSkus (2026-11-05, see lib/configurator/availability.ts) filters
+// the structural id list down to whichever ones currently resolve to a
+// usable SKU — a SKU an admin has flipped to "Backordered"/"Hidden" simply
+// drops out of the returned list, live, with no code change or deploy.
+function controlOptionsFor(zone: string, system: string, usableSkus: UsableSkuSnapshot): { value: string; label: string }[] {
   const ids = CONTROL_OPTIONS[zone]?.[system] || [];
-  return ids.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }));
+  return ids.filter((id) => skuIsUsable(controlSku(id), usableSkus)).map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }));
 }
 
 // Display order is fixed, everywhere this renders (the "three-family
@@ -72,14 +79,28 @@ function controlOptionsFor(zone: string, system: string): { value: string; label
 // the powerType argument (or passing "ultra") keeps every existing call
 // site's behavior exactly as it was before this option existed. See
 // catalog.ts's CONTROL_OPTIONS lineVoltage entries.
-function controlSystemOptions(zone: string, t: TFunction, powerType?: PowerType): { value: string; label: string }[] {
+//
+// 2026-11-05: every one of these four families is now gated on
+// controlOptionsFor(...).length > 0 (live-usability-filtered), not just
+// "does CONTROL_OPTIONS structurally list anything" — so a family whose
+// every id has gone Backordered/Hidden disappears from the Control System
+// dropdown entirely, the same way the Lumiland wireless family did when it
+// was removed from catalog.ts outright. "Wired" used to be pushed
+// unconditionally (every zone this is called for always structurally has a
+// wired list) — now that usability can empty it out at runtime, it gets
+// the same gating as the others for correctness.
+function controlSystemOptions(zone: string, t: TFunction, usableSkus: UsableSkuSnapshot, powerType?: PowerType): { value: string; label: string }[] {
   const opts: { value: string; label: string }[] = [];
-  if ((CONTROL_OPTIONS[zone]?.wallControl || []).length > 0) {
+  if (controlOptionsFor(zone, "wallControl", usableSkus).length > 0) {
     opts.push({ value: "wallControl", label: t("configurator.wallControl") });
   }
-  opts.push({ value: "wired", label: t("configurator.wiredSensor") });
-  opts.push({ value: "wireless", label: t("configurator.wirelessSensor") });
-  if (powerType === "hardwire" && (CONTROL_OPTIONS[zone]?.lineVoltage || []).length > 0) {
+  if (controlOptionsFor(zone, "wired", usableSkus).length > 0) {
+    opts.push({ value: "wired", label: t("configurator.wiredSensor") });
+  }
+  if (controlOptionsFor(zone, "wireless", usableSkus).length > 0) {
+    opts.push({ value: "wireless", label: t("configurator.wirelessSensor") });
+  }
+  if (powerType === "hardwire" && controlOptionsFor(zone, "lineVoltage", usableSkus).length > 0) {
     opts.push({ value: "lineVoltage", label: t("configurator.lineVoltageControl") });
   }
   return opts;
@@ -105,13 +126,18 @@ function controlSystemOptions(zone: string, t: TFunction, powerType?: PowerType)
 function controlForPowerType(
   zone: string,
   nextPowerType: PowerType,
-  current: { controlSystem: ControlSystem; control?: string }
+  current: { controlSystem: ControlSystem; control?: string },
+  usableSkus: UsableSkuSnapshot
 ): { controlSystem: ControlSystem; control: string } {
   // Undercabinet has no CONTROL_OPTIONS entry at all (its control is
   // Kinetic-only, bypassing this generic table entirely — see
   // SimpleZoneForm's kineticOnly comment) but it always offers the Kinetic
   // 1-zone switch as its one non-hardwire control, so it needs this same
   // forced default too, just without a wallControl list to read it from.
+  // offersKineticSwitch stays a structural check (not usability-filtered)
+  // — forcing the Hardwire→"Line voltage" default is about whether this
+  // zone has a Kinetic concept at all, independent of whether that one
+  // switch SKU happens to be in stock right now.
   const isUndercabinet = zone === "undercabinet";
   const offersKineticSwitch = isUndercabinet || (CONTROL_OPTIONS[zone]?.wallControl || []).includes("remote1Zone");
   if (nextPowerType === "hardwire" && offersKineticSwitch) {
@@ -119,7 +145,7 @@ function controlForPowerType(
   }
   if (nextPowerType !== "hardwire" && current.controlSystem === "lineVoltage") {
     if (isUndercabinet) return { controlSystem: "wallControl", control: "remote1Zone" };
-    const fallback = controlOptionsFor(zone, "wired")[0]?.value ?? current.control ?? "";
+    const fallback = controlOptionsFor(zone, "wired", usableSkus)[0]?.value ?? current.control ?? "";
     return { controlSystem: "wired", control: fallback };
   }
   return { controlSystem: current.controlSystem, control: current.control ?? "" };
@@ -129,27 +155,54 @@ function controlForPowerType(
 // product line behind it — today that's just the 24V "ultra-thin" driver,
 // so Hardwire is absent everywhere until a real 120V hardwire driver SKU
 // exists. See catalog.ts's DRIVER_LINES/availablePowerTypes() comment.
-function powerTypeOptions(t: TFunction): { value: string; label: string }[] {
-  return availablePowerTypes().map((kind) => ({
-    value: kind,
-    label: kind === "hardwire" ? t("configurator.hardPsu") : t("configurator.ultra"),
-  }));
+//
+// 2026-11-05: also drops a whole kind if every one of its stock wattage
+// sizes has gone Backordered/Hidden — a coarse, kind-level gate (not a
+// per-wattage-size one: the specific size offered is computed from total
+// connected load, not a customer dropdown choice, so filtering individual
+// sizes risks leaving a load with no valid driver combination at all; a
+// whole kind disappearing is the same safe, "nothing usable left under
+// this category" pattern already used for the Control System families
+// above).
+function powerTypeOptions(t: TFunction, usableSkus: UsableSkuSnapshot): { value: string; label: string }[] {
+  return availablePowerTypes()
+    .filter((kind) => driverLineFor(kind).sizes.some((w) => skuIsUsable(driverLineFor(kind).skuFor(w), usableSkus)))
+    .map((kind) => ({
+      value: kind,
+      label: kind === "hardwire" ? t("configurator.hardPsu") : t("configurator.ultra"),
+    }));
 }
 
-function puckFinishOptions(mounting: "recess" | "surface"): { value: string; label: string }[] {
-  const keys = Object.keys(mounting === "recess" ? RECESSED_FACEPLATES : SURFACE_PUCKS);
-  return keys.map((k) => ({ value: k, label: finishLabel(k) }));
+function puckFinishOptions(mounting: "recess" | "surface", usableSkus: UsableSkuSnapshot): { value: string; label: string }[] {
+  const table = mounting === "recess" ? RECESSED_FACEPLATES : SURFACE_PUCKS;
+  return Object.keys(table)
+    .filter((k) => skuIsUsable(table[k], usableSkus))
+    .map((k) => ({ value: k, label: finishLabel(k) }));
+}
+
+// Whether any (CCT, stock length) SKU this family is sold in is currently
+// usable — a family with literally nothing usable left under it drops out
+// of linearFamilyOptions()/defaultLinearPatch() entirely, same "whole
+// category disappears" pattern as the Control System families above.
+function familyHasUsableSku(family: LinearFamily, usableSkus: UsableSkuSnapshot): boolean {
+  return Object.values(family.skusByCctAndLength).some((byLength) => Object.values(byLength ?? {}).some((sku) => skuIsUsable(sku, usableSkus)));
 }
 
 // Real AMBLUX linear product lines available for a given mounting — this is
 // the "right product for the right characteristics" step: the installer
 // picks a physical profile, not a fixed-length SKU. Purchase quantity is
 // computed from the entered run length at calculation time (see engine.ts).
-function linearFamilyOptions(mounting: "recess" | "surface", mode?: "shelf" | "vertical"): { value: string; label: string }[] {
-  return linearFamiliesFor(mounting, mode).map((f) => ({
-    value: f.id,
-    label: `${f.label} (${f.type === "flexible" ? "Flexible" : "Rigid"})`,
-  }));
+function linearFamilyOptions(
+  mounting: "recess" | "surface",
+  usableSkus: UsableSkuSnapshot,
+  mode?: "shelf" | "vertical"
+): { value: string; label: string }[] {
+  return linearFamiliesFor(mounting, mode)
+    .filter((f) => familyHasUsableSku(f, usableSkus))
+    .map((f) => ({
+      value: f.id,
+      label: `${f.label} (${f.type === "flexible" ? "Flexible" : "Rigid"})`,
+    }));
 }
 
 function cctOptionsForFamily(familyId: string): { value: string; label: string }[] {
@@ -187,8 +240,17 @@ function linearWattsLabel(wattsPerMetre: number, unit: Unit): string {
 // Picks the first family available for a mounting, and the first CCT that
 // family actually ships in — used whenever mounting changes and the
 // previously-selected family/CCT combo may no longer be valid.
-function defaultLinearPatch(mounting: "recess" | "surface", mode?: "shelf" | "vertical") {
-  const family = linearFamiliesFor(mounting, mode)[0];
+//
+// 2026-11-05: prefers a currently-usable family (same filter as
+// linearFamilyOptions()) so switching mounting never silently lands on a
+// Backordered/Hidden family that wouldn't even appear in the dropdown it
+// just populated. Falls back to the old unfiltered pick only if literally
+// every family for this mounting/mode has gone unusable — picking
+// something real (even if not currently sellable) beats crashing on an
+// empty array.
+function defaultLinearPatch(mounting: "recess" | "surface", usableSkus: UsableSkuSnapshot, mode?: "shelf" | "vertical") {
+  const all = linearFamiliesFor(mounting, mode);
+  const family = all.find((f) => familyHasUsableSku(f, usableSkus)) ?? all[0];
   const cct = familyCcts(family)[0] || "3000";
   return { mounting, linearFamily: family.id, cct: cct as "3000" | "4000" };
 }
@@ -279,6 +341,7 @@ export function SimpleZoneForm({
   saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
+  const usableSkus = useUsableSkus();
   // Toe Kick / Crown Moulding / Floating Cabinet now support 1-4 runs
   // sharing one fixture spec, exactly like Undercabinet always did (see
   // engine.ts's addSimple) — every SimpleZoneForm zone shows the multi-run
@@ -297,10 +360,12 @@ export function SimpleZoneForm({
   // 120V driver (see controlForPowerType's comment above), so Hardwire
   // unlocks the same by-others "Line voltage (120V)" sentinel control every
   // other zone's hardwire path uses, as its one real alternative here.
-  const undercabinetControlIds = state.controlSystem === "lineVoltage" ? ["lineDimmerByOther"] : UNDERCABINET_REMOTE_CONTROLS;
+  const undercabinetControlIds = (
+    state.controlSystem === "lineVoltage" ? ["lineDimmerByOther"] : UNDERCABINET_REMOTE_CONTROLS
+  ).filter((id) => skuIsUsable(controlSku(id), usableSkus));
   const availableControls = kineticOnly
     ? undercabinetControlIds.map((id) => ({ value: id, label: `${controlSku(id)} — ${CONTROL_LABEL[id] || id}` }))
-    : controlOptionsFor(controlZone, state.controlSystem);
+    : controlOptionsFor(controlZone, state.controlSystem, usableSkus);
 
   const zoneLabel = LABELS.zoneNames[zoneKey];
   const calculatedRows = bom.rows.filter((r) => r.zone === zoneLabel || r.zone.startsWith(`${zoneLabel} · `));
@@ -398,7 +463,7 @@ export function SimpleZoneForm({
               onChange(
                 isPuck
                   ? { mounting, puckFinish: "white" as SimpleZoneState["puckFinish"], puckWatts: puckWattsFor(mounting) }
-                  : { ...defaultLinearPatch(mounting) }
+                  : { ...defaultLinearPatch(mounting, usableSkus) }
               );
             }}
             options={[
@@ -424,7 +489,7 @@ export function SimpleZoneForm({
             <Select
               value={state.puckFinish}
               onChange={(v) => onChange({ puckFinish: v as SimpleZoneState["puckFinish"] })}
-              options={puckFinishOptions(state.mounting)}
+              options={puckFinishOptions(state.mounting, usableSkus)}
             />
           </Field>
           <Field label={t("configurator.spacing")}>
@@ -450,7 +515,7 @@ export function SimpleZoneForm({
                 const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                 onChange({ linearFamily: v, cct: cct as "3000" | "4000", includeInstallBracket: true });
               }}
-              options={linearFamilyOptions(state.mounting)}
+              options={linearFamilyOptions(state.mounting, usableSkus)}
             />
           </Field>
           <FixedStockLengthField family={getLinearFamily(state.linearFamily)} cct={state.cct} t={t} />
@@ -481,11 +546,13 @@ export function SimpleZoneForm({
           value={state.controlSystem}
           onChange={(v) => {
             const system = v as SimpleZoneState["controlSystem"];
-            const opts = kineticOnly
-              ? system === "lineVoltage"
-                ? ["lineDimmerByOther"]
-                : UNDERCABINET_REMOTE_CONTROLS
-              : CONTROL_OPTIONS[controlZone]?.[system] || [];
+            const opts = (
+              kineticOnly
+                ? system === "lineVoltage"
+                  ? ["lineDimmerByOther"]
+                  : UNDERCABINET_REMOTE_CONTROLS
+                : CONTROL_OPTIONS[controlZone]?.[system] || []
+            ).filter((id) => skuIsUsable(controlSku(id), usableSkus));
             onChange({ controlSystem: system, control: opts[0] || state.control });
           }}
           options={
@@ -494,7 +561,7 @@ export function SimpleZoneForm({
                   { value: "wallControl", label: t("configurator.wallControl") },
                   ...(state.powerType === "hardwire" ? [{ value: "lineVoltage", label: t("configurator.lineVoltageControl") }] : []),
                 ]
-              : controlSystemOptions(controlZone, t, state.powerType)
+              : controlSystemOptions(controlZone, t, usableSkus, state.powerType)
           }
         />
       </Field>
@@ -507,9 +574,9 @@ export function SimpleZoneForm({
           value={state.powerType}
           onChange={(v) => {
             const powerType = v as SimpleZoneState["powerType"];
-            onChange({ powerType, ...controlForPowerType(controlZone, powerType, state) });
+            onChange({ powerType, ...controlForPowerType(controlZone, powerType, state, usableSkus) });
           }}
-          options={powerTypeOptions(t)}
+          options={powerTypeOptions(t, usableSkus)}
         />
         {/* Driver-placement + never-splice guidance (2026-09-13 audit items
             3/5) — shown unconditionally regardless of powerType, since it
@@ -574,6 +641,7 @@ export function BlocksZoneForm({
   saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
+  const usableSkus = useUsableSkus();
   // Floating Shelves is its own zone/step now (previously a mode switch
   // inside Wall Cabinets — see types.ts BlocksState.section's comment), so
   // this is a plain zoneKey check rather than reading state.section.
@@ -664,17 +732,16 @@ export function BlocksZoneForm({
               value={state.controlSystem}
               onChange={(v) => {
                 const system = v as BlocksState["controlSystem"];
-                const opts = CONTROL_OPTIONS[controlZone]?.[system] || [];
-                onChange({ controlSystem: system, control: opts[0] || state.control });
+                onChange({ controlSystem: system, control: controlOptionsFor(controlZone, system, usableSkus)[0]?.value ?? state.control });
               }}
-              options={controlSystemOptions(controlZone, t, state.powerType)}
+              options={controlSystemOptions(controlZone, t, usableSkus, state.powerType)}
             />
           </Field>
           <Field label={t("configurator.zoneControl")}>
             <Select
               value={state.control}
               onChange={(v) => onChange({ control: v })}
-              options={controlOptionsFor(controlZone, state.controlSystem)}
+              options={controlOptionsFor(controlZone, state.controlSystem, usableSkus)}
             />
           </Field>
         </>
@@ -685,7 +752,7 @@ export function BlocksZoneForm({
           value={state.powerType}
           onChange={(v) => {
             const powerType = v as BlocksState["powerType"];
-            const zoneLevel = controlForPowerType(controlZone, powerType, state);
+            const zoneLevel = controlForPowerType(controlZone, powerType, state, usableSkus);
             // Cascades the same forced default to every block's own
             // independent Control System (Floating Shelves/Pantry "separate"
             // per-shelf control) and separate top-light control — see
@@ -695,15 +762,20 @@ export function BlocksZoneForm({
             const blocks = state.blocks.map((b) => {
               const patch: Partial<CabinetBlock> = {};
               if (b.controlSystem) {
-                const updated = controlForPowerType(controlZone, powerType, { controlSystem: b.controlSystem, control: b.control });
+                const updated = controlForPowerType(controlZone, powerType, { controlSystem: b.controlSystem, control: b.control }, usableSkus);
                 patch.controlSystem = updated.controlSystem;
                 patch.control = updated.control;
               }
               if (b.topLight && b.topLightControl === "separate") {
-                const updatedTop = controlForPowerType("pantry", powerType, {
-                  controlSystem: b.topControlSystem,
-                  control: b.topControl,
-                });
+                const updatedTop = controlForPowerType(
+                  "pantry",
+                  powerType,
+                  {
+                    controlSystem: b.topControlSystem,
+                    control: b.topControl,
+                  },
+                  usableSkus
+                );
                 patch.topControlSystem = updatedTop.controlSystem;
                 patch.topControl = updatedTop.control;
               }
@@ -711,7 +783,7 @@ export function BlocksZoneForm({
             });
             onChange({ powerType, ...zoneLevel, blocks });
           }}
-          options={powerTypeOptions(t)}
+          options={powerTypeOptions(t, usableSkus)}
         />
         {/* Driver-placement + never-splice guidance (2026-09-13 audit items
             3/5) — see SimpleZoneForm's matching Power field for why this is
@@ -769,18 +841,28 @@ export function BlocksZoneForm({
             if (state.powerType === "hardwire") {
               const patch: Partial<CabinetBlock> = {};
               if (newBlock.controlSystem) {
-                const updated = controlForPowerType(controlZone, "hardwire", {
-                  controlSystem: newBlock.controlSystem,
-                  control: newBlock.control,
-                });
+                const updated = controlForPowerType(
+                  controlZone,
+                  "hardwire",
+                  {
+                    controlSystem: newBlock.controlSystem,
+                    control: newBlock.control,
+                  },
+                  usableSkus
+                );
                 patch.controlSystem = updated.controlSystem;
                 patch.control = updated.control;
               }
               if (newBlock.topLight && newBlock.topLightControl === "separate") {
-                const updatedTop = controlForPowerType("pantry", "hardwire", {
-                  controlSystem: newBlock.topControlSystem,
-                  control: newBlock.topControl,
-                });
+                const updatedTop = controlForPowerType(
+                  "pantry",
+                  "hardwire",
+                  {
+                    controlSystem: newBlock.topControlSystem,
+                    control: newBlock.topControl,
+                  },
+                  usableSkus
+                );
                 patch.topControlSystem = updatedTop.controlSystem;
                 patch.topControl = updatedTop.control;
               }
@@ -841,6 +923,7 @@ function CabinetBlockRow({
   onChange: (patch: Partial<CabinetBlock>) => void;
 }) {
   const t = useTranslations();
+  const usableSkus = useUsableSkus();
   // Floating Shelves has no cabinet body or side panels to gable-light and
   // no internal "how many shelves in this cabinet" concept — each block
   // already IS one physical shelf — so it never gets the Layout (shelf vs.
@@ -903,7 +986,7 @@ function CabinetBlockRow({
                     // type/family were, rather than risk landing on an
                     // empty family list (e.g. leaving a surface mounting
                     // in place).
-                    onChange({ mode, ...defaultLinearPatch("recess", mode), lightType: "linear" });
+                    onChange({ mode, ...defaultLinearPatch("recess", usableSkus, mode), lightType: "linear" });
                     return;
                   }
                   // Some linear profiles (e.g. Rigid 6 × 8 mm) are sold only
@@ -914,7 +997,7 @@ function CabinetBlockRow({
                   if (stillValid) {
                     onChange({ mode });
                   } else {
-                    onChange({ mode, ...defaultLinearPatch(block.mounting, mode) });
+                    onChange({ mode, ...defaultLinearPatch(block.mounting, usableSkus, mode) });
                   }
                 }}
                 options={[
@@ -977,7 +1060,7 @@ function CabinetBlockRow({
                   onChange(
                     isPuck
                       ? { mounting, puckFinish: "white" as CabinetBlock["puckFinish"], puckWatts: puckWattsFor(mounting) }
-                      : defaultLinearPatch(mounting, effectiveMode)
+                      : defaultLinearPatch(mounting, usableSkus, effectiveMode)
                   );
                 }}
                 options={[
@@ -999,7 +1082,7 @@ function CabinetBlockRow({
                 <Select
                   value={block.puckFinish}
                   onChange={(v) => onChange({ puckFinish: v as CabinetBlock["puckFinish"] })}
-                  options={puckFinishOptions(block.mounting)}
+                  options={puckFinishOptions(block.mounting, usableSkus)}
                 />
               </Field>
               <Field label={`${t("configurator.spacing")} (in)`}>
@@ -1018,7 +1101,7 @@ function CabinetBlockRow({
                     const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                     onChange({ linearFamily: v, cct: cct as CabinetBlock["cct"], includeInstallBracket: true });
                   }}
-                  options={linearFamilyOptions(block.mounting, effectiveMode)}
+                  options={linearFamilyOptions(block.mounting, usableSkus, effectiveMode)}
                 />
               </Field>
               <FixedStockLengthField family={getLinearFamily(block.linearFamily)} cct={block.cct} t={t} />
@@ -1084,17 +1167,16 @@ function CabinetBlockRow({
                       value={block.topControlSystem}
                       onChange={(v) => {
                         const system = v as CabinetBlock["topControlSystem"];
-                        const opts = CONTROL_OPTIONS.pantry?.[system] || [];
-                        onChange({ topControlSystem: system, topControl: opts[0] || block.topControl });
+                        onChange({ topControlSystem: system, topControl: controlOptionsFor("pantry", system, usableSkus)[0]?.value ?? block.topControl });
                       }}
-                      options={controlSystemOptions("pantry", t, powerType)}
+                      options={controlSystemOptions("pantry", t, usableSkus, powerType)}
                     />
                   </Field>
                   <Field label={t("configurator.topControl")}>
                     <Select
                       value={block.topControl}
                       onChange={(v) => onChange({ topControl: v })}
-                      options={controlOptionsFor("pantry", block.topControlSystem)}
+                      options={controlOptionsFor("pantry", block.topControlSystem, usableSkus)}
                     />
                   </Field>
                 </>
@@ -1109,17 +1191,19 @@ function CabinetBlockRow({
                   value={block.controlSystem ?? "wired"}
                   onChange={(v) => {
                     const system = v as NonNullable<CabinetBlock["controlSystem"]>;
-                    const opts = CONTROL_OPTIONS[perBlockControlZone]?.[system] || [];
-                    onChange({ controlSystem: system, control: opts[0] || block.control });
+                    onChange({
+                      controlSystem: system,
+                      control: controlOptionsFor(perBlockControlZone, system, usableSkus)[0]?.value ?? block.control,
+                    });
                   }}
-                  options={controlSystemOptions(perBlockControlZone, t, powerType)}
+                  options={controlSystemOptions(perBlockControlZone, t, usableSkus, powerType)}
                 />
               </Field>
               <Field label={t("configurator.switches")}>
                 <Select
                   value={block.control ?? "motion"}
                   onChange={(v) => onChange({ control: v })}
-                  options={controlOptionsFor(perBlockControlZone, block.controlSystem ?? "wired")}
+                  options={controlOptionsFor(perBlockControlZone, block.controlSystem ?? "wired", usableSkus)}
                 />
               </Field>
             </>
@@ -1186,6 +1270,7 @@ export function DrawersForm({
   saveSlot?: ReactNode;
 }) {
   const t = useTranslations();
+  const usableSkus = useUsableSkus();
   const zoneLabel = LABELS.zoneNames.drawers;
   const sharedRows = bom.rows.filter((r) => r.zone === zoneLabel);
   const updateBlock = (index: number, patch: Partial<DrawerBlock>) => {
@@ -1211,7 +1296,7 @@ export function DrawersForm({
         <Select
           value={state.powerType}
           onChange={(v) => onChange({ powerType: v as DrawersState["powerType"] })}
-          options={powerTypeOptions(t)}
+          options={powerTypeOptions(t, usableSkus)}
         />
         {/* Hardwire electrician note (2026-10-30) — see SimpleZoneForm's
             matching Power field for the full rationale. Drawers has no
@@ -1250,7 +1335,7 @@ export function DrawersForm({
                     value={b.mounting}
                     onChange={(v) => {
                       const mounting = v as DrawerBlock["mounting"];
-                      updateBlock(i, defaultLinearPatch(mounting));
+                      updateBlock(i, defaultLinearPatch(mounting, usableSkus));
                     }}
                     options={[
                       { value: "recess", label: t("configurator.recess") },
@@ -1265,7 +1350,7 @@ export function DrawersForm({
                       const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                       updateBlock(i, { linearFamily: v, cct: cct as DrawerBlock["cct"] });
                     }}
-                    options={linearFamilyOptions(b.mounting)}
+                    options={linearFamilyOptions(b.mounting, usableSkus)}
                   />
                 </Field>
                 <FixedStockLengthField family={getLinearFamily(b.linearFamily)} cct={b.cct} t={t} />
@@ -1416,6 +1501,7 @@ function VanityUnitRow({
   onChange: (patch: Partial<VanityUnit>) => void;
 }) {
   const t = useTranslations();
+  const usableSkus = useUsableSkus();
   return (
     <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
@@ -1453,7 +1539,7 @@ function VanityUnitRow({
                       const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                       onChange({ doorsLinearFamily: v, doorsCct: cct as VanityUnit["doorsCct"] });
                     }}
-                    options={linearFamilyOptions("recess", "vertical")}
+                    options={linearFamilyOptions("recess", usableSkus, "vertical")}
                   />
                 </Field>
                 <FixedStockLengthField family={getLinearFamily(block.doorsLinearFamily)} cct={block.doorsCct} t={t} />
@@ -1481,17 +1567,19 @@ function VanityUnitRow({
                     value={block.doorsControlSystem}
                     onChange={(v) => {
                       const system = v as VanityUnit["doorsControlSystem"];
-                      const opts = CONTROL_OPTIONS.vanityDoors?.[system] || [];
-                      onChange({ doorsControlSystem: system, doorsControl: opts[0] || block.doorsControl });
+                      onChange({
+                        doorsControlSystem: system,
+                        doorsControl: controlOptionsFor("vanityDoors", system, usableSkus)[0]?.value ?? block.doorsControl,
+                      });
                     }}
-                    options={controlSystemOptions("vanityDoors", t)}
+                    options={controlSystemOptions("vanityDoors", t, usableSkus)}
                   />
                 </Field>
                 <Field label={t("configurator.switches")}>
                   <Select
                     value={block.doorsControl}
                     onChange={(v) => onChange({ doorsControl: v })}
-                    options={controlOptionsFor("vanityDoors", block.doorsControlSystem)}
+                    options={controlOptionsFor("vanityDoors", block.doorsControlSystem, usableSkus)}
                   />
                 </Field>
                 <Field label={t("configurator.power")}>
@@ -1519,7 +1607,7 @@ function VanityUnitRow({
                     value={block.drawersMounting}
                     onChange={(v) => {
                       const mounting = v as VanityUnit["drawersMounting"];
-                      const patch = defaultLinearPatch(mounting);
+                      const patch = defaultLinearPatch(mounting, usableSkus);
                       onChange({ drawersMounting: mounting, drawersLinearFamily: patch.linearFamily, drawersCct: patch.cct });
                     }}
                     options={[
@@ -1535,7 +1623,7 @@ function VanityUnitRow({
                       const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                       onChange({ drawersLinearFamily: v, drawersCct: cct as VanityUnit["drawersCct"] });
                     }}
-                    options={linearFamilyOptions(block.drawersMounting)}
+                    options={linearFamilyOptions(block.drawersMounting, usableSkus)}
                   />
                 </Field>
                 <FixedStockLengthField family={getLinearFamily(block.drawersLinearFamily)} cct={block.drawersCct} t={t} />
@@ -1576,7 +1664,7 @@ function VanityUnitRow({
                     value={block.floatingMounting}
                     onChange={(v) => {
                       const mounting = v as VanityUnit["floatingMounting"];
-                      const patch = defaultLinearPatch(mounting);
+                      const patch = defaultLinearPatch(mounting, usableSkus);
                       onChange({ floatingMounting: mounting, floatingLinearFamily: patch.linearFamily, floatingCct: patch.cct });
                     }}
                     options={[
@@ -1592,7 +1680,7 @@ function VanityUnitRow({
                       const cct = familyCcts(getLinearFamily(v))[0] || "3000";
                       onChange({ floatingLinearFamily: v, floatingCct: cct as VanityUnit["floatingCct"] });
                     }}
-                    options={linearFamilyOptions(block.floatingMounting)}
+                    options={linearFamilyOptions(block.floatingMounting, usableSkus)}
                   />
                 </Field>
                 <FixedStockLengthField family={getLinearFamily(block.floatingLinearFamily)} cct={block.floatingCct} t={t} />
@@ -1620,17 +1708,19 @@ function VanityUnitRow({
                     value={block.floatingControlSystem}
                     onChange={(v) => {
                       const system = v as VanityUnit["floatingControlSystem"];
-                      const opts = CONTROL_OPTIONS.vanityFloating?.[system] || [];
-                      onChange({ floatingControlSystem: system, floatingControl: opts[0] || block.floatingControl });
+                      onChange({
+                        floatingControlSystem: system,
+                        floatingControl: controlOptionsFor("vanityFloating", system, usableSkus)[0]?.value ?? block.floatingControl,
+                      });
                     }}
-                    options={controlSystemOptions("vanityFloating", t)}
+                    options={controlSystemOptions("vanityFloating", t, usableSkus)}
                   />
                 </Field>
                 <Field label={t("configurator.switches")}>
                   <Select
                     value={block.floatingControl}
                     onChange={(v) => onChange({ floatingControl: v })}
-                    options={controlOptionsFor("vanityFloating", block.floatingControlSystem)}
+                    options={controlOptionsFor("vanityFloating", block.floatingControlSystem, usableSkus)}
                   />
                 </Field>
                 <Field label={t("configurator.power")}>

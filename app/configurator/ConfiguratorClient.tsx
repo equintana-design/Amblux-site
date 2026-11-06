@@ -20,6 +20,7 @@ import { ProjectInfoStep } from "./ProjectInfoStep";
 import { SaveProjectButton } from "./SaveProjectButton";
 import { BlocksZoneForm, DrawersForm, SimpleZoneForm, VanityForm } from "./forms";
 import { StepTabs, ZoneSidebar, type WizardStep } from "./ui";
+import { UsableSkusProvider } from "./UsableSkusContext";
 
 type ZoneStepKey = keyof SelectedZones;
 type StepKey = "project" | ZoneStepKey | "summary";
@@ -433,8 +434,15 @@ export function ConfiguratorClient() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface print:hidden">
+    // Live product-status gate (2026-11-05) — see UsableSkusContext.tsx and
+    // lib/configurator/availability.ts. Every zone form below reads this
+    // via useUsableSkus() to filter its own dropdowns against whichever
+    // SKUs are currently "active"/"coming_soon" in amblux_products, so a
+    // SKU an admin flips to "Backordered" or "Hidden" disappears from the
+    // wizard without a code change or deploy.
+    <UsableSkusProvider>
+      <div className="flex flex-1 flex-col">
+        <header className="border-b border-border bg-surface print:hidden">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-5">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/images/amblux-logo.png" alt="AMBLUX" width={120} height={32} className="h-8 w-auto" />
@@ -517,6 +525,7 @@ export function ConfiguratorClient() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </UsableSkusProvider>
   );
 }
