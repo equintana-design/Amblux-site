@@ -342,6 +342,45 @@ export const SURFACE_PUCKS: Record<string, string> = {
 export const EXTENSION_SKU = "AMB-EXT-2M";
 export const WIRELESS_SENSOR_RECEIVER = "AMB-WRLSS-SS-RCVR";
 export const WIRELESS_DIMMING_RECEIVER = "AMB-DMG-WRLSS-RCVR";
+
+// Hardwire-driver sensor adapters (2026-11-06, direct owner instruction) —
+// two Lumiland parts needed only when a zone's driver is Hardwire, not
+// Plug-in/Ultra-thin:
+//   - AMB-WR-SS-CONN: one needed per Wired Sensor Switches unit (touch/
+//     door/doubleDoor/motion/motionDayNight — the AMB-WR-SS-* family).
+//   - AMB-WRLSS-SS-RCVR-HW: REPLACES the standard wireless-sensor receiver
+//     (WIRELESS_SENSOR_RECEIVER) when the zone is on Hardwire — not an
+//     addition to it. One per receiver computation, same as today.
+// Both live on their own product page (/products/hardwire-sensor-adapters)
+// rather than on the Wired/Wireless Sensor Switches pages themselves, per
+// direct instruction — see hardwireSensorAdapterSku()/receiverSkuForPower()
+// below for the gating logic, called from engine.ts wherever a control/
+// receiver row is pushed.
+export const HARDWIRE_WIRED_SENSOR_ADAPTER_SKU = "AMB-WR-SS-CONN";
+export const HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION = "Hardwire sensor adapter — Wired Sensor Switches";
+export const HARDWIRE_WIRELESS_SENSOR_RECEIVER_SKU = "AMB-WRLSS-SS-RCVR-HW";
+export const HARDWIRE_WIRELESS_SENSOR_RECEIVER_DESCRIPTION = "LED Wireless receiver — Hardwire driver";
+
+const WIRED_SENSOR_CONTROLS = ["touch", "door", "doubleDoor", "motion", "motionDayNight"];
+
+// Returns the adapter SKU to add alongside a control row, or null if this
+// control/power-type combination doesn't need one. Only the AMB-WR-SS-*
+// ("wired") family needs it, and only on Hardwire — a Plug-in (Ultra-thin)
+// driver run never needs this part.
+export function hardwireSensorAdapterSku(control: string, powerType: string): string | null {
+  if (powerType !== "hardwire") return null;
+  return WIRED_SENSOR_CONTROLS.includes(control) ? HARDWIRE_WIRED_SENSOR_ADAPTER_SKU : null;
+}
+
+// Wraps receiverSku() to apply the Hardwire swap: same receiver computation
+// as always, except a Hardwire-powered zone gets the Hardwire-specific
+// receiver SKU instead of the standard one. Call this (not receiverSku()
+// directly) everywhere a receiver row is pushed in engine.ts.
+export function receiverSkuForPower(control: string, powerType: string): string | null {
+  const base = receiverSku(control);
+  if (base === WIRELESS_SENSOR_RECEIVER && powerType === "hardwire") return HARDWIRE_WIRELESS_SENSOR_RECEIVER_SKU;
+  return base;
+}
 export const RIGID_CORD_SKU = "AMB-FCRGL-RC0608TR-PC-1.5M";
 // Updated 2026-10 to the real N0606D 20 m roll SKU — the old 3 m piece this
 // constant pointed to is discontinued (see LINEAR_FAMILIES' silicone-6x6
@@ -802,6 +841,26 @@ export const WIRELESS_SENSOR_RECEIVER_DESCRIPTION = "LED Wireless receiver";
 // Verbatim from CONTROL_OPTIONS[zone][system] in the recovered source
 // (id lists only here — the "sku — label" strings are rebuilt from
 // controlSku()/CONTROL_LABEL so they can't drift out of sync with the SKU map).
+//
+// 2026-11-05: every zone's "wireless" entry (wirelessMotion/wirelessDoor/
+// wirelessTouch — all Lumiland-sourced SKUs: AMB-WRLSS-MS, AMB-WRLSS-SS-
+// MDOOR, AMB-WRLSS-SS-TOUCH-DMR) has been removed from this table entirely,
+// per direct owner instruction: keep every Kinetic (Sunricher) wireless
+// control — those all live under "wallControl", untouched — but stop
+// offering the Lumiland wireless sensor/switch family in the configurator.
+// forms.tsx's controlSystemOptions() now gates the "Wireless" system choice
+// itself on CONTROL_OPTIONS[zone].wireless having any entries (same pattern
+// already used for wallControl/lineVoltage), so with every zone's wireless
+// list gone, the "Wireless" option no longer appears in the Control System
+// dropdown anywhere — it isn't just an empty list under a dead-end choice.
+// The underlying SKUs, CONTROL_SKU entries (wirelessTouch/wirelessDoor/
+// wirelessMotion), WIRELESS_SENSOR_RECEIVER, and the amblux_products rows
+// themselves are deliberately left in place (not deleted) so a previously
+// saved quote/project that still references one of these control ids keeps
+// resolving correctly instead of throwing in controlSku() — this is a
+// configurator-only "stop offering it going forward" change, not a product
+// deletion. Revert by restoring each zone's wireless: [...] entry below (see
+// git history) if the Lumiland wireless line is ever offered again.
 // Every zone below except vanityDoors/vanityFloating also carries a
 // lineVoltage: ["lineDimmerByOther"] entry (2026-10-30) — the 120V line
 // dimmer switch/sensor, only ever offered once a zone's Power is actually
@@ -813,13 +872,11 @@ export const WIRELESS_SENSOR_RECEIVER_DESCRIPTION = "LED Wireless receiver";
 export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   toeKick: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
   crown: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
@@ -827,21 +884,18 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // reference doc's list of motion-only zones.
   floatingCabinet: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
-  base: { wired: ["door", "doubleDoor", "motion"], wireless: ["wirelessDoor"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
-  wall: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
+  base: { wired: ["door", "doubleDoor", "motion"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
+  wall: { wired: ["door", "doubleDoor"], wallControl: [], lineVoltage: ["lineDimmerByOther"] },
   floating: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "remoteButton", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
   pantry: {
     wired: ["door", "doubleDoor", "motion", "motionDayNight"],
-    wireless: ["wirelessDoor", "wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
@@ -849,13 +903,11 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // above for why High Cabinet/Library are exact Pantry behavioral clones.
   highCabinet: {
     wired: ["door", "doubleDoor", "motion", "motionDayNight"],
-    wireless: ["wirelessDoor", "wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
   library: {
     wired: ["door", "doubleDoor", "motion", "motionDayNight"],
-    wireless: ["wirelessDoor", "wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
@@ -863,13 +915,11 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // as Toe Kick/Crown/Floating rather than Pantry's door-sensor options.
   closetHangers: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
   shoeRack: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
@@ -882,12 +932,11 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // since Vanity Doors is a distinct zone even though the option lists
   // happen to match Wall's exactly right now. No lineVoltage entry — see
   // this table's file-level comment above.
-  vanityDoors: { wired: ["door", "doubleDoor"], wireless: ["wirelessDoor"], wallControl: [] },
+  vanityDoors: { wired: ["door", "doubleDoor"], wallControl: [] },
   // Mirror Lighting (Bathroom, 2026-09-13) — a simple linear-run zone, same
   // motion-only shape as Toe Kick/Crown/Floating Cabinet.
   mirror: {
     wired: ["motion", "motionDayNight"],
-    wireless: ["wirelessMotion"],
     wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"],
     lineVoltage: ["lineDimmerByOther"],
   },
@@ -897,7 +946,7 @@ export const CONTROL_OPTIONS: Record<string, Record<string, string[]>> = {
   // options — unlike Doors (door-sensor only, no Kinetic) this is a
   // toe-kick-style run, so the full Kinetic/wired/wireless family applies.
   // No lineVoltage entry — see this table's file-level comment above.
-  vanityFloating: { wired: ["motion", "motionDayNight"], wireless: ["wirelessMotion"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
+  vanityFloating: { wired: ["motion", "motionDayNight"], wallControl: ["remote1Zone", "remote2Zone", "bluetoothApp"] },
 };
 
 // Fixed id list for the under-cabinet zone's remote/app control picker

@@ -56,11 +56,15 @@ import {
   normalizedPuckFinish,
   puckFaceplateSku,
   puckFixtureSku,
-  receiverSku,
+  receiverSkuForPower,
+  hardwireSensorAdapterSku,
   CONTROL_LABEL,
   WIRELESS_DIMMING_RECEIVER,
   WIRELESS_DIMMING_RECEIVER_DESCRIPTION,
   WIRELESS_SENSOR_RECEIVER_DESCRIPTION,
+  HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION,
+  HARDWIRE_WIRELESS_SENSOR_RECEIVER_SKU,
+  HARDWIRE_WIRELESS_SENSOR_RECEIVER_DESCRIPTION,
   CLIPS_PER_METRE,
   CLIPS_PER_BAG,
   type LinearFamily,
@@ -304,9 +308,9 @@ export function linearPurchaseLines(family: LinearFamily, cct: "3000" | "4000", 
 }
 
 function receiverDescription(sku: string): string {
-  return sku === WIRELESS_DIMMING_RECEIVER
-    ? WIRELESS_DIMMING_RECEIVER_DESCRIPTION
-    : WIRELESS_SENSOR_RECEIVER_DESCRIPTION;
+  if (sku === WIRELESS_DIMMING_RECEIVER) return WIRELESS_DIMMING_RECEIVER_DESCRIPTION;
+  if (sku === HARDWIRE_WIRELESS_SENSOR_RECEIVER_SKU) return HARDWIRE_WIRELESS_SENSOR_RECEIVER_DESCRIPTION;
+  return WIRELESS_SENSOR_RECEIVER_DESCRIPTION;
 }
 
 type ControlOption = [id: string, label: string];
@@ -462,7 +466,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
     const spacingIn = z.spacing > 0 ? toInches(z.spacing, z.spacingUnit) : 16;
     const name = LABELS.zoneNames[key];
     const availableControls = key === "undercabinet" ? underCabinetRemoteOptions() : zoneControls(key, z.controlSystem);
-    const receiver = receiverSku(z.control);
+    const receiver = receiverSkuForPower(z.control, z.powerType);
+    const adapter = hardwireSensorAdapterSku(z.control, z.powerType);
     const mountingLabel = effectiveMounting === "recess" ? LABELS.recess : LABELS.surface;
 
     const results = runLengths
@@ -522,6 +527,9 @@ export function computeBom(state: ConfiguratorState): BomResult {
           sku: controlSku(z.control),
           description: findControlLabel(availableControls, z.control) || z.control,
         });
+        if (adapter) {
+          rows.push({ zone, qty: 1, sku: adapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+        }
         if (receiver) {
           rows.push({ zone, qty: supplyCount(watts, z.powerType), sku: receiver, description: receiverDescription(receiver) });
         }
@@ -543,6 +551,9 @@ export function computeBom(state: ConfiguratorState): BomResult {
         sku: controlSku(z.control),
         description: findControlLabel(availableControls, z.control) || z.control,
       });
+      if (adapter) {
+        rows.push({ zone: name, qty: 1, sku: adapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+      }
       if (receiver) {
         rows.push({ zone: name, qty: supplyCount(totalZoneWatts, z.powerType), sku: receiver, description: receiverDescription(receiver) });
       }
@@ -704,7 +715,11 @@ export function computeBom(state: ConfiguratorState): BomResult {
             sku: controlSku(b.topControl),
             description: findControlLabel(topControls, b.topControl) || b.topControl,
           });
-          const topReceiver = receiverSku(b.topControl);
+          const topAdapter = hardwireSensorAdapterSku(b.topControl, zoneState.powerType);
+          if (topAdapter) {
+            rows.push({ zone: topZone, qty: 1, sku: topAdapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+          }
+          const topReceiver = receiverSkuForPower(b.topControl, zoneState.powerType);
           if (topReceiver) {
             rows.push({ zone: topZone, qty: supplyCount(topWatts, zoneState.powerType), sku: topReceiver, description: receiverDescription(topReceiver) });
           }
@@ -737,7 +752,11 @@ export function computeBom(state: ConfiguratorState): BomResult {
           sku: controlSku(blockControl),
           description: findControlLabel(availableControls, blockControl) || blockControl,
         });
-        const receiver = receiverSku(blockControl);
+        const adapter = hardwireSensorAdapterSku(blockControl, zoneState.powerType);
+        if (adapter) {
+          rows.push({ zone, qty: 1, sku: adapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+        }
+        const receiver = receiverSkuForPower(blockControl, zoneState.powerType);
         if (receiver) {
           rows.push({ zone, qty: supplyCount(driverWatts, zoneState.powerType), sku: receiver, description: receiverDescription(receiver) });
         }
@@ -754,7 +773,11 @@ export function computeBom(state: ConfiguratorState): BomResult {
         sku: controlSku(zoneState.control),
         description: findControlLabel(availableControls, zoneState.control) || zoneState.control,
       });
-      const receiver = receiverSku(zoneState.control);
+      const adapter = hardwireSensorAdapterSku(zoneState.control, zoneState.powerType);
+      if (adapter) {
+        rows.push({ zone: LABELS.zoneNames[key], qty: 1, sku: adapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+      }
+      const receiver = receiverSkuForPower(zoneState.control, zoneState.powerType);
       if (receiver) {
         rows.push({ zone: LABELS.zoneNames[key], qty: supplyCount(zoneWatts, zoneState.powerType), sku: receiver, description: receiverDescription(receiver) });
       }
@@ -835,7 +858,16 @@ export function computeBom(state: ConfiguratorState): BomResult {
           sku: controlSku(u.doorsControl),
           description: findControlLabel(availableControls, u.doorsControl) || u.doorsControl,
         });
-        const receiver = receiverSku(u.doorsControl);
+        // Vanity's power is permanently locked to "ultra" (see the file-level
+        // comment above) — hardwireSensorAdapterSku()/receiverSkuForPower()
+        // are no-ops here today, kept for consistency with every other
+        // control/receiver row in this file and correctness if that lock is
+        // ever lifted.
+        const doorsAdapter = hardwireSensorAdapterSku(u.doorsControl, "ultra");
+        if (doorsAdapter) {
+          rows.push({ zone, qty: 1, sku: doorsAdapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+        }
+        const receiver = receiverSkuForPower(u.doorsControl, "ultra");
         if (receiver) {
           rows.push({ zone, qty: supplyCount(watts, "ultra"), sku: receiver, description: receiverDescription(receiver) });
         }
@@ -876,7 +908,12 @@ export function computeBom(state: ConfiguratorState): BomResult {
           sku: controlSku(u.floatingControl),
           description: findControlLabel(availableControls, u.floatingControl) || u.floatingControl,
         });
-        const receiver = receiverSku(u.floatingControl);
+        // Same no-op-today/correct-if-ever-unlocked note as Vanity Doors above.
+        const floatingAdapter = hardwireSensorAdapterSku(u.floatingControl, "ultra");
+        if (floatingAdapter) {
+          rows.push({ zone, qty: 1, sku: floatingAdapter, description: HARDWIRE_WIRED_SENSOR_ADAPTER_DESCRIPTION });
+        }
+        const receiver = receiverSkuForPower(u.floatingControl, "ultra");
         if (receiver) {
           rows.push({ zone, qty: supplyCount(watts, "ultra"), sku: receiver, description: receiverDescription(receiver) });
         }
