@@ -21,6 +21,7 @@ import { SaveProjectButton } from "./SaveProjectButton";
 import { BlocksZoneForm, DrawersForm, SimpleZoneForm, VanityForm } from "./forms";
 import { StepTabs, ZoneSidebar, type WizardStep } from "./ui";
 import { UsableSkusProvider } from "./UsableSkusContext";
+import { useLivePackSizes } from "@/lib/configurator/useLivePackSizes";
 
 type ZoneStepKey = keyof SelectedZones;
 type StepKey = "project" | ZoneStepKey | "summary";
@@ -160,7 +161,8 @@ export function ConfiguratorClient() {
   // applyQuantityOverrides() and BomSummaryStep.tsx's per-row stepper).
   // Applying it once here, rather than in each consumer, is what makes
   // pricing/estimate totals automatically reflect an edited quantity too.
-  const computedBom = useMemo(() => computeBom(state), [state]);
+  const packSizes = useLivePackSizes();
+  const computedBom = useMemo(() => computeBom(state, packSizes), [state, packSizes]);
   const bom = useMemo(
     () => applyQuantityOverrides(computedBom, state.manualQuantityOverrides),
     [computedBom, state.manualQuantityOverrides]

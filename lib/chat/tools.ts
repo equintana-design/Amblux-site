@@ -211,7 +211,8 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
         const fullState = mergeConfiguratorState(accumulated as Partial<ConfiguratorState>);
         let bom;
         try {
-          bom = computeBom(fullState);
+          const { packSizesBySku } = await loadCatalogRules();
+          bom = computeBom(fullState, packSizesBySku);
         } catch (err) {
           return {
             isError: true,
@@ -234,7 +235,8 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
         if (state && Object.keys(state).length > 0) {
           try {
             const fullState = mergeConfiguratorState(state as Partial<ConfiguratorState>);
-            const grouped = consolidatePartsByZone(computeBom(fullState));
+            const { packSizesBySku } = await loadCatalogRules();
+            const grouped = consolidatePartsByZone(computeBom(fullState, packSizesBySku));
             bomSummary = grouped
               .filter((g) => g.parts.length > 0)
               .map((g) => `${g.zone}:\n` + g.parts.map((p) => `  ${p.qty}x ${p.sku} — ${p.description}`).join("\n"))

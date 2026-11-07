@@ -76,8 +76,8 @@ export default async function AdminPricingPage({
   // Full cost row per SKU (FOB + estimated flag + notes), used by
   // FobEditForm so a SKU override can also edit its FOB inline instead of
   // requiring a trip down to the Product cost (FOB) table.
-  const costBySku: Record<string, { fob_usd: number; is_estimated: boolean; notes: string | null }> = {};
-  for (const c of costs ?? []) costBySku[c.sku] = { fob_usd: c.fob_usd, is_estimated: c.is_estimated, notes: c.notes };
+  const costBySku: Record<string, { fob_usd: number; is_estimated: boolean; notes: string | null; pack_size: number | null }> = {};
+  for (const c of costs ?? []) costBySku[c.sku] = { fob_usd: c.fob_usd, is_estimated: c.is_estimated, notes: c.notes, pack_size: c.pack_size ?? 1 };
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-16">
@@ -290,6 +290,17 @@ export default async function AdminPricingPage({
                           defaultValue={c.fob_usd}
                           className="w-24 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                         />
+                        <label className="flex items-center gap-1.5 text-xs text-muted" title="Pieces sold together as one orderable unit — e.g. 5 for a 5-pack. The BOM rounds quantities up to whole packs for any SKU with this set above 1.">
+                          pack of
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            name="pack_size"
+                            defaultValue={c.pack_size ?? 1}
+                            className="w-14 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                          />
+                        </label>
                         <label className="flex items-center gap-1.5 text-xs text-muted">
                           <input type="checkbox" name="is_estimated" defaultChecked={c.is_estimated} />
                           estimated

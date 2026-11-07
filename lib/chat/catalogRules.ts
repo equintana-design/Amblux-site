@@ -81,6 +81,12 @@ export interface CatalogSnapshot {
   // Live per-SKU sellability — the one thing catalog.ts can't know.
   usableSkus: Set<string>;
   productStatusBySku: Map<string, string>;
+  // Live per-SKU pack size (amblux_product_cost.pack_size, admin-editable —
+  // see app/admin/products/[slug]/[sku]/page.tsx and catalog.ts's
+  // packedQty()/SUBDOLLAR_PACK_SKUS comment, 2026-11-06). Only SKUs with a
+  // pack size > 1 are included; computeBom()'s packedQty() treats anything
+  // missing from this map as pack size 1 (or its static fallback).
+  packSizesBySku: Map<string, number>;
 }
 
 let cached: { snapshot: CatalogSnapshot; expiresAt: number } | null = null;
@@ -98,6 +104,13 @@ export async function loadCatalogRules(forceRefresh = false): Promise<CatalogSna
   const productStatusBySku = new Map<string, string>((data ?? []).map((p) => [p.sku, p.status]));
   const usableSkus = new Set<string>([...productStatusBySku.entries()].filter(([, status]) => USABLE_STATUSES.includes(status)).map(([sku]) => sku));
 
+  // Fails open independently of the products query above — a failure here
+  // just means packedQty() falls back to its static default for every SKU
+  // instead of discarding the whole snapshot (same "fail open" shape as
+  // UsableSkusContext.tsx's page-status query).
+  const { data: costRows, error: costError } = await supabase.from("amblux_product_cost").select("sku, pack_size").gt("pack_size", 1);
+  const packSizesBySku = new Map<string, number>(costError || !costRows ? [] : costRows.map((r) => [r.sku as string, r.pack_size as number]));
+
   const snapshot: CatalogSnapshot = {
     loadedAt: Date.now(),
     zones: ZONES,
@@ -114,6 +127,7 @@ export async function loadCatalogRules(forceRefresh = false): Promise<CatalogSna
     undercabinetRemoteControls: UNDERCABINET_REMOTE_CONTROLS,
     usableSkus,
     productStatusBySku,
+    packSizesBySku,
   };
 
   cached = { snapshot, expiresAt: Date.now() + CACHE_TTL_MS };

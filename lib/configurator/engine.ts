@@ -54,6 +54,7 @@ import {
   isLinearOnlyZone,
   linearFamiliesFor,
   normalizedPuckFinish,
+  packedQty,
   puckFaceplateSku,
   puckFixtureSku,
   receiverSkuForPower,
@@ -347,7 +348,8 @@ function pushLinearRows(
   targetLengthM: number,
   repeat: number,
   mounting: "recess" | "surface",
-  opts?: { notes?: string; includeAccessories?: boolean; includeOptionalAccessory?: boolean }
+  opts?: { notes?: string; includeAccessories?: boolean; includeOptionalAccessory?: boolean },
+  packSizes?: ReadonlyMap<string, number> | null
 ) {
   const mountingLabel = mounting === "recess" ? LABELS.recess : LABELS.surface;
   const lines = linearPurchaseLines(family, cct, targetLengthM, repeat);
@@ -389,7 +391,13 @@ function pushLinearRows(
   if (opts?.includeAccessories === false) return;
 
   if (family.powerCordSku) {
-    rows.push({ zone, qty: repeat, sku: family.powerCordSku, description: "Linear solution power cord", notes: opts?.notes });
+    rows.push({
+      zone,
+      qty: packedQty(family.powerCordSku, repeat, packSizes),
+      sku: family.powerCordSku,
+      description: "Linear solution power cord",
+      notes: opts?.notes,
+    });
   }
   // Which families need install hardware — and whether it's called a "clip"
   // or a "bracket" — is a real per-family fact (see installAccessorySku on
@@ -428,7 +436,7 @@ const HARDWARE_KIT_ZONE = "Hardware & Accessories";
  * output, which is what makes it safe to run client-side today and move
  * behind a server boundary later without changing behaviour.
  */
-export function computeBom(state: ConfiguratorState): BomResult {
+export function computeBom(state: ConfiguratorState, packSizes?: ReadonlyMap<string, number> | null): BomResult {
   const { selected, simple, base, wall, floating, pantry, drawers, highCabinet, library, closetHangers, shoeRack, vanity } = state;
   const rows: BomRow[] = [];
   let total = 0;
@@ -490,9 +498,9 @@ export function computeBom(state: ConfiguratorState): BomResult {
             });
             const faceplate = puckFaceplateSku(z.mounting, finish);
             if (faceplate) {
-              rows.push({ zone, qty: placement.puckCount, sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
+              rows.push({ zone, qty: packedQty(faceplate, placement.puckCount, packSizes), sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
             }
-            rows.push({ zone, qty: placement.puckCount, sku: EXTENSION_SKU, description: "2m extension cord" });
+            rows.push({ zone, qty: packedQty(EXTENSION_SKU, placement.puckCount, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
           }
           return { zone, watts };
         }
@@ -503,8 +511,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
         if (length > 0) {
           pushLinearRows(rows, zone, family, z.cct, lengthM, 1, effectiveMounting, {
             includeOptionalAccessory: z.includeInstallBracket,
-          });
-          rows.push({ zone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
+          }, packSizes);
+          rows.push({ zone, qty: packedQty(EXTENSION_SKU, 1, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         }
         return { zone, watts };
       })
@@ -660,8 +668,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
             notes: `${LABELS.placementEachRun}: ${placement.positionsIn.map((p) => p.toFixed(1)).join(", ")} ${zoneState.unit}`,
           });
           const faceplate = puckFaceplateSku(b.mounting, finish);
-          if (faceplate) rows.push({ zone, qty: puckQty, sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
-          rows.push({ zone, qty: fixtures, sku: EXTENSION_SKU, description: "2m extension cord" });
+          if (faceplate) rows.push({ zone, qty: packedQty(faceplate, puckQty, packSizes), sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
+          rows.push({ zone, qty: packedQty(EXTENSION_SKU, fixtures, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         }
       } else {
         const lengthM = toMetres(length, zoneState.unit);
@@ -669,8 +677,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
         pushLinearRows(rows, zone, family, b.cct, lengthM, fixtures, b.mounting, {
           notes: effectiveMode === "vertical" ? "both sides" : undefined,
           includeOptionalAccessory: b.includeInstallBracket,
-        });
-        rows.push({ zone, qty: fixtures, sku: EXTENSION_SKU, description: "2m extension cord" });
+        }, packSizes);
+        rows.push({ zone, qty: packedQty(EXTENSION_SKU, fixtures, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
       }
       total += watts;
       zoneWatts += watts;
@@ -693,16 +701,16 @@ export function computeBom(state: ConfiguratorState): BomResult {
               notes: `${LABELS.placement}: ${placement.positionsIn.map((p) => p.toFixed(1)).join(", ")} ${zoneState.unit}`,
             });
             const faceplate = puckFaceplateSku(b.mounting, finish);
-            if (faceplate) rows.push({ zone: topZone, qty: placement.puckCount, sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
-            rows.push({ zone: topZone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
+            if (faceplate) rows.push({ zone: topZone, qty: packedQty(faceplate, placement.puckCount, packSizes), sku: faceplate, description: `${LABELS.faceplate} · ${finishLabel(finish)}` });
+            rows.push({ zone: topZone, qty: packedQty(EXTENSION_SKU, 1, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
           }
         } else {
           const topLengthM = toMetres(b.length, zoneState.unit);
           topWatts = topLengthM * family.wattsPerMetre;
           pushLinearRows(rows, topZone, family, b.cct, topLengthM, 1, b.mounting, {
             includeOptionalAccessory: b.includeInstallBracket,
-          });
-          rows.push({ zone: topZone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
+          }, packSizes);
+          rows.push({ zone: topZone, qty: packedQty(EXTENSION_SKU, 1, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         }
         total += topWatts;
 
@@ -807,8 +815,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
       // CLB's buildDrawerZone never gives drawers a power-cord or clips
       // accessory (only the fixture row + extension cords + driver) —
       // includeAccessories:false reproduces that exactly.
-      pushLinearRows(rows, zone, family, b.cct, lengthM, b.count, b.mounting, { includeAccessories: false });
-      rows.push({ zone, qty: b.count, sku: EXTENSION_SKU, description: "2m extension cord" });
+      pushLinearRows(rows, zone, family, b.cct, lengthM, b.count, b.mounting, { includeAccessories: false }, packSizes);
+      rows.push({ zone, qty: packedQty(EXTENSION_SKU, b.count, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
     });
     if (drawers.blocks.some((b) => b.included)) {
       const activeDrawers = drawers.blocks.filter((block) => block.included).length;
@@ -848,8 +856,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
         pushLinearRows(rows, zone, family, u.doorsCct, lengthM, sideCount, u.doorsMounting, {
           notes: "both sides",
           includeOptionalAccessory: u.doorsIncludeInstallBracket,
-        });
-        rows.push({ zone, qty: sideCount, sku: EXTENSION_SKU, description: "2m extension cord" });
+        }, packSizes);
+        rows.push({ zone, qty: packedQty(EXTENSION_SKU, sideCount, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
         const availableControls = zoneControls("vanityDoors", u.doorsControlSystem);
         rows.push({
@@ -879,8 +887,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
         const lengthM = toMetres(u.drawersLength, vanity.unit);
         const watts = lengthM * family.wattsPerMetre * u.drawersCount;
         total += watts;
-        pushLinearRows(rows, zone, family, u.drawersCct, lengthM, u.drawersCount, u.drawersMounting, { includeAccessories: false });
-        rows.push({ zone, qty: u.drawersCount, sku: EXTENSION_SKU, description: "2m extension cord" });
+        pushLinearRows(rows, zone, family, u.drawersCct, lengthM, u.drawersCount, u.drawersMounting, { includeAccessories: false }, packSizes);
+        rows.push({ zone, qty: packedQty(EXTENSION_SKU, u.drawersCount, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
       }
 
@@ -898,8 +906,8 @@ export function computeBom(state: ConfiguratorState): BomResult {
         total += watts;
         pushLinearRows(rows, zone, family, u.floatingCct, lengthM, 1, u.floatingMounting, {
           includeOptionalAccessory: u.floatingIncludeInstallBracket,
-        });
-        rows.push({ zone, qty: 1, sku: EXTENSION_SKU, description: "2m extension cord" });
+        }, packSizes);
+        rows.push({ zone, qty: packedQty(EXTENSION_SKU, 1, packSizes), sku: EXTENSION_SKU, description: "2m extension cord" });
         rows.push(...psuRows(zone, watts, LABELS.ultra, "ultra", LABELS.independentDriver));
         const availableControls = zoneControls("vanityFloating", u.floatingControlSystem);
         rows.push({

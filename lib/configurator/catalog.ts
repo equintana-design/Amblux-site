@@ -429,6 +429,63 @@ export const HARDWARE_KIT_PER_BAG = 5;
 export const CLIPS_PER_METRE = 4;
 export const CLIPS_PER_BAG = 10;
 
+// Sub-$1 FOB cost SKUs, repackaged into 5-packs for sale (2026-11-06, direct
+// owner instruction: "For anything that has FOB less than 1$ add a
+// multiplier, and we will sell them in packs of 5" — confirmed scope: every
+// currently-active sub-$1 SKU except the three existing "-BRKT" 10-pack
+// brackets above, which the owner said to leave alone since they're already
+// sold as 10-packs; multiplier confirmed as "just scale cost x5 for the
+// pack" — amblux_product_cost.fob_usd and the vendor unit_price_usd for
+// each of these were multiplied by 5 directly in the database. This Set
+// exists purely so the BOM engine's computed quantities round UP to whole
+// packs instead of raw piece counts; see packedQty() below.
+//
+// Two of the original 13 sub-$1 SKUs are NOT listed here on purpose:
+// AMB-FCRGL-SM1610-N2N-CON, AMB-FCRGL-SM-45DEG-N2N-CBL-15MM, and the five
+// AMB-PK-VTX-FACEPLATE-* SKUs are catalog/admin-only — never referenced by
+// computeBom() — so only their DB cost needed the x5 update, no engine
+// change.
+//
+// NOTE on "future SKUs automatically" (the owner also asked that this
+// apply to any future sub-$1 SKU): this Set + size is only the FALLBACK
+// default, used when no live `pack_size` value is available (DB read
+// hasn't resolved yet, failed, or a SKU has no amblux_product_cost row at
+// all) — see packedQty() below. The owner-editable source of truth is now
+// the `pack_size` column on amblux_product_cost (2026-11-06, "Make it so I
+// can choose the pack multiplier" — editable per SKU on its admin page, see
+// app/admin/products/[slug]/[sku]/page.tsx), fetched live and passed into
+// computeBom() as `packSizes`. Whenever a new SKU is priced under $1 FOB
+// going forward: set its `pack_size` in the admin UI (or directly in the
+// DB) and multiply its cost/vendor price by that same number — no code
+// change needed unless the SKU isn't yet wired into a computeBom() push
+// site at all (see hardwireSensorAdapterSku()-style additions for that).
+export const SUBDOLLAR_PACK_SKUS: ReadonlySet<string> = new Set([
+  EXTENSION_SKU, // AMB-EXT-2M
+  "AMB-PK-RC58-FACEPLATE-BK",
+  "AMB-PK-RC58-FACEPLATE-SN",
+  "AMB-PK-RC58-FACEPLATE-WH",
+  "AMB-FCRGL-RC0608TR-PC-1.5M",
+  "AMB-FCRGL-SM-45DEG-PC-1.5M",
+]);
+export const SUBDOLLAR_PACK_SIZE = 5;
+
+// Rounds a computed per-piece BOM quantity up to whole packs. `packSizes`
+// (live amblux_product_cost.pack_size values, fetched by the caller — see
+// useLivePackSizes()) takes precedence per-SKU when provided; any SKU not
+// in that map falls back to the static SUBDOLLAR_PACK_SKUS/SIZE default
+// above, and every other SKU (pack size 1, the overwhelming majority of
+// the catalog) passes through unchanged.
+export function packedQty(
+  sku: string | null | undefined,
+  rawQty: number,
+  packSizes?: ReadonlyMap<string, number> | null
+): number {
+  if (!sku || rawQty <= 0) return rawQty;
+  const size = packSizes?.has(sku) ? packSizes.get(sku)! : SUBDOLLAR_PACK_SKUS.has(sku) ? SUBDOLLAR_PACK_SIZE : 1;
+  if (!size || size <= 1) return rawQty;
+  return Math.max(1, Math.ceil(rawQty / size));
+}
+
 export interface LinearSolution {
   sku: string;
   label: string;

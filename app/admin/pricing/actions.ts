@@ -91,16 +91,29 @@ export async function deleteScopedParametersAction(formData: FormData) {
   revalidatePath("/admin/pricing");
 }
 
+// Pack size (pieces sold together as one orderable unit — e.g. 5 for the
+// sub-$1 FOB SKUs repackaged into 5-packs, 2026-11-06) defaults to 1 and is
+// floored there; blank/invalid input also falls back to 1 rather than
+// failing the whole save, since this field is secondary to FOB/estimated/
+// notes on this form. See catalog.ts's packedQty()/SUBDOLLAR_PACK_SKUS
+// comment and lib/configurator/useLivePackSizes.ts for how the BOM engine
+// reads this live.
+function packSizeField(formData: FormData): number {
+  const n = Math.floor(numberField(formData, "pack_size"));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 export async function updateProductCostAction(formData: FormData) {
   const supabase = await requireAdmin();
   const sku = String(formData.get("sku") || "");
   const fobUsd = numberField(formData, "fob_usd");
   const isEstimated = formData.get("is_estimated") === "on";
   const notes = String(formData.get("notes") || "").trim() || null;
+  const packSize = packSizeField(formData);
 
   const { error } = await supabase
     .from("amblux_product_cost")
-    .update({ fob_usd: fobUsd, is_estimated: isEstimated, notes, updated_at: new Date().toISOString() })
+    .update({ fob_usd: fobUsd, is_estimated: isEstimated, notes, pack_size: packSize, updated_at: new Date().toISOString() })
     .eq("sku", sku);
   if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
@@ -113,10 +126,11 @@ export async function addProductCostAction(formData: FormData) {
   if (!sku || Number.isNaN(fobUsd)) {
     redirect(`/admin/pricing?param_error=${encodeURIComponent("SKU and a valid FOB cost are required")}`);
   }
+  const packSize = packSizeField(formData);
 
   const { error } = await supabase
     .from("amblux_product_cost")
-    .upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null });
+    .upsert({ sku, fob_usd: fobUsd, is_estimated: false, notes: null, pack_size: packSize });
   if (error) redirect(`/admin/pricing?param_error=${encodeURIComponent(error.message)}`);
   revalidatePath("/admin/pricing");
 }

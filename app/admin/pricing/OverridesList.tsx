@@ -14,7 +14,7 @@ import { FobEditForm } from "./FobEditForm";
 import { ParamFieldset } from "./ParamFieldset";
 import { SkuMarginFieldset } from "./SkuMarginFieldset";
 
-type Cost = { fob_usd: number; is_estimated: boolean; notes: string | null };
+type Cost = { fob_usd: number; is_estimated: boolean; notes: string | null; pack_size?: number | null };
 type Override = {
   id: string;
   scope: string;

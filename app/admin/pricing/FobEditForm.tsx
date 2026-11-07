@@ -1,4 +1,4 @@
-type Cost = { fob_usd: number; is_estimated: boolean; notes: string | null };
+type Cost = { fob_usd: number; is_estimated: boolean; notes: string | null; pack_size?: number | null };
 
 // Lets an admin edit (or, for a SKU that has no cost row yet, add) the
 // FOB (USD) cost right inside the Category & SKU overrides section,
@@ -39,6 +39,18 @@ export function FobEditForm({
           defaultValue={cost?.fob_usd ?? ""}
           required
           className="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Pack size
+        <input
+          type="number"
+          step="1"
+          min="1"
+          name="pack_size"
+          defaultValue={cost?.pack_size ?? 1}
+          title="Pieces sold together as one orderable unit — e.g. 5 for a 5-pack. The BOM rounds computed quantities up to whole packs for any SKU with this set above 1."
+          className="w-20 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </label>
       {cost ? (

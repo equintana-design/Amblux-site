@@ -1,10 +1,11 @@
 // Generated via mcp__Supabase__generate_typescript_types against the
 // amblux-production project (ref: vymtfqgvxhjbhkrgvgol), after applying
-// supabase/migrations/0001 through 0038 (purchase_orders — adds
-// amblux_purchase_orders, the saved vendor order generated automatically
-// from a distributor quote; see that migration's own header, and
-// lib/configurator/purchaseOrders.ts, for how it differs from the
-// nothing-saved /admin/orders generator added by migration 0036).
+// supabase/migrations/0001 through 0039 (add_pack_size_to_product_cost —
+// adds amblux_product_cost.pack_size, admin-editable on /admin/pricing,
+// read live by the BOM engine's packedQty() to round sub-$1 SKUs sold in
+// packs up to whole packs; see lib/configurator/catalog.ts's
+// SUBDOLLAR_PACK_SKUS/packedQty() comment and
+// lib/configurator/useLivePackSizes.ts).
 //
 // Regenerate the same way after any future migration: call
 // mcp__Supabase__generate_typescript_types and replace everything below
@@ -186,6 +187,7 @@ export type Database = {
           fob_usd: number
           is_estimated: boolean
           notes: string | null
+          pack_size: number
           sku: string
           updated_at: string
         }
@@ -193,6 +195,7 @@ export type Database = {
           fob_usd: number
           is_estimated?: boolean
           notes?: string | null
+          pack_size?: number
           sku: string
           updated_at?: string
         }
@@ -200,6 +203,7 @@ export type Database = {
           fob_usd?: number
           is_estimated?: boolean
           notes?: string | null
+          pack_size?: number
           sku?: string
           updated_at?: string
         }
@@ -532,6 +536,54 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      amblux_vendor_sku_price_history: {
+        Row: {
+          changed_at: string
+          id: string
+          new_price_usd: number
+          notes: string | null
+          old_price_usd: number | null
+          sku: string
+          vendor_id: string
+          vendor_sku: string
+        }
+        Insert: {
+          changed_at?: string
+          id?: string
+          new_price_usd: number
+          notes?: string | null
+          old_price_usd?: number | null
+          sku: string
+          vendor_id: string
+          vendor_sku: string
+        }
+        Update: {
+          changed_at?: string
+          id?: string
+          new_price_usd?: number
+          notes?: string | null
+          old_price_usd?: number | null
+          sku?: string
+          vendor_id?: string
+          vendor_sku?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amblux_vendor_sku_price_history_sku_fkey"
+            columns: ["sku"]
+            isOneToOne: false
+            referencedRelation: "amblux_products"
+            referencedColumns: ["sku"]
+          },
+          {
+            foreignKeyName: "amblux_vendor_sku_price_history_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "amblux_vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       amblux_vendor_skus: {
         Row: {

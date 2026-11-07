@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useSupabaseUser } from "@/lib/supabase/useSupabaseUser";
 import { saveQuote } from "@/lib/configurator/quotes";
 import { computeBom, consolidatePartsByZone, type ZonePartsGroup } from "@/lib/configurator/engine";
+import { useLivePackSizes } from "@/lib/configurator/useLivePackSizes";
 import { mergeConfiguratorState, type ConfiguratorState } from "@/lib/configurator/types";
 import { useTranslations, type TFunction } from "@/app/providers/LocaleProvider";
 
@@ -187,11 +188,11 @@ function downloadBom(groups: ZonePartsGroup[], projectName: string) {
 // functions the graphical configurator uses, never a second implementation.
 type DesignSnapshot = ReturnType<typeof computeDesignSnapshot>;
 
-function computeDesignSnapshot(projectState: Record<string, unknown>) {
+function computeDesignSnapshot(projectState: Record<string, unknown>, packSizes?: ReadonlyMap<string, number> | null) {
   if (!projectState || Object.keys(projectState).length === 0) return null;
   try {
     const fullState = mergeConfiguratorState(projectState as Partial<ConfiguratorState>);
-    const bom = computeBom(fullState);
+    const bom = computeBom(fullState, packSizes);
     if (bom.rows.length === 0) return null;
     return { fullState, bom, projectName: fullState.project.name, groups: consolidatePartsByZone(bom), totalWatts: bom.total };
   } catch {
@@ -370,7 +371,8 @@ export function ChatWidget() {
     if (confirmResetTimeout.current) clearTimeout(confirmResetTimeout.current);
   }, []);
 
-  const design = useMemo(() => computeDesignSnapshot(projectState), [projectState]);
+  const packSizes = useLivePackSizes();
+  const design = useMemo(() => computeDesignSnapshot(projectState, packSizes), [projectState, packSizes]);
   const phase = computePhase(messages.length, projectState, design);
 
   if (!enabled) return null;
