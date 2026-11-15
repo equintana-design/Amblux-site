@@ -13,6 +13,35 @@ import { ProductStory } from "./ProductStory";
 import { Specifications } from "./Specifications";
 import { VariantProvider } from "./VariantState";
 
+// "Vendor reference" (and similar internal-sourcing notes, e.g. a vendor's
+// own part number) is admin-only. amblux_products.spec has no column-level
+// RLS of its own — the whole row, this field included, is otherwise public
+// — so the gate has to happen here, server-side, before any variant is
+// handed to the client Specifications.tsx component (which just renders
+// whatever spec rows it's given, same as every other field; see its own
+// comment for why it can't be trusted to filter itself). Matches this
+// codebase's existing "real gate is server-side" convention (see
+// useChatAccess.ts's header comment) rather than only hiding the row with
+// client-side CSS/JS, which a visitor could still read in the page's props.
+const ADMIN_ONLY_SPEC_LABELS = ["vendor reference"];
+
+async function currentUserIsAdmin(supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supabase.from("amblux_profiles").select("role, approved").eq("id", user.id).single();
+  return !!profile && profile.role === "admin" && profile.approved === true;
+}
+
+function stripAdminOnlySpecFields<T extends { spec: unknown }>(variant: T): T {
+  if (!Array.isArray(variant.spec)) return variant;
+  const filtered = (variant.spec as { label?: string; value?: string }[]).filter(
+    (row) => !ADMIN_ONLY_SPEC_LABELS.includes(String(row?.label ?? "").trim().toLowerCase()),
+  );
+  return { ...variant, spec: filtered };
+}
+
 async function getPageData(slug: string) {
   const supabase = await createClient();
 
@@ -22,7 +51,10 @@ async function getPageData(slug: string) {
   const { data: variants } = await supabase.from("amblux_products").select("*").eq("page_slug", slug).order("sku");
   if (!variants || variants.length === 0) return null;
 
-  return { page, variants };
+  const isAdmin = await currentUserIsAdmin(supabase);
+  const visibleVariants = isAdmin ? variants : variants.map(stripAdminOnlySpecFields);
+
+  return { page, variants: visibleVariants };
 }
 
 // Lets "Required accessories" text (e.g. "AMB-FCRGL-RC1015TR-PC-1.5M —
