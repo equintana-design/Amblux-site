@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { updateProductPageAction } from "../actions";
+import { FileUploadField } from "../FileUploadField";
 
 type RequiredAccessory = {
   title: string;
@@ -117,42 +117,33 @@ export default async function AdminProductPageEdit({
           />
         </label>
 
-        <div className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-muted">Hero image</span>
-          {page.hero_image_url ? (
-            <div className="relative h-32 w-32 overflow-hidden rounded-xl border border-border bg-background">
-              <Image src={page.hero_image_url} alt="" fill className="object-contain p-2" sizes="128px" />
-            </div>
-          ) : null}
-          <input
-            name="imageUrl"
-            defaultValue={page.hero_image_url ?? ""}
-            placeholder="Image URL (paste a Drive link, or upload a file below)"
-            className="rounded-lg border border-border bg-surface px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <input type="file" name="imageFile" accept="image/*" className="text-xs text-muted" />
-          <p className="text-xs text-muted">Uploading a file replaces whatever is in the URL field above.</p>
-        </div>
+        <FileUploadField
+          bucket="product-images"
+          pathPrefix={`pages/${page.slug}/hero`}
+          name="imageUrl"
+          defaultValue={page.hero_image_url ?? ""}
+          accept="image/*"
+          showImagePreview
+          label="Hero image"
+          placeholder="Image URL (paste a Drive link, or upload a file below)"
+        />
+        <p className="-mt-3 text-xs text-muted">Uploading a file replaces whatever is in the URL field above.</p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           {[2, 3].map((n) => {
             const url = n === 2 ? galleryImages[0] : galleryImages[1];
             return (
-              <div key={n} className="flex flex-col gap-2 text-sm">
-                <span className="font-medium text-muted">Additional image {n} (optional)</span>
-                {url ? (
-                  <div className="relative h-24 w-24 overflow-hidden rounded-xl border border-border bg-background">
-                    <Image src={url} alt="" fill className="object-contain p-2" sizes="96px" />
-                  </div>
-                ) : null}
-                <input
-                  name={`imageUrl${n}`}
-                  defaultValue={url ?? ""}
-                  placeholder="Image URL"
-                  className="rounded-lg border border-border bg-surface px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-                <input type="file" name={`imageFile${n}`} accept="image/*" className="text-xs text-muted" />
-              </div>
+              <FileUploadField
+                key={n}
+                bucket="product-images"
+                pathPrefix={`pages/${page.slug}/gallery${n}`}
+                name={`imageUrl${n}`}
+                defaultValue={url ?? ""}
+                accept="image/*"
+                showImagePreview
+                label={`Additional image ${n} (optional)`}
+                placeholder="Image URL"
+              />
             );
           })}
         </div>
@@ -218,20 +209,21 @@ export default async function AdminProductPageEdit({
           <span className="text-sm font-medium text-muted">Documents (PDFs, up to 5 — spec sheets, install guides, certifications)</span>
           <div className="flex flex-col gap-3">
             {documentRows.map((doc, i) => (
-              <div key={i} className="grid grid-cols-1 gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1fr_2fr_auto]">
+              <div key={i} className="grid grid-cols-1 gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1fr_2fr]">
                 <input
                   name={`docLabel${i}`}
                   defaultValue={doc.label}
                   placeholder="Label (e.g. Spec sheet)"
-                  className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="h-fit rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
-                <input
+                <FileUploadField
+                  bucket="product-documents"
+                  pathPrefix={`pages/${page.slug}/doc${i}`}
                   name={`docUrl${i}`}
                   defaultValue={doc.url}
-                  placeholder="PDF URL (or upload a file →)"
-                  className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  accept="application/pdf"
+                  placeholder="PDF URL (or upload a file below)"
                 />
-                <input type="file" name={`docFile${i}`} accept="application/pdf" className="self-center text-xs text-muted" />
               </div>
             ))}
           </div>

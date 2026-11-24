@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { FileUploadField } from "./FileUploadField";
 
 type Axis = { key: string; label: string };
 type ProductPage = { slug: string; name: string; category: string; variant_axes: Axis[]; skuCount: number };
@@ -40,6 +41,11 @@ export function AddSkuForm({ action, pages, productCategories, pageCategories, s
   const [newPageName, setNewPageName] = useState("");
   const [newPageSlug, setNewPageSlug] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  // Tracked so the photo field (below) can upload straight into
+  // products/<sku>-... in Supabase Storage, same path convention the old
+  // server-side upload used — this is the only reason the SKU field became
+  // controlled, nothing about its own validation/behavior changed.
+  const [skuValue, setSkuValue] = useState("");
 
   function slugify(value: string): string {
     return value
@@ -225,7 +231,14 @@ export function AddSkuForm({ action, pages, productCategories, pageCategories, s
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-muted">SKU code</span>
-          <input name="sku" required placeholder="e.g. AMB-DRV-24V-96W" className={`${inputClass} font-mono`} />
+          <input
+            name="sku"
+            required
+            placeholder="e.g. AMB-DRV-24V-96W"
+            value={skuValue}
+            onChange={(e) => setSkuValue(e.target.value)}
+            className={`${inputClass} font-mono`}
+          />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-muted">Label (shown to customers)</span>
@@ -274,11 +287,15 @@ export function AddSkuForm({ action, pages, productCategories, pageCategories, s
         <textarea name="shortDescription" rows={2} className={inputClass} />
       </label>
 
-      <div className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-muted">Photo (optional — can add later)</span>
-        <input name="imageUrl" placeholder="Image URL (paste a Drive link, or upload a file below)" className={inputClass} />
-        <input type="file" name="imageFile" accept="image/*" className="text-xs text-muted" />
-      </div>
+      <FileUploadField
+        bucket="product-images"
+        pathPrefix={`products/${skuValue.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "") || "new"}`}
+        name="imageUrl"
+        accept="image/*"
+        showImagePreview
+        label="Photo (optional — can add later)"
+        placeholder="Image URL (paste a Drive link, or upload a file below)"
+      />
 
       <button
         type="submit"

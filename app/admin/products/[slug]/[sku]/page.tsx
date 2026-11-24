@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { updateProductVariantAction } from "../../actions";
+import { FileUploadField } from "../../FileUploadField";
 
 const SPEC_ROW_COUNT = 16;
 
@@ -90,22 +90,17 @@ export default async function AdminProductVariantEdit({
           />
         </label>
 
-        <div className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-muted">Product image</span>
-          {product.image_url ? (
-            <div className="relative h-32 w-32 overflow-hidden rounded-xl border border-border bg-background">
-              <Image src={product.image_url} alt="" fill className="object-contain p-2" sizes="128px" />
-            </div>
-          ) : null}
-          <input
-            name="imageUrl"
-            defaultValue={product.image_url ?? ""}
-            placeholder="Image URL (paste a Drive link, or upload a file below)"
-            className="rounded-lg border border-border bg-surface px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <input type="file" name="imageFile" accept="image/*" className="text-xs text-muted" />
-          <p className="text-xs text-muted">Uploading a file replaces whatever is in the URL field above.</p>
-        </div>
+        <FileUploadField
+          bucket="product-images"
+          pathPrefix={`products/${product.sku}`}
+          name="imageUrl"
+          defaultValue={product.image_url ?? ""}
+          accept="image/*"
+          showImagePreview
+          label="Product image"
+          placeholder="Image URL (paste a Drive link, or upload a file below)"
+        />
+        <p className="-mt-3 text-xs text-muted">Uploading a file replaces whatever is in the URL field above.</p>
 
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium text-muted">Spec table rows (leave label blank to remove a row)</span>
